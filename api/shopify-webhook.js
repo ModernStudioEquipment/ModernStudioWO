@@ -1,0 +1,109 @@
+// Shopify "Order creation" webhook receiver.
+// Shopify POSTs the new order here; we verify its HMAC signature, then insert
+// the order via the create_order SQL function. Supabase realtime pushes it
+// onto every open board — no front-end work needed.
+//
+// Required environment variables (Vercel project settings):
+//   VITE_SUPABASE_URL          — already set (shared with the front end)
+//   SUPABASE_SECRET_KEY        — Supabase secret/service key (server-only!)
+//   SHOPIFY_WEBHOOK_SECRET     — signing secret shown when the webhook is created
+
+import crypto from "node:crypto";
+
+export async function POST(request) {
+  const url = process.env.VITE_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SECRET_KEY;
+  const webhookSecret = process.env.SHOPIFY_WEBHOOK_SECRET;
+
+  if (!url || !serviceKey || !webhookSecret) {
+    return json(500, { error: "Server not configured: missing env vars" });
+  }
+
+  // --- 1. Verify the request is really from Shopify (HMAC over the raw body) ---
+  const raw = await request.text();
+  const theirHmac = request.headers.get("x-shopify-hmac-sha256") || "";
+  const ourHmac = crypto.createHmac("sha256", webhookSecret).update(raw, "utf8").digest("base64");
+  const a = Buffer.from(ourHmac);
+  const b = Buffer.from(theirHmac);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+    return json(401, { error: "Invalid signature" });
+  }
+
+  let order;
+  try {
+    order = JSON.parse(raw);
+  } catch {
+    return json(400, { error: "Invalid JSON" });
+  }
+
+  // --- 2. Map the Shopify order to our schema ---
+  const orderNo = String(order.order_number ?? order.number ?? order.id ?? "");
+  if (!orderNo) return json(400, { error: "No order number" });
+
+  const cust = order.customer || {};
+  const addr = order.shipping_address || order.billing_address || {};
+  const personName = [cust.first_name, cust.last_name].filter(Boolean).join(" ").trim();
+  const customer = addr.company || personName || "Shopify customer";
+  const contact = personName || order.email || "—";
+
+  const items = (order.line_items || []).map((li, i) => ({
+    name: li.variant_title ? `${li.title} — ${li.variant_title}` : li.title,
+    qty: li.quantity || 1,
+    dept: "Machine", // default; the office re-routes per item at triage
+    color: null,
+    position: i,
+  }));
+  if (!items.length) return json(200, { ok: true, skipped: "no line items" });
+
+  const sb = {
+    apikey: serviceKey,
+    Authorization: `Bearer ${serviceKey}`,
+    "Content-Type": "application/json",
+  };
+
+  // --- 3. Dedupe: Shopify retries webhooks, so skip if we already have it ---
+  const dupRes = await fetch(
+    `${url}/rest/v1/orders?select=id&source=eq.Shopify&order_no=eq.${encodeURIComponent(orderNo)}&limit=1`,
+    { headers: sb }
+  );
+  const dups = await dupRes.json();
+  if (Array.isArray(dups) && dups.length) {
+    return json(200, { ok: true, skipped: "duplicate" });
+  }
+
+  // --- 4. Insert atomically via the existing SQL function ---
+  const ins = await fetch(`${url}/rest/v1/rpc/create_order`, {
+    method: "POST",
+    headers: sb,
+    body: JSON.stringify({
+      p_order: {
+        order_no: orderNo,
+        customer,
+        contact,
+        priority: "Normal",
+        source: "Shopify",
+        will_call: false,
+      },
+      p_items: items,
+    }),
+  });
+
+  if (!ins.ok) {
+    const detail = await ins.text();
+    return json(502, { error: "Database insert failed", detail: detail.slice(0, 300) });
+  }
+
+  return json(200, { ok: true, order_no: orderNo, items: items.length });
+}
+
+// Shopify expects a fast 200; everything else (GET probes etc.) gets a hint.
+export async function GET() {
+  return json(405, { error: "POST only — this is the Shopify webhook endpoint" });
+}
+
+function json(status, body) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
