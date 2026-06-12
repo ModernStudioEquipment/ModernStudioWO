@@ -15,8 +15,13 @@ export async function POST(request) {
   const serviceKey = process.env.SUPABASE_SECRET_KEY;
   const webhookSecret = process.env.SHOPIFY_WEBHOOK_SECRET;
 
-  if (!url || !serviceKey || !webhookSecret) {
-    return json(500, { error: "Server not configured: missing env vars" });
+  const missing = [
+    !url && "VITE_SUPABASE_URL",
+    !serviceKey && "SUPABASE_SECRET_KEY",
+    !webhookSecret && "SHOPIFY_WEBHOOK_SECRET",
+  ].filter(Boolean);
+  if (missing.length) {
+    return json(500, { error: "Server not configured", missing });
   }
 
   // --- 1. Verify the request is really from Shopify (HMAC over the raw body) ---
