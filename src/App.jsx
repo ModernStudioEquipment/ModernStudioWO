@@ -208,7 +208,7 @@ export default function App() {
         </div>
       )}
 
-      <div className="p-5" style={{ maxWidth: 1040, margin: "0 auto" }}>
+      <div className="p-5" style={{ maxWidth: tab === "dash" ? 1440 : 1040, margin: "0 auto" }}>
         {board.loading && !orders.length ? (
           <Empty>Loading the board…</Empty>
         ) : (
