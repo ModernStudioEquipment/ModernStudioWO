@@ -13,6 +13,7 @@ import {
 } from "./components/ui.jsx";
 import { Auth } from "./components/Auth.jsx";
 import { Logo } from "./components/Logo.jsx";
+import { Dashboard } from "./components/Dashboard.jsx";
 import { MaterialModal } from "./components/modals/MaterialModal.jsx";
 import { OrderDetail } from "./components/modals/OrderDetail.jsx";
 import { PickPhoto } from "./components/modals/PickPhoto.jsx";
@@ -30,7 +31,7 @@ export default function App() {
   const wo = useWorkOrders(authed);
   const { orders } = board;
 
-  const [tab, setTab] = useState("new");
+  const [tab, setTab] = useState("dash");
   const [now, setNow] = useState(Date.now());
   const [matTarget, setMatTarget] = useState(null); // itemId awaiting material entry
   const [doc, setDoc] = useState(null); // { o, it } for printable work order
@@ -151,6 +152,7 @@ export default function App() {
   };
 
   const TABS = [
+    { k: "dash", label: "Dashboard" },
     { k: "new", label: "New Orders", dot: newOrders.length },
     { k: "pick", label: "Pick List", n: count(pickOrders, (it) => it.stage === "picklist") },
     { k: "work", label: "Work Order", n: count(workOrders, (it) => it.stage === "workorder") },
@@ -211,6 +213,16 @@ export default function App() {
           <Empty>Loading the board…</Empty>
         ) : (
           <>
+            {tab === "dash" && (
+              <Dashboard
+                orders={orders}
+                workOrders={wo.workOrders}
+                now={now}
+                onNavigate={setTab}
+                onOpenOrder={setDetailId}
+              />
+            )}
+
             {tab === "new" && (
               <Tabwrap
                 title="New orders — triage every item"
