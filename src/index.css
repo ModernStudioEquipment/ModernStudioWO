@@ -1,0 +1,78 @@
+@import "tailwindcss";
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+}
+
+/* Inline-editable fields on the work-order sheets. Look like the printed text;
+   a faint underline shows they're editable, highlighted on focus. */
+.wo-edit {
+  font: inherit;
+  border: none;
+  border-bottom: 1px dashed #c9c7c2;
+  background: transparent;
+  outline: none;
+  padding: 1px 3px;
+  color: #171717;
+  border-radius: 2px;
+}
+.wo-edit:focus {
+  background: #faefd9;
+  border-bottom-color: #b26a00;
+}
+.wo-edit::placeholder {
+  color: #b6b4af;
+}
+
+/* "Completed by" signature line — editable, but keeps its solid underline when
+   printed (so there's a line whether or not a name was typed). */
+.wo-sign {
+  font: inherit;
+  border: none;
+  border-bottom: 1px solid #171717;
+  background: transparent;
+  outline: none;
+  padding: 1px 4px;
+  color: #171717;
+}
+.wo-sign:focus {
+  background: #faefd9;
+}
+
+/* Print: show only the work-order document, and make editable fields print
+   clean (no underline/background, hide on-screen-only controls). */
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+  #wo,
+  #wo * {
+    visibility: visible !important;
+  }
+  #wo {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .wo-edit {
+    border-bottom: none !important;
+    background: transparent !important;
+  }
+}
+
+@keyframes flashRow {
+  0%,
+  100% {
+    background: #fff;
+  }
+  40% {
+    background: #faefd9;
+  }
+}
