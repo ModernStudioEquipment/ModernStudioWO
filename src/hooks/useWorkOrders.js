@@ -34,6 +34,7 @@ export function useWorkOrders(enabled) {
   return {
     workOrders,
     error,
+    nextWorkOrderNo: () => db.nextWorkOrderNo(),
     createWorkOrder: async (payload) => {
       const id = await db.createWorkOrder(payload);
       await refetch();

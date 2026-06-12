@@ -45,6 +45,7 @@ function mapOrder(row) {
     priority: row.priority,
     source: row.source,
     willCall: row.will_call,
+    dueDate: row.due_date || null,
     fulfillment: row.fulfillment, // null | 'willcall' | 'shipping'
     location: row.fulfillment_location,
     trackingNumber: row.tracking_number,
@@ -78,20 +79,28 @@ export const supabaseAdapter = {
   },
 
   // Next order number — shared across orders AND custom work orders.
+  // Regular orders: their own sequence from 1001 (work-order numbers >= 100000
+  // are excluded so the two sequences never collide).
   async nextOrderNo() {
-    const [o, w] = await Promise.all([
-      supabase.from("orders").select("order_no"),
-      supabase.from("work_orders").select("order_no"),
-    ]);
+    const o = await supabase.from("orders").select("order_no");
     fail(o.error);
-    fail(w.error);
-    const nums = [...(o.data || []), ...(w.data || [])]
+    const nums = (o.data || [])
       .map((r) => parseInt(r.order_no, 10))
-      .filter((n) => !Number.isNaN(n));
+      .filter((n) => !Number.isNaN(n) && n < 100000);
     return String(nums.length ? Math.max(...nums) + 1 : 1001);
   },
 
-  async createOrder({ orderNo, customer, contact, priority, source, willCall, items }) {
+  // Work orders: their own sequence starting at WO 100000.
+  async nextWorkOrderNo() {
+    const w = await supabase.from("work_orders").select("order_no");
+    fail(w.error);
+    const nums = (w.data || [])
+      .map((r) => parseInt(r.order_no, 10))
+      .filter((n) => !Number.isNaN(n) && n >= 100000);
+    return String(nums.length ? Math.max(...nums) + 1 : 100000);
+  },
+
+  async createOrder({ orderNo, customer, contact, priority, source, willCall, dueDate, items }) {
     const { error } = await supabase.rpc("create_order", {
       p_order: {
         order_no: orderNo,
@@ -100,6 +109,7 @@ export const supabaseAdapter = {
         priority: priority || "Normal",
         source: source || "phone",
         will_call: Boolean(willCall),
+        due_date: dueDate || null,
       },
       p_items: items.map((it, i) => ({
         name: it.name,
@@ -194,7 +204,7 @@ export const supabaseAdapter = {
   },
 
   async createWorkOrder({ type, title, fields, orderNo }) {
-    const order_no = orderNo || (await supabaseAdapter.nextOrderNo());
+    const order_no = orderNo || (await supabaseAdapter.nextWorkOrderNo());
     const { data, error } = await supabase
       .from("work_orders")
       .insert({ order_no, type, title: title || "", fields: fields || {} })

@@ -49,10 +49,24 @@ function writeWO(list) {
   channel?.postMessage("changed");
 }
 
-// Highest numeric orderNo across the given records, + 1 (starts at 1001).
+// Highest numeric orderNo across the given records, + 1 (regular orders start
+// at 1001). Work-order numbers (>= 100000) are excluded so the two sequences
+// stay independent.
 function nextNoFrom(records) {
-  const nums = records.map((o) => parseInt(o.orderNo, 10)).filter((n) => !Number.isNaN(n));
+  const nums = records
+    .map((o) => parseInt(o.orderNo, 10))
+    .filter((n) => !Number.isNaN(n) && n < WO_BASE);
   return nums.length ? Math.max(...nums) + 1 : 1001;
+}
+
+// Work orders get their own sequence starting at WO 100000, so the number alone
+// tells you it's a work order (not a Shopify/phone order).
+const WO_BASE = 100000;
+function nextWoNoFrom(records) {
+  const nums = records
+    .map((o) => parseInt(o.orderNo, 10))
+    .filter((n) => !Number.isNaN(n) && n >= WO_BASE);
+  return nums.length ? Math.max(...nums) + 1 : WO_BASE;
 }
 
 // Apply fn to a single item (found by id) inside the stored orders, persist.
@@ -98,10 +112,14 @@ export const localAdapter = {
   // Next order number — shared across orders AND custom work orders, so every
   // ticket in the shop has a unique sequential number.
   async nextOrderNo() {
-    return String(nextNoFrom([...read(), ...readWO()]));
+    return String(nextNoFrom(read()));
   },
 
-  async createOrder({ orderNo, customer, contact, priority, source, willCall, items }) {
+  async nextWorkOrderNo() {
+    return String(nextWoNoFrom(readWO()));
+  },
+
+  async createOrder({ orderNo, customer, contact, priority, source, willCall, dueDate, items }) {
     const orders = read();
     orders.push({
       id: uid(),
@@ -112,6 +130,7 @@ export const localAdapter = {
       priority: priority || "Normal",
       source: source || "phone",
       willCall: Boolean(willCall),
+      dueDate: dueDate || null,
       fulfillment: null,
       location: null,
       trackingNumber: null,
@@ -217,7 +236,7 @@ export const localAdapter = {
     // Backfill order numbers for any legacy records that predate numbering.
     const missing = list.filter((w) => !w.orderNo);
     if (missing.length) {
-      let n = nextNoFrom([...read(), ...list]);
+      let n = nextWoNoFrom(list);
       missing.sort((a, b) => a.createdAt - b.createdAt).forEach((w) => { w.orderNo = String(n++); });
       writeWO(list);
     }
@@ -227,7 +246,7 @@ export const localAdapter = {
   async createWorkOrder({ type, title, fields, orderNo }) {
     const list = readWO();
     const id = uid();
-    const no = orderNo || String(nextNoFrom([...read(), ...list]));
+    const no = orderNo || String(nextWoNoFrom(list));
     list.unshift({ id, orderNo: no, type, title: title || "", fields: fields || {}, done: false, createdAt: Date.now() });
     writeWO(list);
     return id;

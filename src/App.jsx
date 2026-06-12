@@ -3,7 +3,7 @@ import {
   Clock, Printer, Plus, Truck, CheckCircle2, AlertTriangle, Hammer,
   Flag, Check, ArrowRight, ShoppingCart, LogOut, Store, MapPin, Package,
 } from "lucide-react";
-import { C, PRI, PRI_CYCLE, elapsed, blocked, pct } from "./theme.js";
+import { C, PRI, PRI_CYCLE, elapsed, blocked, pct, dueLabel } from "./theme.js";
 import { backendMode } from "./lib/db.js";
 import { useAuth } from "./hooks/useAuth.js";
 import { useOrders } from "./hooks/useOrders.js";
@@ -14,6 +14,7 @@ import {
 import { Auth } from "./components/Auth.jsx";
 import { Logo } from "./components/Logo.jsx";
 import { Dashboard } from "./components/Dashboard.jsx";
+import { GlobalSearch } from "./components/GlobalSearch.jsx";
 import { MaterialModal } from "./components/modals/MaterialModal.jsx";
 import { OrderDetail } from "./components/modals/OrderDetail.jsx";
 import { PickPhoto } from "./components/modals/PickPhoto.jsx";
@@ -37,17 +38,35 @@ export default function App() {
   const [doc, setDoc] = useState(null); // { o, it } for printable work order
   const [flashItem, setFlashItem] = useState(null);
   const [detailId, setDetailId] = useState(null);
+  const [flashOrderId, setFlashOrderId] = useState(null); // order to scroll to + flash after a search jump
   const [pickItem, setPickItem] = useState(null); // { o, it }
   const [orderView, setOrderView] = useState("all");
   const [showNew, setShowNew] = useState(false);
   const [fulfillTarget, setFulfillTarget] = useState(null); // { order, method }
   const [trackTarget, setTrackTarget] = useState(null); // order being marked shipped
   const [customDoc, setCustomDoc] = useState(null); // work order sheet open for edit ({type} = new, or a saved WO)
+  const [workCombined, setWorkCombined] = useState(false); // Work Order tab: combine like items across orders
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 30000);
     return () => clearInterval(t);
   }, []);
+
+  // After a search jump, scroll the order's card into view and flash it —
+  // works in whatever tab the card lives in (id set on every order element).
+  useEffect(() => {
+    if (!flashOrderId) return;
+    const t1 = setTimeout(() => {
+      const el = document.getElementById(`order-${flashOrderId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.classList.add("flash-order");
+        setTimeout(() => el.classList.remove("flash-order"), 1700);
+      }
+    }, 60);
+    const t2 = setTimeout(() => setFlashOrderId(null), 1900);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [flashOrderId]);
 
   // ---- gating: auth must resolve before we show anything ----
   if (auth.needsAuth && !auth.ready) {
@@ -56,6 +75,17 @@ export default function App() {
   if (auth.needsAuth && !auth.user) {
     return <Auth auth={auth} />;
   }
+
+  // Search result clicked: take you to that order in the tab you're already in
+  // (scroll + flash). If it's not on a list tab (e.g. the Dashboard), fall back
+  // to the Orders tab, which lists everything.
+  const goToOrder = (id) => {
+    if (!document.getElementById(`order-${id}`)) {
+      setTab("orders");
+      setOrderView("all");
+    }
+    setFlashOrderId(id);
+  };
 
   // ---- triage / workflow handlers ----
   const triage = (itemId, decision) => {
@@ -132,13 +162,34 @@ export default function App() {
     { k: "prog", label: "In progress", n: orders.filter(oProg).length },
     { k: "done", label: "Completed", n: orders.filter(awaitingFulfill).length },
     { k: "pct", label: "% done", n: null },
+    { k: "due", label: "Due date", n: null },
   ];
+  // Soonest due date first; orders without a due date fall to the bottom.
+  const byDue = (a, b) => {
+    if (!a.dueDate && !b.dueDate) return b.receivedAt - a.receivedAt;
+    if (!a.dueDate) return 1;
+    if (!b.dueDate) return -1;
+    return a.dueDate < b.dueDate ? -1 : a.dueDate > b.dueDate ? 1 : 0;
+  };
   const visibleOrders =
     orderView === "triage" ? orders.filter(oInTriage)
     : orderView === "prog" ? orders.filter(oProg)
     : orderView === "done" ? orders.filter(awaitingFulfill)
     : orderView === "pct" ? [...orders].sort((a, b) => pct(b) - pct(a))
+    : orderView === "due" ? [...orders].sort(byDue)
     : [...orders].sort((a, b) => b.receivedAt - a.receivedAt);
+
+  // Search is scoped to whatever tab you're in — it only finds orders shown in
+  // that tab. (Orders tab and Dashboard search across everything.)
+  const searchScope =
+    tab === "new" ? newOrders
+    : tab === "pick" ? pickOrders
+    : tab === "work" ? workOrders
+    : tab === "buy" ? buyOrders
+    : tab === "willcall" ? willCallOrders
+    : tab === "shipping" ? shippingOrders
+    : tab === "shipped" ? shippedOrders
+    : orders;
 
   const orderStatus = (o) => {
     if (o.fulfillment === "shipping")
@@ -165,12 +216,18 @@ export default function App() {
 
   return (
     <div style={{ background: C.concrete, minHeight: "100vh", fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif", color: C.ink }}>
-      {/* ---- top bar ---- */}
-      <div className="flex items-center gap-4 px-5 py-3" style={{ background: C.ink, color: "#fff" }}>
-        <div className="shrink-0">
+      {/* ---- top bar (pinned so tabs + search stay visible while scrolling).
+           On phones it wraps: logo + search on top, full-width scrollable tabs below. ---- */}
+      <div className="flex items-center gap-x-4 gap-y-2 px-5 py-3 flex-wrap md:flex-nowrap" style={{ background: C.ink, color: "#fff", position: "sticky", top: 0, zIndex: 50 }}>
+        <button
+          onClick={() => setTab("dash")}
+          className="shrink-0"
+          title="Go to dashboard"
+          style={{ display: "flex", alignItems: "center", background: "transparent", border: "none", padding: 0, cursor: "pointer" }}
+        >
           <Logo height={30} variant="light" />
-        </div>
-        <div className="flex items-center gap-1 ml-2 flex-1 min-w-0" style={{ overflowX: "auto" }}>
+        </button>
+        <div className="flex items-center gap-1 ml-2 flex-1 min-w-0 no-scrollbar basis-full order-last md:basis-0 md:order-none" style={{ overflowX: "auto" }}>
           {TABS.map((t) => (
             <button
               key={t.k}
@@ -187,13 +244,7 @@ export default function App() {
             </button>
           ))}
         </div>
-        <button
-          onClick={() => setShowNew(true)}
-          className="inline-flex items-center gap-1.5 px-3 py-2 rounded font-bold uppercase shrink-0"
-          style={{ fontSize: 12, background: "#fff", color: C.ink, letterSpacing: 0.5 }}
-        >
-          <Plus size={15} />New order
-        </button>
+        <GlobalSearch orders={searchScope} onOpen={goToOrder} key={tab} />
         {auth.needsAuth && (
           <button onClick={auth.signOut} title="Sign out" className="inline-flex items-center gap-1.5 shrink-0" style={{ color: "rgba(255,255,255,0.7)", fontSize: 12 }}>
             <LogOut size={15} />
@@ -277,7 +328,7 @@ export default function App() {
                   {WO_TYPES.map((t) => (
                     <button
                       key={t.key}
-                      onClick={async () => setCustomDoc({ type: t.key, orderNo: await board.nextOrderNo() })}
+                      onClick={async () => setCustomDoc({ type: t.key, orderNo: await wo.nextWorkOrderNo() })}
                       className="px-3 py-2 rounded font-bold uppercase tracking-wide text-xs"
                       style={{ background: C.ink, color: "#fff" }}
                     >
@@ -296,7 +347,7 @@ export default function App() {
                     style={{ background: "#fff", border: `1px solid ${C.line}`, borderLeft: `4px solid ${C.ink}`, cursor: "pointer" }}
                   >
                     <div className="flex items-center gap-3 px-4 py-3">
-                      <span className="font-bold" style={{ fontFamily: "ui-monospace,monospace", fontSize: 15 }}>#{w.orderNo}</span>
+                      <span className="font-bold" style={{ fontFamily: "ui-monospace,monospace", fontSize: 15 }}>WO #{w.orderNo}</span>
                       <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-bold uppercase" style={{ background: C.grayBg, color: C.inkSoft }}>{w.type}</span>
                       <div>
                         <div className="font-bold" style={{ fontSize: 14 }}>{w.title || "(untitled)"}</div>
@@ -312,28 +363,46 @@ export default function App() {
                 ))}
 
                 {/* ---- Shopify: triaged customer-order items ---- */}
-                <div style={{ marginTop: 18 }}>
+                <div style={{ marginTop: 18 }} className="flex items-center justify-between flex-wrap gap-2">
                   <SectionHeader label="Shopify" count={count(workOrders, (it) => it.stage === "workorder")} />
+                  <div className="flex items-center gap-1">
+                    {[["byorder", "By order"], ["combined", "Combine like items"]].map(([k, label]) => {
+                      const on = workCombined === (k === "combined");
+                      return (
+                        <button
+                          key={k} onClick={() => setWorkCombined(k === "combined")}
+                          className="px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wide"
+                          style={on ? { background: C.ink, color: "#fff" } : { background: "#fff", color: C.inkSoft, border: `1px solid ${C.line}` }}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
                 {!workOrders.length && <Empty>Nothing from Shopify yet. Triaged “create WO” items show up here.</Empty>}
-                {workOrders.map((o) => (
-                  <Group key={o.id} o={o} now={now} onPriority={board.setPriority}>
-                    {o.items.filter((it) => it.stage === "workorder").map((it) => (
-                      <ItemLine
-                        key={it.id} it={it} flash={flashItem === it.id}
-                        onDept={(dep) => board.updateItem(it.id, { dept: dep })}
-                        onOpen={() => setDoc({ o, it })}
-                        right={
-                          <span className="flex items-center gap-2">
-                            <Pill c={C.inkSoft} bg={C.grayBg} Icon={Clock}>{elapsed(now - o.receivedAt)} ago</Pill>
-                            <Btn onClick={() => setDoc({ o, it })}><Printer size={13} />Print</Btn>
-                            <Btn kind="dark" onClick={() => board.finishItem(it.id)}><Check size={13} />Mark done</Btn>
-                          </span>
-                        }
-                      />
-                    ))}
-                  </Group>
-                ))}
+                {workCombined ? (
+                  <CombinedItems orders={workOrders} stage="workorder" />
+                ) : (
+                  workOrders.map((o) => (
+                    <Group key={o.id} o={o} now={now} onPriority={board.setPriority}>
+                      {o.items.filter((it) => it.stage === "workorder").map((it) => (
+                        <ItemLine
+                          key={it.id} it={it} flash={flashItem === it.id}
+                          onDept={(dep) => board.updateItem(it.id, { dept: dep })}
+                          onOpen={() => setDoc({ o, it })}
+                          right={
+                            <span className="flex items-center gap-2">
+                              <Pill c={C.inkSoft} bg={C.grayBg} Icon={Clock}>{elapsed(now - o.receivedAt)} ago</Pill>
+                              <Btn onClick={() => setDoc({ o, it })}><Printer size={13} />Print</Btn>
+                              <Btn kind="dark" onClick={() => board.finishItem(it.id)}><Check size={13} />Mark done</Btn>
+                            </span>
+                          }
+                        />
+                      ))}
+                    </Group>
+                  ))
+                )}
               </Tabwrap>
             )}
 
@@ -386,7 +455,7 @@ export default function App() {
                   const done = o.items.filter((it) => it.stage === "done").length, total = o.items.length;
                   return (
                     <div
-                      key={o.id} onClick={() => setDetailId(o.id)}
+                      key={o.id} id={`order-${o.id}`} onClick={() => setDetailId(o.id)}
                       className="rounded mb-2"
                       style={{ background: "#fff", border: `1px solid ${C.line}`, borderLeft: `4px solid ${st.c}`, opacity: o.fulfillment ? 0.6 : 1, cursor: "pointer" }}
                     >
@@ -394,7 +463,10 @@ export default function App() {
                         <span className="font-bold" style={{ fontFamily: "ui-monospace,monospace", fontSize: 15 }}>#{o.orderNo}</span>
                         <div>
                           <div className="font-bold" style={{ fontSize: 14 }}>{o.customer}</div>
-                          <div style={{ fontSize: 12, color: C.gray }}>Ordered by {o.contact} · {elapsed(now - o.receivedAt)} ago</div>
+                          <div style={{ fontSize: 12, color: C.gray }}>
+                            Ordered by {o.contact} · {elapsed(now - o.receivedAt)} ago
+                            {o.dueDate && <> · <span style={{ color: C.high, fontWeight: 700 }}>Due {dueLabel(o.dueDate)}</span></>}
+                          </div>
                         </div>
                         <PriorityPill priority={o.priority} onChange={(pr) => board.setPriority(o.id, pr)} />
                         <div className="ml-auto flex items-center gap-3">
@@ -502,6 +574,47 @@ export default function App() {
   );
 }
 
+// #7: combine identical products across several orders into one batch line, so
+// you can make them together (8 + 5 T-handles → 13) while still seeing which
+// orders they came from. Read-only roll-up; the per-order view stays the source
+// of truth for marking items done.
+function CombinedItems({ orders, stage }) {
+  const map = new Map();
+  orders.forEach((o) =>
+    o.items
+      .filter((it) => it.stage === stage)
+      .forEach((it) => {
+        const key = `${it.name}__${it.color || ""}`;
+        if (!map.has(key)) map.set(key, { name: it.name, color: it.color, dept: it.dept, qty: 0, sources: [] });
+        const e = map.get(key);
+        e.qty += it.qty || 1;
+        e.sources.push({ orderNo: o.orderNo, qty: it.qty || 1 });
+      })
+  );
+  const rows = [...map.values()].sort((a, b) => b.qty - a.qty);
+  if (!rows.length) return <Empty>Nothing to combine yet.</Empty>;
+  return (
+    <>
+      {rows.map((r, i) => (
+        <div key={i} className="rounded mb-2" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
+          <div className="flex items-center gap-3 px-4 py-3 flex-wrap">
+            <span className="inline-flex items-center justify-center font-bold" style={{ minWidth: 46, height: 34, padding: "0 10px", borderRadius: 6, background: C.ink, color: "#fff", fontFamily: "ui-monospace,monospace", fontSize: 17 }}>
+              ×{r.qty}
+            </span>
+            <DeptBadge d={r.dept} />
+            <div style={{ minWidth: 0 }}>
+              <div className="font-bold" style={{ fontSize: 14 }}>{r.name}{r.color ? ` · ${r.color}` : ""}</div>
+              <div style={{ fontSize: 12, color: C.gray }}>
+                {r.sources.length} order{r.sources.length === 1 ? "" : "s"}: {r.sources.map((s) => `#${s.orderNo} (${s.qty})`).join(", ")}
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </>
+  );
+}
+
 // List for the Will Call / Shipping tabs: completed orders with their staged
 // warehouse location. Shipping orders also get a "Shipped" action that logs a
 // tracking number; once logged, the tracking number shows in its place.
@@ -515,6 +628,7 @@ function FulfillmentBoard({ orders, now, onOpen, onMarkShipped, variant, emptyTe
         return (
           <div
             key={o.id}
+            id={`order-${o.id}`}
             onClick={() => onOpen(o.id)}
             className="rounded mb-2"
             style={{ background: "#fff", border: `1px solid ${C.line}`, borderLeft: `4px solid ${shipped ? C.green : C.line}`, opacity: shipped ? 0.7 : 1, cursor: "pointer" }}

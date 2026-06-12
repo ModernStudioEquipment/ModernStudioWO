@@ -45,6 +45,14 @@ export const elapsed = (ms) => {
   return `${d}d ${h % 24}h`;
 };
 
+// Format a "YYYY-MM-DD" due date as e.g. "Jun 20". Parsed at local midnight so
+// it doesn't shift a day in negative-offset timezones.
+export const dueLabel = (d) => {
+  if (!d) return "";
+  const dt = new Date(`${d}T00:00:00`);
+  return isNaN(dt) ? d : dt.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+};
+
 // An item is blocked while any of its materials hasn't been received.
 export const blocked = (it) =>
   it.needsMaterial && it.materials.some((m) => !m.received);

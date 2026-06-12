@@ -13,6 +13,7 @@ export function NewOrderModal({ getNextOrderNo, onCreate, onClose }) {
   const [customer, setCustomer] = useState("");
   const [contact, setContact] = useState("");
   const [priority, setPriority] = useState("Normal");
+  const [dueDate, setDueDate] = useState("");
   const [willCall, setWillCall] = useState(false);
   const [items, setItems] = useState([blankItem()]);
   const [saving, setSaving] = useState(false);
@@ -41,6 +42,7 @@ export function NewOrderModal({ getNextOrderNo, onCreate, onClose }) {
         priority,
         source: "phone",
         willCall,
+        dueDate: dueDate || null,
         items: validItems.map((it) => ({
           name: it.name.trim(),
           qty: Number(it.qty) || 1,
@@ -98,6 +100,16 @@ export function NewOrderModal({ getNextOrderNo, onCreate, onClose }) {
                   </button>
                 ))}
               </div>
+            </div>
+            <div>
+              <div style={label}>Due date</div>
+              <input
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+                className="px-2 py-2 outline-none"
+                style={{ ...inp, color: dueDate ? C.ink : C.gray }}
+              />
             </div>
             <label className="flex items-center gap-2 mt-4" style={{ fontSize: 13, cursor: "pointer" }}>
               <input type="checkbox" checked={willCall} onChange={(e) => setWillCall(e.target.checked)} />

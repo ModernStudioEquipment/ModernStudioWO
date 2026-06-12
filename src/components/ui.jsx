@@ -139,7 +139,7 @@ export function OrderHeader({ o, now, onPriority }) {
 export function Group({ o, now, children, onPriority }) {
   const p = PRI[o.priority] || PRI.Normal;
   return (
-    <div className="rounded mb-3" style={{ background: "#fff", border: `1px solid ${C.line}`, borderLeft: `4px solid ${p.c}` }}>
+    <div id={`order-${o.id}`} className="rounded mb-3" style={{ background: "#fff", border: `1px solid ${C.line}`, borderLeft: `4px solid ${p.c}` }}>
       <OrderHeader o={o} now={now} onPriority={onPriority} />
       {children}
     </div>
