@@ -6,7 +6,7 @@ import { DeptIcon } from "../ui.jsx";
 // Manual order entry (phone orders today; Shopify auto-pull is a later phase).
 // One row per product on the order — each becomes an item that gets triaged
 // and routed independently.
-const blankItem = () => ({ name: "", qty: 1, dept: "Machine", color: "" });
+const blankItem = () => ({ name: "", qty: 1, dept: "Shop", color: "" });
 
 export function NewOrderModal({ getNextOrderNo, onCreate, onClose }) {
   const [orderNo, setOrderNo] = useState("");

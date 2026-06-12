@@ -104,7 +104,7 @@ export const supabaseAdapter = {
       p_items: items.map((it, i) => ({
         name: it.name,
         qty: Number(it.qty) || 1,
-        dept: it.dept || "Machine",
+        dept: it.dept || "Shop",
         color: it.color || null,
         position: i,
       })),
@@ -138,6 +138,7 @@ export const supabaseAdapter = {
     if (patch.name !== undefined) upd.name = patch.name;
     if (patch.qty !== undefined) upd.qty = Math.max(1, parseInt(patch.qty, 10) || 1);
     if (patch.color !== undefined) upd.color = patch.color || null;
+    if (patch.dept !== undefined) upd.dept = patch.dept;
     if (patch.completedBy !== undefined) upd.completed_by = patch.completedBy || null;
     const { error } = await supabase.from("items").update(upd).eq("id", itemId);
     fail(error);

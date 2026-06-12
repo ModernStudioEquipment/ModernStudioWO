@@ -9,7 +9,7 @@ import { useAuth } from "./hooks/useAuth.js";
 import { useOrders } from "./hooks/useOrders.js";
 import { useWorkOrders } from "./hooks/useWorkOrders.js";
 import {
-  Pill, Btn, Group, ItemLine, Empty, Tabwrap, DeptBadge,
+  Pill, Btn, Group, ItemLine, Empty, Tabwrap, DeptBadge, PriorityPill,
 } from "./components/ui.jsx";
 import { Auth } from "./components/Auth.jsx";
 import { Logo } from "./components/Logo.jsx";
@@ -231,11 +231,11 @@ export default function App() {
               >
                 {!newOrders.length && <Empty>Nothing waiting. New orders land here the moment they come in.</Empty>}
                 {newOrders.map((o) => (
-                  <Group key={o.id} o={o} now={now}>
+                  <Group key={o.id} o={o} now={now} onPriority={board.setPriority}>
                     {o.items.filter((it) => it.stage === "new").map((it) => (
                       <div key={it.id} className="px-4 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
                         <div className="flex items-center gap-2 mb-2">
-                          <DeptBadge d={it.dept} />
+                          <DeptBadge d={it.dept} onChange={(dep) => board.updateItem(it.id, { dept: dep })} />
                           <span className="font-bold" style={{ fontSize: 14 }}>{it.name}</span>
                           <span style={{ fontFamily: "ui-monospace,monospace", color: C.inkSoft }}>×{it.qty}</span>
                         </div>
@@ -255,10 +255,11 @@ export default function App() {
               <Tabwrap title="Pick list — grab these off the shelf" sub="Click an item to see its photo, then grab it and check it off.">
                 {!pickOrders.length && <Empty>Empty. In-stock items show up here after triage.</Empty>}
                 {pickOrders.map((o) => (
-                  <Group key={o.id} o={o} now={now}>
+                  <Group key={o.id} o={o} now={now} onPriority={board.setPriority}>
                     {o.items.filter((it) => it.stage === "picklist").map((it) => (
                       <ItemLine
                         key={it.id} it={it}
+                        onDept={(dep) => board.updateItem(it.id, { dept: dep })}
                         onOpen={() => setPickItem({ o, it })}
                         right={<Btn kind="dark" onClick={() => board.finishItem(it.id)}><Check size={13} />Item picked</Btn>}
                       />
@@ -316,10 +317,11 @@ export default function App() {
                 </div>
                 {!workOrders.length && <Empty>Nothing from Shopify yet. Triaged “create WO” items show up here.</Empty>}
                 {workOrders.map((o) => (
-                  <Group key={o.id} o={o} now={now}>
+                  <Group key={o.id} o={o} now={now} onPriority={board.setPriority}>
                     {o.items.filter((it) => it.stage === "workorder").map((it) => (
                       <ItemLine
                         key={it.id} it={it} flash={flashItem === it.id}
+                        onDept={(dep) => board.updateItem(it.id, { dept: dep })}
                         onOpen={() => setDoc({ o, it })}
                         right={
                           <span className="flex items-center gap-2">
@@ -339,11 +341,11 @@ export default function App() {
               <Tabwrap title="Purchasing — order this material" sub="Grouped by order. Hit “have it” and the item moves to Work Order.">
                 {!buyOrders.length && <Empty>Nothing to buy. Materials land here when an item is triaged “need material.”</Empty>}
                 {buyOrders.map((o) => (
-                  <Group key={o.id} o={o} now={now}>
+                  <Group key={o.id} o={o} now={now} onPriority={board.setPriority}>
                     {o.items.filter((it) => it.needsMaterial).map((it) =>
                       it.materials.filter((m) => !m.received).map((m) => (
                         <div key={m.id} className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
-                          <DeptBadge d={it.dept} />
+                          <DeptBadge d={it.dept} onChange={(dep) => board.updateItem(it.id, { dept: dep })} />
                           <div>
                             <div className="font-bold" style={{ fontSize: 14 }}>{m.name}</div>
                             <div style={{ fontSize: 12, color: C.gray }}>for {it.name}</div>
@@ -394,9 +396,7 @@ export default function App() {
                           <div className="font-bold" style={{ fontSize: 14 }}>{o.customer}</div>
                           <div style={{ fontSize: 12, color: C.gray }}>Ordered by {o.contact} · {elapsed(now - o.receivedAt)} ago</div>
                         </div>
-                        <button onClick={(e) => { e.stopPropagation(); cyclePri(o.id, o.priority); }} title="Click to change priority">
-                          <Pill c={p.c} bg={p.bg} Icon={Flag}>{o.priority}</Pill>
-                        </button>
+                        <PriorityPill priority={o.priority} onChange={(pr) => board.setPriority(o.id, pr)} />
                         <div className="ml-auto flex items-center gap-3">
                           <div className="flex items-center gap-1">
                             {o.items.map((it) => (
@@ -462,7 +462,16 @@ export default function App() {
         />
       )}
       {matTarget && <MaterialModal onClose={() => setMatTarget(null)} onCommit={commitMaterials} />}
-      {detailOrder && <OrderDetail order={detailOrder} status={orderStatus(detailOrder)} now={now} onClose={() => setDetailId(null)} />}
+      {detailOrder && (
+        <OrderDetail
+          order={detailOrder}
+          status={orderStatus(detailOrder)}
+          now={now}
+          onPriority={(pr) => board.setPriority(detailOrder.id, pr)}
+          onUpdateItem={(itemId, patch) => board.updateItem(itemId, patch)}
+          onClose={() => setDetailId(null)}
+        />
+      )}
       {pickItem && (
         <PickPhoto
           order={pickItem.o} item={pickItem.it}

@@ -54,7 +54,7 @@ export async function POST(request) {
   const items = (order.line_items || []).map((li, i) => ({
     name: li.variant_title ? `${li.title} — ${li.variant_title}` : li.title,
     qty: li.quantity || 1,
-    dept: "Machine", // default; the office re-routes per item at triage
+    dept: "Shop", // default; the office re-routes per item at triage
     color: null,
     position: i,
   }));

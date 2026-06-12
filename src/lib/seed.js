@@ -92,7 +92,7 @@ export function buildSeed() {
       id: nid(),
       name: it.name,
       qty: it.qty,
-      dept: it.dept || "Machine",
+      dept: it.dept || "Shop",
       color: it.color || null,
       stage: it.stage || "new",
       needsMaterial: it.needsMaterial || false,

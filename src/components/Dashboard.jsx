@@ -42,14 +42,12 @@ export function Dashboard({ orders = [], workOrders = [], now, onNavigate, onOpe
   orders.filter((o) => o.priority === "High" && orderActive(o)).sort((a, b) => a.receivedAt - b.receivedAt).forEach((o) => add(o, "HIGH", "high"));
   const attention = attn.slice(0, 8);
 
-  // ---- workload by department ----
-  const woActive = (t) => workOrders.filter((w) => !w.done && w.type === t).length;
-  const dept = [
-    { name: "Machine", n: items.filter((it) => active(it) && it.dept === "Machine").length + woActive("shop") },
-    { name: "Sewing", n: items.filter((it) => active(it) && it.dept === "Sewing").length + woActive("sewing") },
-    { name: "CNC", n: woActive("cnc") },
-    { name: "Saw", n: woActive("saw") },
-  ];
+  // ---- workload by department (active items + open work orders of that dept) ----
+  const dept = ["Shop", "CNC", "Sewing", "Saw"].map((name) => ({
+    name,
+    n: items.filter((it) => active(it) && it.dept === name).length +
+       workOrders.filter((w) => !w.done && w.type === name.toLowerCase()).length,
+  }));
   const deptMax = Math.max(1, ...dept.map((dd) => dd.n));
 
   // ---- order source ----

@@ -1,9 +1,45 @@
-import React from "react";
-import { Clock, Wrench, Scissors, Flag, Check } from "lucide-react";
-import { C, PRI, elapsed } from "../theme.js";
+import React, { useState, useRef, useEffect } from "react";
+import { Clock, Wrench, Scissors, Cpu, Hammer, Flag, Check, ChevronDown } from "lucide-react";
+import { C, PRI, PRIORITIES, DEPTS, elapsed } from "../theme.js";
 
-export const DeptIcon = ({ d, size = 12 }) =>
-  d === "Sewing" ? <Scissors size={size} /> : <Wrench size={size} />;
+const DEPT_ICONS = { Shop: Hammer, CNC: Cpu, Sewing: Scissors, Saw: Wrench };
+export const DeptIcon = ({ d, size = 12 }) => {
+  const I = DEPT_ICONS[d] || Wrench;
+  return <I size={size} />;
+};
+
+// Small inline dropdown — click the trigger, pick from `options`.
+export function InlineMenu({ children, options, onSelect, align = "left" }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+  return (
+    <span ref={ref} style={{ position: "relative", display: "inline-flex" }} onClick={(e) => e.stopPropagation()}>
+      <span onClick={() => setOpen((v) => !v)}>{children}</span>
+      {open && (
+        <div style={{ position: "absolute", top: "100%", [align]: 0, marginTop: 4, zIndex: 90, background: "#fff", border: `1px solid ${C.line}`, borderRadius: 6, boxShadow: "0 6px 22px rgba(0,0,0,0.13)", minWidth: 132, overflow: "hidden" }}>
+          {options.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => { onSelect(opt.value); setOpen(false); }}
+              className="flex items-center gap-2 w-full"
+              style={{ padding: "7px 11px", fontSize: 13, fontWeight: 600, textAlign: "left", background: "#fff", border: "none", cursor: "pointer", whiteSpace: "nowrap", color: C.ink }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = C.concrete)}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "#fff")}
+            >
+              {opt.icon}{opt.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </span>
+  );
+}
 
 export function Pill({ children, c, bg, Icon }) {
   return (
@@ -39,20 +75,47 @@ export function Btn({ children, onClick, kind = "ghost", disabled, type = "butto
   );
 }
 
-export function DeptBadge({ d }) {
-  return (
+export function DeptBadge({ d, onChange }) {
+  const badge = (
     <span
       className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-bold"
-      style={{ background: C.grayBg, color: C.inkSoft }}
+      style={{ background: C.grayBg, color: C.inkSoft, cursor: onChange ? "pointer" : "default" }}
     >
       <DeptIcon d={d} />
       {d}
+      {onChange && <ChevronDown size={11} style={{ opacity: 0.55 }} />}
     </span>
+  );
+  if (!onChange) return badge;
+  return (
+    <InlineMenu options={DEPTS.map((x) => ({ value: x, label: x, icon: <DeptIcon d={x} /> }))} onSelect={onChange}>
+      {badge}
+    </InlineMenu>
   );
 }
 
-export function OrderHeader({ o, now }) {
-  const p = PRI[o.priority];
+// Priority pill — static, or a dropdown (Normal / High / RUSH) when onChange is set.
+export function PriorityPill({ priority, onChange }) {
+  const p = PRI[priority] || PRI.Normal;
+  const pill = (
+    <span
+      className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-bold uppercase tracking-wide"
+      style={{ color: p.c, background: p.bg, cursor: onChange ? "pointer" : "default" }}
+    >
+      <Flag size={12} />
+      {priority}
+      {onChange && <ChevronDown size={11} style={{ opacity: 0.6 }} />}
+    </span>
+  );
+  if (!onChange) return pill;
+  return (
+    <InlineMenu align="right" options={PRIORITIES.map((x) => ({ value: x, label: x }))} onSelect={onChange}>
+      {pill}
+    </InlineMenu>
+  );
+}
+
+export function OrderHeader({ o, now, onPriority }) {
   return (
     <div
       className="flex items-center gap-3 px-4 py-3"
@@ -67,23 +130,23 @@ export function OrderHeader({ o, now }) {
       </div>
       <span className="ml-auto flex items-center gap-2">
         <Pill c={C.inkSoft} bg={C.grayBg} Icon={Clock}>{elapsed(now - o.receivedAt)} ago</Pill>
-        <Pill c={p.c} bg={p.bg} Icon={Flag}>{o.priority}</Pill>
+        <PriorityPill priority={o.priority} onChange={onPriority ? (p) => onPriority(o.id, p) : undefined} />
       </span>
     </div>
   );
 }
 
-export function Group({ o, now, children }) {
-  const p = PRI[o.priority];
+export function Group({ o, now, children, onPriority }) {
+  const p = PRI[o.priority] || PRI.Normal;
   return (
     <div className="rounded mb-3" style={{ background: "#fff", border: `1px solid ${C.line}`, borderLeft: `4px solid ${p.c}` }}>
-      <OrderHeader o={o} now={now} />
+      <OrderHeader o={o} now={now} onPriority={onPriority} />
       {children}
     </div>
   );
 }
 
-export function ItemLine({ it, right, onOpen, flash }) {
+export function ItemLine({ it, right, onOpen, flash, onDept }) {
   return (
     <div
       ref={flash ? (el) => el && el.scrollIntoView({ behavior: "smooth", block: "center" }) : undefined}
@@ -96,7 +159,7 @@ export function ItemLine({ it, right, onOpen, flash }) {
         boxShadow: flash ? `inset 4px 0 0 ${C.high}` : undefined,
       }}
     >
-      <DeptBadge d={it.dept} />
+      <DeptBadge d={it.dept} onChange={onDept} />
       <span className="font-bold" style={{ fontSize: 14 }}>{it.name}</span>
       <span style={{ fontFamily: "ui-monospace,monospace", color: C.inkSoft }}>×{it.qty}</span>
       <span className="ml-auto" onClick={(e) => e.stopPropagation()}>{right}</span>

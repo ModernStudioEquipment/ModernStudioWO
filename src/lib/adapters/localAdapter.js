@@ -119,7 +119,7 @@ export const localAdapter = {
         id: uid(),
         name: it.name,
         qty: Number(it.qty) || 1,
-        dept: it.dept || "Machine",
+        dept: it.dept || "Shop",
         color: it.color || null,
         stage: "new",
         needsMaterial: false,
@@ -162,6 +162,7 @@ export const localAdapter = {
       if (patch.name !== undefined) it.name = patch.name;
       if (patch.qty !== undefined) it.qty = parseInt(patch.qty, 10) || it.qty;
       if (patch.color !== undefined) it.color = patch.color || null;
+      if (patch.dept !== undefined) it.dept = patch.dept;
       if (patch.completedBy !== undefined) it.completedBy = patch.completedBy || null;
     });
   },

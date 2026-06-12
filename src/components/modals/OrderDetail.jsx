@@ -1,13 +1,12 @@
 import React from "react";
 import { X } from "lucide-react";
 import { C, PRI, elapsed, itemStatusText } from "../../theme.js";
-import { Pill, Info, Stepper, DeptBadge } from "../ui.jsx";
+import { Pill, Info, Stepper, DeptBadge, PriorityPill } from "../ui.jsx";
 
 // The office "where's my order?" view — full detail with a per-product
 // progress tracker. Items reconverge here even though they're triaged and
 // routed independently.
-export function OrderDetail({ order, status, now, onClose }) {
-  const p = PRI[order.priority];
+export function OrderDetail({ order, status, now, onPriority, onUpdateItem, onClose }) {
   const done = order.items.filter((i) => i.stage === "done").length;
   const total = order.items.length;
   const receivedOn = new Date(order.receivedAt).toLocaleDateString("en-US", {
@@ -19,7 +18,7 @@ export function OrderDetail({ order, status, now, onClose }) {
         <div className="flex items-center gap-3 px-4 py-3" style={{ background: C.ink, color: "#fff" }}>
           <span className="font-bold" style={{ fontFamily: "ui-monospace,monospace", fontSize: 16 }}>#{order.orderNo}</span>
           <span className="font-bold" style={{ fontSize: 15 }}>{order.customer}</span>
-          <Pill c={p.c} bg={p.bg}>{order.priority}</Pill>
+          <PriorityPill priority={order.priority} onChange={onPriority} />
           <button onClick={onClose} className="ml-auto" style={{ color: "#fff" }}><X size={18} /></button>
         </div>
         <div className="p-4">
@@ -48,7 +47,7 @@ export function OrderDetail({ order, status, now, onClose }) {
           {order.items.map((it) => (
             <div key={it.id} className="rounded mb-2 p-3" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
               <div className="flex items-center gap-2">
-                <DeptBadge d={it.dept} />
+                <DeptBadge d={it.dept} onChange={onUpdateItem ? (dep) => onUpdateItem(it.id, { dept: dep }) : undefined} />
                 <span className="font-bold" style={{ fontSize: 14 }}>{it.name}</span>
                 <span style={{ fontFamily: "ui-monospace,monospace", color: C.inkSoft }}>×{it.qty}</span>
                 <span className="ml-auto font-bold" style={{ fontSize: 12, color: it.stage === "done" ? C.green : C.inkSoft }}>

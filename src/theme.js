@@ -32,7 +32,8 @@ export const PRI = {
 export const PRI_CYCLE = { Normal: "High", High: "RUSH", RUSH: "Normal" };
 
 export const STAGES = ["new", "picklist", "workorder", "awaiting", "done"];
-export const DEPTS = ["Machine", "Sewing"];
+// The four shop departments (match the custom work-order types).
+export const DEPTS = ["Shop", "CNC", "Sewing", "Saw"];
 export const PRIORITIES = ["Normal", "High", "RUSH"];
 
 export const elapsed = (ms) => {
