@@ -80,6 +80,7 @@ export function useOrders(enabled) {
     deleteOrder: act((orderId) => db.deleteOrder(orderId)),
     cancelOrder: act((orderId, reason) => db.cancelOrder(orderId, reason)),
     unpickItem: act((itemId) => db.unpickItem(itemId)),
+    moveItem: act((itemId, stage) => db.moveItem(itemId, stage)),
     markPickedUp: act((orderId, by) => db.markPickedUp(orderId, by)),
   };
 }

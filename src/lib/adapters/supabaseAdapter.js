@@ -167,6 +167,13 @@ export const supabaseAdapter = {
     fail(error);
   },
 
+  // Move an item to any stage (New Orders / Pick List / Work Order / Done).
+  // Clears the material flag so it doesn't linger in Purchasing.
+  async moveItem(itemId, stage) {
+    const { error } = await supabase.from("items").update({ stage, needs_material: false }).eq("id", itemId);
+    fail(error);
+  },
+
   async markOrdered(materialId) {
     const { error } = await supabase.from("materials").update({ ordered: true }).eq("id", materialId);
     fail(error);

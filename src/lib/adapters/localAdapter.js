@@ -197,6 +197,11 @@ export const localAdapter = {
     mutateItem(itemId, (it) => { it.stage = "picklist"; });
   },
 
+  // Move an item to any stage; clears the material flag so it leaves Purchasing.
+  async moveItem(itemId, stage) {
+    mutateItem(itemId, (it) => { it.stage = stage; it.needsMaterial = false; });
+  },
+
   async markOrdered(materialId) {
     mutateMaterial(materialId, (m) => {
       m.ordered = true;

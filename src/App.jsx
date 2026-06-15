@@ -9,7 +9,7 @@ import { useAuth } from "./hooks/useAuth.js";
 import { useOrders } from "./hooks/useOrders.js";
 import { useWorkOrders } from "./hooks/useWorkOrders.js";
 import {
-  Pill, Btn, Group, ItemLine, Empty, Tabwrap, DeptBadge, PriorityPill,
+  Pill, Btn, Group, ItemLine, Empty, Tabwrap, DeptBadge, PriorityPill, MoveMenu,
 } from "./components/ui.jsx";
 import { Auth } from "./components/Auth.jsx";
 import { Logo } from "./components/Logo.jsx";
@@ -334,7 +334,12 @@ export default function App() {
                         key={it.id} it={it}
                         onDept={(dep) => board.updateItem(it.id, { dept: dep })}
                         onOpen={() => setPickItem({ o, it })}
-                        right={<Btn kind="dark" onClick={() => board.finishItem(it.id)}><Check size={13} />Item picked</Btn>}
+                        right={
+                          <span className="flex items-center gap-2">
+                            <MoveMenu stage={it.stage} onMove={(s) => (s === "awaiting" ? setMatTarget(it.id) : board.moveItem(it.id, s))} />
+                            <Btn kind="dark" onClick={() => board.finishItem(it.id)}><Check size={13} />Item picked</Btn>
+                          </span>
+                        }
                       />
                     ))}
                   </Group>
@@ -415,7 +420,7 @@ export default function App() {
                           onOpen={() => setDoc({ o, it })}
                           right={
                             <span className="flex items-center gap-2">
-                              <Pill c={C.inkSoft} bg={C.grayBg} Icon={Clock}>{elapsed(now - o.receivedAt)} ago</Pill>
+                              <MoveMenu stage={it.stage} onMove={(s) => (s === "awaiting" ? setMatTarget(it.id) : board.moveItem(it.id, s))} />
                               <Btn onClick={() => setDoc({ o, it })}><Printer size={13} />Print</Btn>
                               <Btn kind="dark" onClick={() => board.finishItem(it.id)}><Check size={13} />Mark done</Btn>
                             </span>
