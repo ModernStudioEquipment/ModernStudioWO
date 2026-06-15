@@ -578,6 +578,7 @@ export default function App() {
           order={pickItem.o} item={pickItem.it}
           onPicked={async () => { await board.finishItem(pickItem.it.id); setPickItem(null); }}
           onSetImage={(url) => board.updateItem(pickItem.it.id, { imageUrl: url })}
+          onSetNote={(n) => board.updateItem(pickItem.it.id, { note: n })}
           onClose={() => setPickItem(null)}
         />
       )}

@@ -145,6 +145,7 @@ export const localAdapter = {
         dept: it.dept || "Shop",
         color: it.color || null,
         imageUrl: it.imageUrl || null,
+        note: it.note || null,
         stage: "new",
         needsMaterial: false,
         materials: [],
@@ -189,6 +190,7 @@ export const localAdapter = {
       if (patch.dept !== undefined) it.dept = patch.dept;
       if (patch.completedBy !== undefined) it.completedBy = patch.completedBy || null;
       if (patch.imageUrl !== undefined) it.imageUrl = patch.imageUrl || null;
+      if (patch.note !== undefined) it.note = patch.note || null;
     });
   },
 

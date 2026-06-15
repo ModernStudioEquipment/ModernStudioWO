@@ -5,11 +5,13 @@ import { Btn, Info } from "../ui.jsx";
 
 // Picker confirmation view. Shows the item's product photo (auto-pulled from
 // Shopify when available, or pasted manually here) and the "Item picked" action.
-export function PickPhoto({ order, item, onPicked, onSetImage, onClose }) {
+export function PickPhoto({ order, item, onPicked, onSetImage, onSetNote, onClose }) {
   const [saving, setSaving] = React.useState(false);
   const [url, setUrl] = React.useState(item.imageUrl || "");
   const [savingImg, setSavingImg] = React.useState(false);
   const [broken, setBroken] = React.useState(false);
+  const [note, setNote] = React.useState(item.note || "");
+  const [savingNote, setSavingNote] = React.useState(false);
 
   const pick = async () => {
     if (saving) return;
@@ -21,6 +23,12 @@ export function PickPhoto({ order, item, onPicked, onSetImage, onClose }) {
     setSavingImg(true);
     try { await onSetImage(url.trim() || null); } finally { setSavingImg(false); }
   };
+  const saveNote = async () => {
+    if (!onSetNote || savingNote) return;
+    setSavingNote(true);
+    try { await onSetNote(note.trim() || null); } finally { setSavingNote(false); }
+  };
+  const noteDirty = (note.trim() || "") !== (item.note || "");
 
   const hasImg = url && !broken;
   return (
@@ -54,6 +62,23 @@ export function PickPhoto({ order, item, onPicked, onSetImage, onClose }) {
                 style={{ border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 13, background: "#fff" }}
               />
               <Btn onClick={saveImage} disabled={savingImg}><ImagePlus size={14} />{savingImg ? "Saving…" : "Save photo"}</Btn>
+            </div>
+          )}
+
+          {onSetNote && (
+            <div className="mt-4">
+              <div style={{ fontSize: 11, fontWeight: 700, color: C.gray, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Notes</div>
+              <textarea
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="Leave a note for whoever picks this — e.g. 'grab the blue ones from the back shelf'"
+                rows={3}
+                className="w-full px-2 py-2 outline-none"
+                style={{ border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 13, background: "#fff", resize: "vertical" }}
+              />
+              <div className="flex justify-end mt-2">
+                <Btn onClick={saveNote} disabled={savingNote || !noteDirty}>{savingNote ? "Saving…" : "Save note"}</Btn>
+              </div>
             </div>
           )}
 

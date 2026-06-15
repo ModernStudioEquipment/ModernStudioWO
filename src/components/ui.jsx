@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Clock, Wrench, Scissors, Cpu, Hammer, Flag, Check, ChevronDown } from "lucide-react";
+import { Clock, Wrench, Scissors, Cpu, Hammer, Flag, Check, ChevronDown, Bell } from "lucide-react";
 import { C, PRI, PRIORITIES, DEPTS, elapsed } from "../theme.js";
 
 const DEPT_ICONS = { Shop: Hammer, CNC: Cpu, Sewing: Scissors, Saw: Wrench };
@@ -184,6 +184,9 @@ export function ItemLine({ it, right, onOpen, flash, onDept }) {
     >
       <DeptBadge d={it.dept} onChange={onDept} />
       <span className="font-bold" style={{ fontSize: 14 }}>{it.name}</span>
+      {it.note && (
+        <Bell size={15} color={C.high} fill={C.high} title={`Note: ${it.note}`} style={{ flexShrink: 0 }} />
+      )}
       <span style={{ fontFamily: "ui-monospace,monospace", color: C.inkSoft }}>×{it.qty}</span>
       <span className="ml-auto" onClick={(e) => e.stopPropagation()}>{right}</span>
     </div>
