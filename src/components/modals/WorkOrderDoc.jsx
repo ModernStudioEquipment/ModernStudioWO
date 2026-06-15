@@ -69,7 +69,7 @@ export function WorkOrderDoc({ order, item, onSave, onClose }) {
   };
 
   const Body = bodyFor(type);
-  const bodyProps = { fields, set, setLineCell, addLine, form, orderNo: order.orderNo, numLabel: "Order #" };
+  const bodyProps = { fields, set, setLineCell, addLine, form, orderNo: order.orderNo, numLabel: "Order #", imageUrl: item.imageUrl };
 
   return (
     <div style={overlay} onClick={onClose}>

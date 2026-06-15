@@ -25,6 +25,7 @@ function mapOrder(row) {
       stage: it.stage,
       needsMaterial: it.needs_material,
       completedBy: it.completed_by,
+      imageUrl: it.image_url || null,
       materials: (it.materials || [])
         .slice()
         .sort((a, b) => a.created_at.localeCompare(b.created_at))
@@ -49,6 +50,10 @@ function mapOrder(row) {
     fulfillment: row.fulfillment, // null | 'willcall' | 'shipping'
     location: row.fulfillment_location,
     trackingNumber: row.tracking_number,
+    pickedUpAt: row.picked_up_at || null,
+    pickedUpBy: row.picked_up_by || null,
+    cancelledAt: row.cancelled_at || null,
+    cancelReason: row.cancel_reason || null,
     items,
   };
 }
@@ -117,6 +122,7 @@ export const supabaseAdapter = {
         dept: it.dept || "Shop",
         color: it.color || null,
         position: i,
+        image_url: it.imageUrl || null,
       })),
     });
     fail(error);
@@ -150,7 +156,14 @@ export const supabaseAdapter = {
     if (patch.color !== undefined) upd.color = patch.color || null;
     if (patch.dept !== undefined) upd.dept = patch.dept;
     if (patch.completedBy !== undefined) upd.completed_by = patch.completedBy || null;
+    if (patch.imageUrl !== undefined) upd.image_url = patch.imageUrl || null;
     const { error } = await supabase.from("items").update(upd).eq("id", itemId);
+    fail(error);
+  },
+
+  // Undo a pick: send a finished item back to the pick list.
+  async unpickItem(itemId) {
+    const { error } = await supabase.from("items").update({ stage: "picklist" }).eq("id", itemId);
     fail(error);
   },
 
@@ -182,6 +195,30 @@ export const supabaseAdapter = {
       .from("orders")
       .update({ tracking_number: trackingNumber, shipped_at: new Date().toISOString() })
       .eq("id", orderId);
+    fail(error);
+  },
+
+  // Will Call pickup: record who collected it and when.
+  async markPickedUp(orderId, by) {
+    const { error } = await supabase
+      .from("orders")
+      .update({ picked_up_at: new Date().toISOString(), picked_up_by: by || null })
+      .eq("id", orderId);
+    fail(error);
+  },
+
+  // Cancel an order — mark it cancelled (with a reason) but keep the record.
+  async cancelOrder(orderId, reason) {
+    const { error } = await supabase
+      .from("orders")
+      .update({ cancelled_at: new Date().toISOString(), cancel_reason: reason || null })
+      .eq("id", orderId);
+    fail(error);
+  },
+
+  // Hard delete (no longer used by the UI; kept for admin/cleanup).
+  async deleteOrder(orderId) {
+    const { error } = await supabase.from("orders").delete().eq("id", orderId);
     fail(error);
   },
 

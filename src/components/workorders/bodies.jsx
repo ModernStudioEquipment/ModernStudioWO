@@ -1,6 +1,6 @@
 import React from "react";
 import { Camera, Plus } from "lucide-react";
-import { C } from "../../theme.js";
+import { C, priLabel } from "../../theme.js";
 import { Wordmark } from "../Logo.jsx";
 
 // The four printable work-order sheet bodies, one per department. Shared by the
@@ -51,12 +51,19 @@ function ONo({ value }) {
   return <span className="font-bold" style={{ fontFamily: "ui-monospace,monospace", fontSize: 14 }}>{value || "—"}</span>;
 }
 
-function PhotoBox({ minHeight = 220 }) {
+function PhotoBox({ minHeight = 220, imageUrl }) {
+  if (imageUrl) {
+    return (
+      <div className="flex items-center justify-center" style={{ margin: "20px 0", minHeight, border: `1px solid ${C.line}`, borderRadius: 4, background: "#fff", overflow: "hidden" }}>
+        <img src={imageUrl} alt="Product" style={{ maxWidth: "100%", maxHeight: minHeight + 60, objectFit: "contain" }} />
+      </div>
+    );
+  }
   return (
     <div className="flex items-center justify-center" style={{ margin: "20px 0", minHeight, border: `1px dashed ${C.line}`, borderRadius: 4, background: "#FAFBFC", flexDirection: "column", gap: 8, color: C.gray }}>
       <Camera size={40} />
       <div style={{ fontSize: 13, fontWeight: 700 }}>Product photo</div>
-      <div style={{ fontSize: 12 }}>Parts photo library — later phase</div>
+      <div style={{ fontSize: 12 }}>No photo yet</div>
     </div>
   );
 }
@@ -82,7 +89,7 @@ function AddRow({ onClick }) {
 const tag = { fontSize: 11, fontWeight: 700, color: C.inkSoft, background: C.grayBg, padding: "2px 6px", letterSpacing: 0.5 };
 
 // ---- Shop (basic) ----
-export function BasicBody({ fields, set, orderNo, numLabel = "WO #" }) {
+export function BasicBody({ fields, set, orderNo, numLabel = "WO #", imageUrl }) {
   return (
     <>
       <div className="flex items-start justify-between" style={{ marginBottom: 18 }}>
@@ -97,11 +104,11 @@ export function BasicBody({ fields, set, orderNo, numLabel = "WO #" }) {
       <div className="no-print mb-3 flex items-center gap-2">
         <span style={{ fontSize: 11, fontWeight: 700, color: C.gray, textTransform: "uppercase", letterSpacing: 0.5 }}>Priority</span>
         <select className="wo-edit" value={fields.priority || "Normal"} onChange={(e) => set("priority", e.target.value)} style={{ fontSize: 13, fontWeight: 700 }}>
-          <option>Normal</option><option>High</option><option>RUSH</option>
+          <option value="Normal">Standard</option><option value="High">High</option><option value="RUSH">Urgent</option>
         </select>
       </div>
       {fields.priority && fields.priority !== "Normal" && (
-        <div className="inline-block px-3 py-1 mb-4" style={{ background: fields.priority === "RUSH" ? C.rush : C.high, color: "#fff", fontSize: 16, fontWeight: 900, letterSpacing: 2, textTransform: "uppercase" }}>{fields.priority} — prioritize</div>
+        <div className="inline-block px-3 py-1 mb-4" style={{ background: fields.priority === "RUSH" ? C.rush : C.high, color: "#fff", fontSize: 16, fontWeight: 900, letterSpacing: 2, textTransform: "uppercase" }}>{priLabel(fields.priority)} — prioritize</div>
       )}
 
       <div style={{ marginBottom: 18 }}>
@@ -112,14 +119,14 @@ export function BasicBody({ fields, set, orderNo, numLabel = "WO #" }) {
         <FieldEdit label="Notes"><EI value={fields.notes} onChange={(v) => set("notes", v)} size={15} full /></FieldEdit>
       </div>
 
-      <PhotoBox />
+      <PhotoBox imageUrl={imageUrl} />
       <CompletedBy value={fields.completedBy} onChange={(v) => set("completedBy", v)} />
     </>
   );
 }
 
 // ---- CNC: MODERN sheet + part # + 6 step lines ----
-export function CncBody({ fields, set, orderNo, numLabel = "WO #" }) {
+export function CncBody({ fields, set, orderNo, numLabel = "WO #", imageUrl }) {
   const steps = ["step1", "step2", "step3", "step4", "step5", "step6"];
   return (
     <>
@@ -153,7 +160,7 @@ export function CncBody({ fields, set, orderNo, numLabel = "WO #" }) {
         ))}
       </div>
 
-      <PhotoBox minHeight={180} />
+      <PhotoBox minHeight={180} imageUrl={imageUrl} />
       <CompletedBy value={fields.completedBy} onChange={(v) => set("completedBy", v)} />
     </>
   );

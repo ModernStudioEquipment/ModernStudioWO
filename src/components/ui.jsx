@@ -94,7 +94,8 @@ export function DeptBadge({ d, onChange }) {
   );
 }
 
-// Priority pill — static, or a dropdown (Normal / High / RUSH) when onChange is set.
+// Priority pill — static, or a dropdown (Standard / High / Urgent) when onChange
+// is set. Stored values are Normal/High/RUSH; the shown text is PRI[x].label.
 export function PriorityPill({ priority, onChange }) {
   const p = PRI[priority] || PRI.Normal;
   const pill = (
@@ -103,13 +104,13 @@ export function PriorityPill({ priority, onChange }) {
       style={{ color: p.c, background: p.bg, cursor: onChange ? "pointer" : "default" }}
     >
       <Flag size={12} />
-      {priority}
+      {p.label}
       {onChange && <ChevronDown size={11} style={{ opacity: 0.6 }} />}
     </span>
   );
   if (!onChange) return pill;
   return (
-    <InlineMenu align="right" options={PRIORITIES.map((x) => ({ value: x, label: x }))} onSelect={onChange}>
+    <InlineMenu align="right" options={PRIORITIES.map((x) => ({ value: x, label: PRI[x].label }))} onSelect={onChange}>
       {pill}
     </InlineMenu>
   );
@@ -155,7 +156,7 @@ export function ItemLine({ it, right, onOpen, flash, onDept }) {
       style={{
         borderBottom: `1px solid ${C.line}`,
         cursor: onOpen ? "pointer" : "default",
-        animation: flash ? "flashRow 0.85s ease-in-out 3" : undefined,
+        animation: flash ? "flashRow 0.85s ease-in-out 5" : undefined,
         boxShadow: flash ? `inset 4px 0 0 ${C.high}` : undefined,
       }}
     >
@@ -181,7 +182,7 @@ export function Tabwrap({ title, sub, action, children }) {
       <div className="mb-3 flex items-start gap-3">
         <div>
           <div className="font-bold" style={{ fontSize: 16 }}>{title}</div>
-          <div style={{ fontSize: 13, color: C.gray }}>{sub}</div>
+          {sub && <div style={{ fontSize: 13, color: C.gray }}>{sub}</div>}
         </div>
         {action && <div className="ml-auto">{action}</div>}
       </div>

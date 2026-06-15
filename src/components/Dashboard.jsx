@@ -1,5 +1,5 @@
 import React from "react";
-import { C, elapsed } from "../theme.js";
+import { C, elapsed, effectivePriority } from "../theme.js";
 
 // The shop's home screen — a live at-a-glance view computed from the same orders
 // + work orders the rest of the app uses. Cards and pipeline stages click
@@ -12,7 +12,7 @@ export function Dashboard({ orders = [], workOrders = [], now, onNavigate, onOpe
   const orderActive = (o) => o.items.length > 0 && o.items.some(active) && !fulfilled(o);
 
   // ---- KPIs ----
-  const rushCount = orders.filter((o) => o.priority === "RUSH" && orderActive(o)).length;
+  const rushCount = orders.filter((o) => effectivePriority(o, ts) === "RUSH" && orderActive(o)).length;
   const inProgItems = items.filter((it) => it.stage === "workorder").length;
   const inProgOrders = orders.filter((o) => o.items.some((it) => it.stage === "workorder")).length;
   const awaitingCount = items.filter((it) => it.stage === "awaiting").length;
@@ -35,11 +35,11 @@ export function Dashboard({ orders = [], workOrders = [], now, onNavigate, onOpe
     seen.add(o.id);
     attn.push({ id: o.id, no: o.orderNo, name: o.customer, tag, kind, t: o.receivedAt });
   };
-  orders.filter((o) => o.priority === "RUSH" && orderActive(o)).sort((a, b) => a.receivedAt - b.receivedAt).forEach((o) => add(o, "RUSH", "rush"));
+  orders.filter((o) => effectivePriority(o, ts) === "RUSH" && orderActive(o)).sort((a, b) => a.receivedAt - b.receivedAt).forEach((o) => add(o, "URGENT", "rush"));
   orders.forEach((o) => {
     if (o.items.some((it) => it.stage === "awaiting" && it.materials.some((m) => !m.received))) add(o, "BLOCKED", "high");
   });
-  orders.filter((o) => o.priority === "High" && orderActive(o)).sort((a, b) => a.receivedAt - b.receivedAt).forEach((o) => add(o, "HIGH", "high"));
+  orders.filter((o) => effectivePriority(o, ts) === "High" && orderActive(o)).sort((a, b) => a.receivedAt - b.receivedAt).forEach((o) => add(o, "HIGH", "high"));
   const attention = attn.slice(0, 8);
 
   // ---- workload by department (active items + open work orders of that dept) ----
@@ -104,7 +104,7 @@ export function Dashboard({ orders = [], workOrders = [], now, onNavigate, onOpe
       </div>
 
       <div className="grid mb-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 12 }}>
-        <Kpi label="Rush orders" value={rushCount} accent={C.rush} sub={rushCount ? "need attention now" : "none right now"} hot to="orders" />
+        <Kpi label="Urgent orders" value={rushCount} accent={C.rush} sub={rushCount ? "need attention now" : "none right now"} hot to="orders" />
         <Kpi label="In progress" value={pWork} accent={C.blue} sub={`across ${inProgOrders} order${inProgOrders === 1 ? "" : "s"}`} to="work" />
         <Kpi label="Awaiting material" value={awaitingCount} accent={C.high} sub={awaitingCount ? "in purchasing" : "nothing waiting"} hot to="buy" />
         <Kpi label="Ready to ship" value={readyCount} accent={C.green} sub={readyCount ? "ready to fulfill" : "none yet"} hot to="orders" />

@@ -1,12 +1,14 @@
-import React from "react";
-import { X } from "lucide-react";
+import React, { useState } from "react";
+import { X, Trash2, RotateCcw } from "lucide-react";
 import { C, PRI, elapsed, itemStatusText } from "../../theme.js";
 import { Pill, Info, Stepper, DeptBadge, PriorityPill } from "../ui.jsx";
 
 // The office "where's my order?" view — full detail with a per-product
 // progress tracker. Items reconverge here even though they're triaged and
 // routed independently.
-export function OrderDetail({ order, status, now, onPriority, onUpdateItem, onClose }) {
+export function OrderDetail({ order, status, now, onPriority, onUpdateItem, onUnpick, onCancel, onClose }) {
+  const [confirming, setConfirming] = useState(false);
+  const [reason, setReason] = useState("Customer cancelled");
   const done = order.items.filter((i) => i.stage === "done").length;
   const total = order.items.length;
   const receivedOn = new Date(order.receivedAt).toLocaleDateString("en-US", {
@@ -60,8 +62,46 @@ export function OrderDetail({ order, status, now, onPriority, onUpdateItem, onCl
                   Waiting on: {it.materials.filter((m) => !m.received).map((m) => `${m.name}${m.amount ? ` (${m.amount})` : ""}`).join(", ")}
                 </div>
               )}
+              {it.stage === "done" && onUnpick && (
+                <button
+                  onClick={() => onUnpick(it.id)}
+                  className="inline-flex items-center gap-1 mt-2"
+                  style={{ fontSize: 12, color: C.blue, fontWeight: 700 }}
+                  title="Send this item back to the pick list"
+                >
+                  <RotateCcw size={12} />Undo pick — back to pick list
+                </button>
+              )}
             </div>
           ))}
+
+          {onCancel && (
+            <div style={{ borderTop: `1px solid ${C.line}`, marginTop: 16, paddingTop: 14 }}>
+              {confirming ? (
+                <div>
+                  <div style={{ fontSize: 13, color: C.inkSoft, marginBottom: 8 }}>Cancel this order? It's kept on record with a reason.</div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <select value={reason} onChange={(e) => setReason(e.target.value)} className="px-2 py-1.5 outline-none" style={{ border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 13, background: "#fff" }}>
+                      <option>Customer cancelled</option>
+                      <option>Duplicate order</option>
+                      <option>Entered by mistake</option>
+                      <option>Other</option>
+                    </select>
+                    <button onClick={async () => { await onCancel(reason); onClose(); }} className="px-3 py-1.5 rounded font-bold uppercase tracking-wide" style={{ fontSize: 12, background: C.rush, color: "#fff", letterSpacing: 0.5 }}>
+                      Cancel order
+                    </button>
+                    <button onClick={() => setConfirming(false)} className="px-3 py-1.5 rounded font-bold uppercase tracking-wide" style={{ fontSize: 12, background: "#fff", color: C.inkSoft, border: `1px solid ${C.line}`, letterSpacing: 0.5 }}>
+                      Keep
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => setConfirming(true)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded font-bold uppercase tracking-wide" style={{ fontSize: 12, background: "#fff", color: C.rush, border: `1px solid ${C.rush}`, letterSpacing: 0.5 }}>
+                  <Trash2 size={13} />Cancel order
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

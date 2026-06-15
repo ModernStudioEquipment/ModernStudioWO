@@ -134,12 +134,17 @@ export const localAdapter = {
       fulfillment: null,
       location: null,
       trackingNumber: null,
+      pickedUpAt: null,
+      pickedUpBy: null,
+      cancelledAt: null,
+      cancelReason: null,
       items: items.map((it) => ({
         id: uid(),
         name: it.name,
         qty: Number(it.qty) || 1,
         dept: it.dept || "Shop",
         color: it.color || null,
+        imageUrl: it.imageUrl || null,
         stage: "new",
         needsMaterial: false,
         materials: [],
@@ -183,7 +188,13 @@ export const localAdapter = {
       if (patch.color !== undefined) it.color = patch.color || null;
       if (patch.dept !== undefined) it.dept = patch.dept;
       if (patch.completedBy !== undefined) it.completedBy = patch.completedBy || null;
+      if (patch.imageUrl !== undefined) it.imageUrl = patch.imageUrl || null;
     });
+  },
+
+  // Undo a pick: send a finished item back to the pick list.
+  async unpickItem(itemId) {
+    mutateItem(itemId, (it) => { it.stage = "picklist"; });
   },
 
   async markOrdered(materialId) {
@@ -228,6 +239,27 @@ export const localAdapter = {
     const o = orders.find((x) => x.id === orderId);
     if (o) o.trackingNumber = trackingNumber;
     write(orders);
+  },
+
+  // Will Call pickup: record who collected it and when.
+  async markPickedUp(orderId, by) {
+    const orders = read();
+    const o = orders.find((x) => x.id === orderId);
+    if (o) { o.pickedUpAt = new Date().toISOString(); o.pickedUpBy = by || null; }
+    write(orders);
+  },
+
+  // Cancel an order — mark it cancelled (with a reason) but keep the record.
+  async cancelOrder(orderId, reason) {
+    const orders = read();
+    const o = orders.find((x) => x.id === orderId);
+    if (o) { o.cancelledAt = new Date().toISOString(); o.cancelReason = reason || null; }
+    write(orders);
+  },
+
+  // Hard delete (no longer used by the UI; kept for admin/cleanup).
+  async deleteOrder(orderId) {
+    write(read().filter((o) => o.id !== orderId));
   },
 
   // ---- custom work orders (Work Order tab) ----

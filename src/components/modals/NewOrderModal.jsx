@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { X, Plus, Trash2 } from "lucide-react";
-import { C, PRIORITIES, DEPTS } from "../../theme.js";
+import { C, PRI, PRIORITIES, DEPTS } from "../../theme.js";
 import { DeptIcon } from "../ui.jsx";
 
 // Manual order entry (phone orders today; Shopify auto-pull is a later phase).
@@ -96,7 +96,7 @@ export function NewOrderModal({ getNextOrderNo, onCreate, onClose }) {
                       ? { background: C.ink, color: "#fff" }
                       : { background: "#fff", color: C.inkSoft, border: `1px solid ${C.line}` }}
                   >
-                    {p}
+                    {PRI[p].label}
                   </button>
                 ))}
               </div>

@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
 import {
   Clock, Printer, Plus, Truck, CheckCircle2, AlertTriangle, Hammer,
-  Flag, Check, ArrowRight, ShoppingCart, LogOut, Store, MapPin, Package,
+  Flag, Check, ArrowRight, ShoppingCart, LogOut, Store, MapPin, Package, X,
 } from "lucide-react";
-import { C, PRI, PRI_CYCLE, elapsed, blocked, pct, dueLabel } from "./theme.js";
+import { C, PRI, PRI_CYCLE, PRI_RANK, elapsed, blocked, pct, dueLabel, priLabel, effectivePriority } from "./theme.js";
 import { backendMode } from "./lib/db.js";
 import { useAuth } from "./hooks/useAuth.js";
 import { useOrders } from "./hooks/useOrders.js";
@@ -22,6 +22,7 @@ import { WorkOrderDoc } from "./components/modals/WorkOrderDoc.jsx";
 import { NewOrderModal } from "./components/modals/NewOrderModal.jsx";
 import { FulfillModal } from "./components/modals/FulfillModal.jsx";
 import { TrackingModal } from "./components/modals/TrackingModal.jsx";
+import { PickedUpModal } from "./components/modals/PickedUpModal.jsx";
 import { CustomWorkOrderDoc } from "./components/modals/CustomWorkOrderDoc.jsx";
 import { WO_TYPES } from "./components/workorders/forms.js";
 
@@ -30,7 +31,9 @@ export default function App() {
   const authed = !auth.needsAuth || !!auth.user;
   const board = useOrders(authed);
   const wo = useWorkOrders(authed);
-  const { orders } = board;
+  // Cancelled orders are kept on record in the DB but hidden from every board.
+  const allOrders = board.orders;
+  const orders = allOrders.filter((o) => !o.cancelledAt);
 
   const [tab, setTab] = useState("dash");
   const [now, setNow] = useState(Date.now());
@@ -39,11 +42,13 @@ export default function App() {
   const [flashItem, setFlashItem] = useState(null);
   const [detailId, setDetailId] = useState(null);
   const [flashOrderId, setFlashOrderId] = useState(null); // order to scroll to + flash after a search jump
+  const [confirmStock, setConfirmStock] = useState(null); // New Orders item id awaiting the "already picked?" answer
   const [pickItem, setPickItem] = useState(null); // { o, it }
   const [orderView, setOrderView] = useState("all");
   const [showNew, setShowNew] = useState(false);
   const [fulfillTarget, setFulfillTarget] = useState(null); // { order, method }
   const [trackTarget, setTrackTarget] = useState(null); // order being marked shipped
+  const [pickupTarget, setPickupTarget] = useState(null); // will-call order being marked picked up
   const [customDoc, setCustomDoc] = useState(null); // work order sheet open for edit ({type} = new, or a saved WO)
   const [workCombined, setWorkCombined] = useState(false); // Work Order tab: combine like items across orders
 
@@ -107,7 +112,7 @@ export default function App() {
     if (moved && moved.stage === "workorder") {
       setTab("work");
       setFlashItem(it.id);
-      setTimeout(() => setFlashItem(null), 2600);
+      setTimeout(() => setFlashItem(null), 4400); // ~5 flashes at 0.85s
     }
   };
 
@@ -128,6 +133,12 @@ export default function App() {
     setTab("shipped"); // order moves out of Shipping and into the Shipped tab
   };
 
+  // Will Call: mark an order picked up (records who collected it).
+  const confirmPickup = async (by) => {
+    await board.markPickedUp(pickupTarget.id, by);
+    setPickupTarget(null);
+  };
+
   // Save a custom work order — update in place when editing, otherwise create.
   // Returns the id so a freshly-saved new sheet keeps editing the same record.
   const saveWorkOrder = async (woPayload) => {
@@ -145,7 +156,7 @@ export default function App() {
   const qbActive = wo.workOrders.filter((w) => !w.done); // QuickBooks work orders not yet done
   const buyOrders = orders.filter((o) => o.items.some((it) => it.needsMaterial && it.materials.some((m) => !m.received)));
   const count = (os, pred) => os.reduce((n, o) => n + o.items.filter(pred).length, 0);
-  const detailOrder = orders.find((o) => o.id === detailId);
+  const detailOrder = allOrders.find((o) => o.id === detailId);
 
   const oInTriage = (o) => o.items.some((i) => i.stage === "new");
   const oDone = (o) => !oInTriage(o) && o.items.length > 0 && o.items.every((i) => i.stage === "done");
@@ -156,11 +167,14 @@ export default function App() {
   // Shipping = staged, no tracking yet. Shipped = tracking logged, out the door.
   const shippingOrders = orders.filter((o) => o.fulfillment === "shipping" && !o.trackingNumber);
   const shippedOrders = orders.filter((o) => o.fulfillment === "shipping" && o.trackingNumber);
+  // The Orders tab is the active worklist: drop orders that have shipped or been
+  // picked up (they still live on in the Shipped / Will Call tabs).
+  const ordersForList = orders.filter((o) => !o.trackingNumber && !o.pickedUpAt);
   const OFILTERS = [
-    { k: "all", label: "All", n: orders.length },
-    { k: "triage", label: "In triage", n: orders.filter(oInTriage).length },
-    { k: "prog", label: "In progress", n: orders.filter(oProg).length },
-    { k: "done", label: "Completed", n: orders.filter(awaitingFulfill).length },
+    { k: "all", label: "All", n: ordersForList.length },
+    { k: "triage", label: "In triage", n: ordersForList.filter(oInTriage).length },
+    { k: "prog", label: "In progress", n: ordersForList.filter(oProg).length },
+    { k: "done", label: "Completed", n: ordersForList.filter(awaitingFulfill).length },
     { k: "pct", label: "% done", n: null },
     { k: "due", label: "Due date", n: null },
   ];
@@ -171,13 +185,22 @@ export default function App() {
     if (!b.dueDate) return -1;
     return a.dueDate < b.dueDate ? -1 : a.dueDate > b.dueDate ? 1 : 0;
   };
+  // Urgent → High → Standard; within a tier, soonest due date first, then oldest.
+  const byUrgency = (a, b) => {
+    const ra = PRI_RANK[effectivePriority(a, now)], rb = PRI_RANK[effectivePriority(b, now)];
+    if (ra !== rb) return ra - rb;
+    if (a.dueDate && b.dueDate && a.dueDate !== b.dueDate) return a.dueDate < b.dueDate ? -1 : 1;
+    if (a.dueDate && !b.dueDate) return -1;
+    if (!a.dueDate && b.dueDate) return 1;
+    return a.receivedAt - b.receivedAt;
+  };
   const visibleOrders =
-    orderView === "triage" ? orders.filter(oInTriage)
-    : orderView === "prog" ? orders.filter(oProg)
-    : orderView === "done" ? orders.filter(awaitingFulfill)
-    : orderView === "pct" ? [...orders].sort((a, b) => pct(b) - pct(a))
-    : orderView === "due" ? [...orders].sort(byDue)
-    : [...orders].sort((a, b) => b.receivedAt - a.receivedAt);
+    orderView === "triage" ? ordersForList.filter(oInTriage)
+    : orderView === "prog" ? ordersForList.filter(oProg)
+    : orderView === "done" ? ordersForList.filter(awaitingFulfill)
+    : orderView === "pct" ? [...ordersForList].sort((a, b) => pct(b) - pct(a))
+    : orderView === "due" ? [...ordersForList].sort(byDue)
+    : [...ordersForList].sort((a, b) => b.receivedAt - a.receivedAt);
 
   // Search is scoped to whatever tab you're in — it only finds orders shown in
   // that tab. (Orders tab and Dashboard search across everything.)
@@ -276,8 +299,7 @@ export default function App() {
 
             {tab === "new" && (
               <Tabwrap
-                title="New orders — triage every item"
-                sub="Grouped by order. For each line, say where it goes."
+                title="NEW ORDERS"
                 action={<Btn kind="dark" onClick={() => setShowNew(true)}><Plus size={13} />New order</Btn>}
               >
                 {!newOrders.length && <Empty>Nothing waiting. New orders land here the moment they come in.</Empty>}
@@ -291,7 +313,7 @@ export default function App() {
                           <span style={{ fontFamily: "ui-monospace,monospace", color: C.inkSoft }}>×{it.qty}</span>
                         </div>
                         <div className="flex gap-2">
-                          <button onClick={() => triage(it.id, "instock")} className="flex-1 py-2 rounded font-bold uppercase tracking-wide text-xs" style={{ background: C.greenBg, color: C.green, border: `1px solid ${C.green}` }}>In stock</button>
+                          <button onClick={() => setConfirmStock(it)} className="flex-1 py-2 rounded font-bold uppercase tracking-wide text-xs" style={{ background: C.greenBg, color: C.green, border: `1px solid ${C.green}` }}>In stock</button>
                           <button onClick={() => triage(it.id, "have")} className="flex-1 py-2 rounded font-bold uppercase tracking-wide text-xs" style={{ background: C.highBg, color: C.high, border: `1px solid ${C.high}` }}>Create WO</button>
                           <button onClick={() => triage(it.id, "need")} className="flex-1 py-2 rounded font-bold uppercase tracking-wide text-xs" style={{ background: C.rushBg, color: C.rush, border: `1px solid ${C.rush}` }}>Material</button>
                         </div>
@@ -303,9 +325,9 @@ export default function App() {
             )}
 
             {tab === "pick" && (
-              <Tabwrap title="Pick list — grab these off the shelf" sub="Click an item to see its photo, then grab it and check it off.">
+              <Tabwrap title="PICK LIST" sub="Click an item to see its image, then grab it and check it off.">
                 {!pickOrders.length && <Empty>Empty. In-stock items show up here after triage.</Empty>}
-                {pickOrders.map((o) => (
+                {[...pickOrders].sort(byUrgency).map((o) => (
                   <Group key={o.id} o={o} now={now} onPriority={board.setPriority}>
                     {o.items.filter((it) => it.stage === "picklist").map((it) => (
                       <ItemLine
@@ -321,10 +343,10 @@ export default function App() {
             )}
 
             {tab === "work" && (
-              <Tabwrap title="Work order — make these" sub="QuickBooks orders you create here, plus Shopify orders pulled from the web.">
+              <Tabwrap title="WORK ORDERS" sub="QuickBooks orders you create here, plus Shopify orders pulled from the web.">
                 {/* ---- QuickBooks: custom work orders ---- */}
                 <div className="rounded mb-3 p-3 flex items-center gap-2 flex-wrap" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: C.gray, textTransform: "uppercase", letterSpacing: 0.5 }}>New work order</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: C.gray, textTransform: "uppercase", letterSpacing: 0.5 }}>Create new work order</span>
                   {WO_TYPES.map((t) => (
                     <button
                       key={t.key}
@@ -407,7 +429,7 @@ export default function App() {
             )}
 
             {tab === "buy" && (
-              <Tabwrap title="Purchasing — order this material" sub="Grouped by order. Hit “have it” and the item moves to Work Order.">
+              <Tabwrap title="PURCHASING" sub="Grouped by order. Hit “have it” and the item moves to Work Order.">
                 {!buyOrders.length && <Empty>Nothing to buy. Materials land here when an item is triaged “need material.”</Empty>}
                 {buyOrders.map((o) => (
                   <Group key={o.id} o={o} now={now} onPriority={board.setPriority}>
@@ -506,7 +528,7 @@ export default function App() {
 
             {tab === "willcall" && (
               <Tabwrap title="Will Call — held for pickup" sub="Completed orders waiting for the customer to collect. Location is where to find them.">
-                <FulfillmentBoard variant="willcall" orders={willCallOrders} now={now} onOpen={setDetailId} emptyText="Nothing on will-call yet. Completed orders land here when you mark them Will Call." />
+                <FulfillmentBoard variant="willcall" orders={willCallOrders} now={now} onOpen={setDetailId} onPickedUp={setPickupTarget} emptyText="Nothing on will-call yet. Completed orders land here when you mark them Will Call." />
               </Tabwrap>
             )}
 
@@ -541,6 +563,8 @@ export default function App() {
           now={now}
           onPriority={(pr) => board.setPriority(detailOrder.id, pr)}
           onUpdateItem={(itemId, patch) => board.updateItem(itemId, patch)}
+          onUnpick={(itemId) => board.unpickItem(itemId)}
+          onCancel={(reason) => board.cancelOrder(detailOrder.id, reason)}
           onClose={() => setDetailId(null)}
         />
       )}
@@ -548,6 +572,7 @@ export default function App() {
         <PickPhoto
           order={pickItem.o} item={pickItem.it}
           onPicked={async () => { await board.finishItem(pickItem.it.id); setPickItem(null); }}
+          onSetImage={(url) => board.updateItem(pickItem.it.id, { imageUrl: url })}
           onClose={() => setPickItem(null)}
         />
       )}
@@ -559,6 +584,35 @@ export default function App() {
           onConfirm={confirmFulfill}
           onClose={() => setFulfillTarget(null)}
         />
+      )}
+      {pickupTarget && (
+        <PickedUpModal
+          order={pickupTarget}
+          onConfirm={confirmPickup}
+          onClose={() => setPickupTarget(null)}
+        />
+      )}
+      {confirmStock && (
+        <div
+          onClick={() => setConfirmStock(null)}
+          style={{ position: "fixed", inset: 0, background: "rgba(20,28,38,0.5)", display: "flex", alignItems: "flex-start", justifyContent: "center", overflowY: "auto", zIndex: 60, padding: "24px 12px" }}
+        >
+          <div onClick={(e) => e.stopPropagation()} style={{ width: 400, maxWidth: "92vw", background: C.concrete, borderRadius: 8, overflow: "hidden", marginTop: "12vh" }}>
+            <div className="flex items-center gap-2 px-4 py-3 font-bold" style={{ background: C.ink, color: "#fff" }}>
+              Marked as picked?
+              <button onClick={() => setConfirmStock(null)} className="ml-auto" style={{ color: "#fff" }}><X size={18} /></button>
+            </div>
+            <div className="p-4">
+              <div style={{ fontSize: 14, marginBottom: 16 }}>
+                Is <b>{confirmStock.name}</b> already picked off the shelf?
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => { board.finishItem(confirmStock.id); setConfirmStock(null); }} className="flex-1 py-2.5 rounded font-bold uppercase tracking-wide text-xs" style={{ background: C.green, color: "#fff" }}>Yes — already picked</button>
+                <button onClick={() => { triage(confirmStock.id, "instock"); setConfirmStock(null); }} className="flex-1 py-2.5 rounded font-bold uppercase tracking-wide text-xs" style={{ background: "#fff", color: C.green, border: `1px solid ${C.green}` }}>No — send to pick list</button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
       {trackTarget && (
         <TrackingModal
@@ -618,20 +672,22 @@ function CombinedItems({ orders, stage }) {
 // List for the Will Call / Shipping tabs: completed orders with their staged
 // warehouse location. Shipping orders also get a "Shipped" action that logs a
 // tracking number; once logged, the tracking number shows in its place.
-function FulfillmentBoard({ orders, now, onOpen, onMarkShipped, variant, emptyText }) {
+function FulfillmentBoard({ orders, now, onOpen, onMarkShipped, onPickedUp, variant, emptyText }) {
   if (!orders.length) return <Empty>{emptyText}</Empty>;
   return (
     <>
       {orders.map((o) => {
         const p = PRI[o.priority];
         const shipped = variant === "shipping" && o.trackingNumber;
+        const pickedUp = variant === "willcall" && o.pickedUpAt;
+        const closed = shipped || pickedUp;
         return (
           <div
             key={o.id}
             id={`order-${o.id}`}
             onClick={() => onOpen(o.id)}
             className="rounded mb-2"
-            style={{ background: "#fff", border: `1px solid ${C.line}`, borderLeft: `4px solid ${shipped ? C.green : C.line}`, opacity: shipped ? 0.7 : 1, cursor: "pointer" }}
+            style={{ background: "#fff", border: `1px solid ${C.line}`, borderLeft: `4px solid ${closed ? C.green : C.line}`, opacity: closed ? 0.7 : 1, cursor: "pointer" }}
           >
             <div className="flex items-center gap-3 px-4 py-3 flex-wrap">
               <span className="font-bold" style={{ fontFamily: "ui-monospace,monospace", fontSize: 15 }}>#{o.orderNo}</span>
@@ -639,7 +695,7 @@ function FulfillmentBoard({ orders, now, onOpen, onMarkShipped, variant, emptyTe
                 <div className="font-bold" style={{ fontSize: 14 }}>{o.customer}</div>
                 <div style={{ fontSize: 12, color: C.gray }}>Ordered by {o.contact} · {elapsed(now - o.receivedAt)} ago</div>
               </div>
-              <Pill c={p.c} bg={p.bg} Icon={Flag}>{o.priority}</Pill>
+              <Pill c={p.c} bg={p.bg} Icon={Flag}>{priLabel(o.priority)}</Pill>
               <div className="ml-auto flex items-center gap-3" style={{ fontSize: 13 }}>
                 <span className="flex items-center gap-1">
                   <MapPin size={15} color={C.gray} />
@@ -651,6 +707,15 @@ function FulfillmentBoard({ orders, now, onOpen, onMarkShipped, variant, emptyTe
                   ) : (
                     <Btn kind="dark" onClick={(e) => { e.stopPropagation(); onMarkShipped(o); }}>
                       <Truck size={13} />Shipped
+                    </Btn>
+                  )
+                )}
+                {variant === "willcall" && (
+                  pickedUp ? (
+                    <Pill c={C.green} bg={C.greenBg} Icon={Check}>Picked up{o.pickedUpBy ? ` · ${o.pickedUpBy}` : ""}</Pill>
+                  ) : (
+                    <Btn kind="gold" onClick={(e) => { e.stopPropagation(); onPickedUp(o); }}>
+                      <Check size={13} />Picked up
                     </Btn>
                   )
                 )}

@@ -57,8 +57,21 @@ export async function POST(request) {
     dept: "Shop", // default; the office re-routes per item at triage
     color: null,
     position: i,
+    product_id: li.product_id || null,
   }));
   if (!items.length) return json(200, { ok: true, skipped: "no line items" });
+
+  // Best-effort: pull each product's photo from Shopify. Only runs when a
+  // read_products Admin token is configured; any failure is swallowed so it can
+  // never block the order from being created.
+  try {
+    const shop = request.headers.get("x-shopify-shop-domain");
+    const adminToken = process.env.SHOPIFY_ADMIN_TOKEN;
+    if (shop && adminToken) {
+      const imgs = await fetchProductImages(shop, adminToken, items.map((it) => it.product_id));
+      for (const it of items) if (it.product_id && imgs[it.product_id]) it.image_url = imgs[it.product_id];
+    }
+  } catch { /* photos are optional */ }
 
   const sb = {
     apikey: serviceKey,
@@ -111,4 +124,30 @@ function json(status, body) {
     status,
     headers: { "Content-Type": "application/json" },
   });
+}
+
+// Fetch each product's primary image from the Shopify Admin API. Returns a map
+// of productId -> image URL. Needs SHOPIFY_ADMIN_TOKEN with read_products.
+async function fetchProductImages(shop, token, productIds) {
+  const out = {};
+  const ids = [...new Set(productIds.filter(Boolean))];
+  if (!ids.length) return out;
+  const ver = process.env.SHOPIFY_API_VERSION || "2025-10";
+  await Promise.all(
+    ids.map(async (pid) => {
+      try {
+        const r = await fetch(
+          `https://${shop}/admin/api/${ver}/products/${pid}.json?fields=id,image,images`,
+          { headers: { "X-Shopify-Access-Token": token } }
+        );
+        if (!r.ok) return;
+        const d = await r.json();
+        const src = d.product?.image?.src || d.product?.images?.[0]?.src || null;
+        if (src) out[pid] = src;
+      } catch {
+        /* one product failing shouldn't affect the rest */
+      }
+    })
+  );
+  return out;
 }

@@ -77,5 +77,9 @@ export function useOrders(enabled) {
     setPriority: act((orderId, priority) => db.setPriority(orderId, priority)),
     fulfillOrder: act((orderId, method, location) => db.fulfillOrder(orderId, method, location)),
     markShipped: act((orderId, trackingNumber) => db.markShipped(orderId, trackingNumber)),
+    deleteOrder: act((orderId) => db.deleteOrder(orderId)),
+    cancelOrder: act((orderId, reason) => db.cancelOrder(orderId, reason)),
+    unpickItem: act((itemId) => db.unpickItem(itemId)),
+    markPickedUp: act((orderId, by) => db.markPickedUp(orderId, by)),
   };
 }
