@@ -117,6 +117,40 @@ export default function App() {
     }
   };
 
+  // "Combine like items" → one batch work order for the same product pulled
+  // from several orders. Shows a single line with the summed quantity, but
+  // saves "completed by" back to every underlying item it was combined from.
+  const makeCombinedDoc = (row) => {
+    const reals = row.entries.map((e) => e.it);
+    const orders = row.entries.map((e) => e.o);
+    const orderNos = [...new Set(orders.map((o) => o.orderNo))];
+    const topPriority = orders
+      .map((o) => o.priority || "Normal")
+      .reduce((best, p) => (PRI_RANK[p] > PRI_RANK[best] ? p : best), "Normal");
+    const dueDates = orders.map((o) => o.dueDate).filter(Boolean).sort();
+    const synthOrder = {
+      orderNo: orderNos.map((n) => `#${n}`).join(", "),
+      receivedAt: Math.min(...orders.map((o) => +new Date(o.receivedAt))),
+      contact: "",
+      priority: topPriority,
+      dueDate: dueDates[0] || null,
+    };
+    const combinedItem = {
+      id: `combined-${row.name}`,
+      name: row.name,
+      qty: row.qty,
+      color: row.color || "",
+      dept: row.dept,
+      imageUrl: reals.find((it) => it.imageUrl)?.imageUrl || null,
+      completedBy: reals.find((it) => it.completedBy)?.completedBy || "",
+    };
+    setDoc({ o: synthOrder, items: [combinedItem], saveTargets: reals });
+  };
+
+  // Re-route every like-item in a combined row to a new department at once.
+  const setCombinedDept = (row, dept) =>
+    Promise.all(row.entries.map((e) => board.updateItem(e.it.id, { dept })));
+
   // Close out a completed order via Ship or Will Call. Records the location and
   // sends the order to the matching top tab.
   const openFulfill = (order, method) => setFulfillTarget({ order, method });
@@ -425,7 +459,7 @@ export default function App() {
                 </div>
                 {!workOrders.length && <Empty>Nothing from Shopify yet. Triaged “create WO” items show up here.</Empty>}
                 {workCombined ? (
-                  <CombinedItems orders={workOrders} stage="workorder" />
+                  <CombinedItems orders={workOrders} stage="workorder" onMake={makeCombinedDoc} onDept={setCombinedDept} />
                 ) : (
                   workOrders.map((o) => {
                     const woItems = o.items.filter((it) => it.stage === "workorder");
@@ -621,7 +655,7 @@ export default function App() {
           onClose={() => setPickItem(null)}
         />
       )}
-      {doc && <WorkOrderDoc order={doc.o} items={doc.items} onSave={(patch) => Promise.all(doc.items.map((it) => board.updateItem(it.id, patch)))} onClose={() => setDoc(null)} />}
+      {doc && <WorkOrderDoc order={doc.o} items={doc.items} onSave={(patch) => Promise.all((doc.saveTargets || doc.items).map((it) => board.updateItem(it.id, patch)))} onClose={() => setDoc(null)} />}
       {fulfillTarget && (
         <FulfillModal
           order={fulfillTarget.order}
@@ -677,17 +711,18 @@ export default function App() {
 // you can make them together (8 + 5 T-handles → 13) while still seeing which
 // orders they came from. Read-only roll-up; the per-order view stays the source
 // of truth for marking items done.
-function CombinedItems({ orders, stage }) {
+function CombinedItems({ orders, stage, onMake, onDept }) {
   const map = new Map();
   orders.forEach((o) =>
     o.items
       .filter((it) => it.stage === stage)
       .forEach((it) => {
         const key = `${it.name}__${it.color || ""}`;
-        if (!map.has(key)) map.set(key, { name: it.name, color: it.color, dept: it.dept, qty: 0, sources: [] });
+        if (!map.has(key)) map.set(key, { name: it.name, color: it.color, dept: it.dept, qty: 0, sources: [], entries: [] });
         const e = map.get(key);
         e.qty += it.qty || 1;
         e.sources.push({ orderNo: o.orderNo, qty: it.qty || 1 });
+        e.entries.push({ o, it });
       })
   );
   const rows = [...map.values()].sort((a, b) => b.qty - a.qty);
@@ -695,18 +730,29 @@ function CombinedItems({ orders, stage }) {
   return (
     <>
       {rows.map((r, i) => (
-        <div key={i} className="rounded mb-2" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
-          <div className="flex items-center gap-3 px-4 py-3 flex-wrap">
+        <div
+          key={i}
+          onClick={onMake ? () => onMake(r) : undefined}
+          title={onMake ? "Make one work order for all of these" : undefined}
+          className="rounded mb-2"
+          style={{ background: "#fff", border: `1px solid ${C.line}`, cursor: onMake ? "pointer" : "default" }}
+        >
+          <div className="flex items-center gap-x-3 gap-y-2 px-4 py-3 flex-wrap">
             <span className="inline-flex items-center justify-center font-bold" style={{ minWidth: 46, height: 34, padding: "0 10px", borderRadius: 6, background: C.ink, color: "#fff", fontFamily: "ui-monospace,monospace", fontSize: 17 }}>
               ×{r.qty}
             </span>
-            <DeptBadge d={r.dept} />
+            <DeptBadge d={r.dept} onChange={onDept ? (dep) => onDept(r, dep) : undefined} />
             <div style={{ minWidth: 0 }}>
               <div className="font-bold" style={{ fontSize: 14 }}>{r.name}{r.color ? ` · ${r.color}` : ""}</div>
               <div style={{ fontSize: 12, color: C.gray }}>
                 {r.sources.length} order{r.sources.length === 1 ? "" : "s"}: {r.sources.map((s) => `#${s.orderNo} (${s.qty})`).join(", ")}
               </div>
             </div>
+            {onMake && (
+              <span className="basis-full sm:basis-auto sm:ml-auto flex justify-end" onClick={(e) => e.stopPropagation()}>
+                <Btn onClick={() => onMake(r)}><Printer size={13} />Print work order</Btn>
+              </span>
+            )}
           </div>
         </div>
       ))}
