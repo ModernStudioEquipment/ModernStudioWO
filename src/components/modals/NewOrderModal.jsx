@@ -83,7 +83,7 @@ export function NewOrderModal({ getNextOrderNo, onCreate, onClose }) {
             </div>
           </div>
 
-          <div className="flex items-center gap-4 mb-4">
+          <div className="flex flex-wrap items-center gap-4 mb-4">
             <div>
               <div style={label}>Priority</div>
               <div className="flex gap-1">
@@ -119,7 +119,7 @@ export function NewOrderModal({ getNextOrderNo, onCreate, onClose }) {
 
           <div style={{ ...label, marginBottom: 8 }}>Products</div>
           {items.map((it, i) => (
-            <div key={i} className="flex gap-2 mb-2 items-center">
+            <div key={i} className="flex flex-wrap gap-2 mb-2 items-center">
               <input
                 value={it.name}
                 onChange={(e) => updItem(i, "name", e.target.value)}

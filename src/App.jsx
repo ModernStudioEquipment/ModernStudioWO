@@ -389,14 +389,14 @@ export default function App() {
                     className="rounded mb-3"
                     style={{ background: "#fff", border: `1px solid ${C.line}`, borderLeft: `4px solid ${C.ink}`, cursor: "pointer" }}
                   >
-                    <div className="flex items-center gap-3 px-4 py-3">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
                       <span className="font-bold" style={{ fontFamily: "ui-monospace,monospace", fontSize: 15 }}>WO #{w.orderNo}</span>
                       <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-bold uppercase" style={{ background: C.grayBg, color: C.inkSoft }}>{w.type}</span>
-                      <div>
+                      <div className="min-w-0">
                         <div className="font-bold" style={{ fontSize: 14 }}>{w.title || "(untitled)"}</div>
                         <div style={{ fontSize: 12, color: C.gray }}>QuickBooks work order</div>
                       </div>
-                      <span className="ml-auto flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                      <span className="basis-full sm:basis-auto sm:ml-auto flex flex-wrap items-center gap-2" onClick={(e) => e.stopPropagation()}>
                         <Pill c={C.inkSoft} bg={C.grayBg} Icon={Clock}>{elapsed(now - w.createdAt)} ago</Pill>
                         <Btn onClick={() => setCustomDoc(w)}><Printer size={13} />Print</Btn>
                         <Btn kind="dark" onClick={() => wo.markDone(w.id)}><Check size={13} />Mark done</Btn>
@@ -438,7 +438,7 @@ export default function App() {
                           return (
                             <div key={dept}>
                               {multi && (
-                                <div className="flex items-center gap-2 px-4 py-2" style={{ background: C.concrete, borderBottom: `1px solid ${C.line}` }}>
+                                <div className="flex flex-wrap items-center gap-2 px-4 py-2" style={{ background: C.concrete, borderBottom: `1px solid ${C.line}` }}>
                                   <DeptBadge d={dept} />
                                   <span style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5, color: C.inkSoft }}>Work order</span>
                                   <span style={{ fontSize: 12, color: C.gray }}>· {deptItems.length} items</span>
@@ -479,14 +479,14 @@ export default function App() {
                   <Group key={o.id} o={o} now={now} onPriority={board.setPriority}>
                     {o.items.filter((it) => it.needsMaterial).map((it) =>
                       it.materials.filter((m) => !m.received).map((m) => (
-                        <div key={m.id} className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
+                        <div key={m.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
                           <DeptBadge d={it.dept} onChange={(dep) => board.updateItem(it.id, { dept: dep })} />
-                          <div>
+                          <div className="min-w-0">
                             <div className="font-bold" style={{ fontSize: 14 }}>{m.name}</div>
                             <div style={{ fontSize: 12, color: C.gray }}>for {it.name}</div>
                           </div>
                           <span style={{ fontFamily: "ui-monospace,monospace", fontWeight: 700 }}>{m.amount}</span>
-                          <span className="ml-auto flex items-center gap-2">
+                          <span className="basis-full sm:basis-auto sm:ml-auto flex flex-wrap items-center gap-2">
                             {m.ordered ? (
                               <Pill c={C.blue} bg={C.blueBg} Icon={ShoppingCart}>ordered</Pill>
                             ) : (
@@ -525,9 +525,9 @@ export default function App() {
                       className="rounded mb-2"
                       style={{ background: "#fff", border: `1px solid ${C.line}`, borderLeft: `4px solid ${st.c}`, opacity: o.fulfillment ? 0.6 : 1, cursor: "pointer" }}
                     >
-                      <div className="flex items-center gap-3 px-4 py-3 flex-wrap">
+                      <div className="flex items-center gap-x-3 gap-y-2 px-4 py-3 flex-wrap">
                         <span className="font-bold" style={{ fontFamily: "ui-monospace,monospace", fontSize: 15 }}>#{o.orderNo}</span>
-                        <div>
+                        <div className="min-w-0">
                           <div className="font-bold" style={{ fontSize: 14 }}>{o.customer}</div>
                           <div style={{ fontSize: 12, color: C.gray }}>
                             Ordered by {o.contact} · {elapsed(now - o.receivedAt)} ago
@@ -535,8 +535,8 @@ export default function App() {
                           </div>
                         </div>
                         <PriorityPill priority={o.priority} onChange={(pr) => board.setPriority(o.id, pr)} />
-                        <div className="ml-auto flex items-center gap-3">
-                          <div className="flex items-center gap-1">
+                        <div className="basis-full sm:basis-auto sm:ml-auto flex flex-wrap items-center gap-3">
+                          <div className="flex flex-wrap items-center gap-1">
                             {o.items.map((it) => (
                               <span key={it.id} title={it.name} style={{ width: 22, height: 8, borderRadius: 2, background: it.stage === "done" ? C.green : blocked(it) ? C.high : C.line }} />
                             ))}
@@ -734,14 +734,14 @@ function FulfillmentBoard({ orders, now, onOpen, onMarkShipped, onPickedUp, vari
             className="rounded mb-2"
             style={{ background: "#fff", border: `1px solid ${C.line}`, borderLeft: `4px solid ${closed ? C.green : C.line}`, opacity: closed ? 0.7 : 1, cursor: "pointer" }}
           >
-            <div className="flex items-center gap-3 px-4 py-3 flex-wrap">
+            <div className="flex items-center gap-x-3 gap-y-2 px-4 py-3 flex-wrap">
               <span className="font-bold" style={{ fontFamily: "ui-monospace,monospace", fontSize: 15 }}>#{o.orderNo}</span>
-              <div>
+              <div className="min-w-0">
                 <div className="font-bold" style={{ fontSize: 14 }}>{o.customer}</div>
                 <div style={{ fontSize: 12, color: C.gray }}>Ordered by {o.contact} · {elapsed(now - o.receivedAt)} ago</div>
               </div>
               <Pill c={p.c} bg={p.bg} Icon={Flag}>{priLabel(o.priority)}</Pill>
-              <div className="ml-auto flex items-center gap-3" style={{ fontSize: 13 }}>
+              <div className="basis-full sm:basis-auto sm:ml-auto flex flex-wrap items-center gap-3" style={{ fontSize: 13 }}>
                 <span className="flex items-center gap-1">
                   <MapPin size={15} color={C.gray} />
                   <span className="font-bold">{o.location || "—"}</span>

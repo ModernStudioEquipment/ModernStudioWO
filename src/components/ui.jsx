@@ -141,17 +141,17 @@ export function MoveMenu({ stage, onMove }) {
 export function OrderHeader({ o, now, onPriority }) {
   return (
     <div
-      className="flex items-center gap-3 px-4 py-3"
+      className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3"
       style={{ borderBottom: `1px solid ${C.line}`, background: "#fff", borderTopLeftRadius: 6, borderTopRightRadius: 6 }}
     >
       <span className="font-bold" style={{ fontFamily: "ui-monospace,monospace", fontSize: 16 }}>
         #{o.orderNo}
       </span>
-      <div>
+      <div style={{ minWidth: 0 }}>
         <div className="font-bold" style={{ fontSize: 14 }}>{o.customer}</div>
         <div style={{ fontSize: 12, color: C.gray }}>Ordered by {o.contact}</div>
       </div>
-      <span className="ml-auto flex items-center gap-2">
+      <span className="basis-full sm:basis-auto sm:ml-auto flex items-center gap-2">
         <Pill c={C.inkSoft} bg={C.grayBg} Icon={Clock}>{elapsed(now - o.receivedAt)} ago</Pill>
         <PriorityPill priority={o.priority} onChange={onPriority ? (p) => onPriority(o.id, p) : undefined} />
       </span>
@@ -174,7 +174,7 @@ export function ItemLine({ it, right, onOpen, flash, onDept }) {
     <div
       ref={flash ? (el) => el && el.scrollIntoView({ behavior: "smooth", block: "center" }) : undefined}
       onClick={onOpen}
-      className="flex items-center gap-3 px-4 py-3"
+      className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3"
       style={{
         borderBottom: `1px solid ${C.line}`,
         cursor: onOpen ? "pointer" : "default",
@@ -183,9 +183,9 @@ export function ItemLine({ it, right, onOpen, flash, onDept }) {
       }}
     >
       <DeptBadge d={it.dept} onChange={onDept} />
-      <span className="font-bold" style={{ fontSize: 14 }}>{it.name}</span>
+      <span className="font-bold flex-1 min-w-0 sm:flex-none" style={{ fontSize: 14 }}>{it.name}</span>
       <span style={{ fontFamily: "ui-monospace,monospace", color: C.inkSoft }}>×{it.qty}</span>
-      <span className="ml-auto" onClick={(e) => e.stopPropagation()}>{right}</span>
+      <span className="basis-full sm:basis-auto sm:ml-auto flex justify-end" onClick={(e) => e.stopPropagation()}>{right}</span>
     </div>
   );
 }
