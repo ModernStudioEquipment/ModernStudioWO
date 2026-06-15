@@ -27,6 +27,7 @@ function mapOrder(row) {
       completedBy: it.completed_by,
       imageUrl: it.image_url || null,
       note: it.note || null,
+      inProgress: it.in_progress || false,
       materials: (it.materials || [])
         .slice()
         .sort((a, b) => a.created_at.localeCompare(b.created_at))
@@ -159,6 +160,7 @@ export const supabaseAdapter = {
     if (patch.completedBy !== undefined) upd.completed_by = patch.completedBy || null;
     if (patch.imageUrl !== undefined) upd.image_url = patch.imageUrl || null;
     if (patch.note !== undefined) upd.note = patch.note || null;
+    if (patch.inProgress !== undefined) upd.in_progress = !!patch.inProgress;
     const { error } = await supabase.from("items").update(upd).eq("id", itemId);
     fail(error);
   },

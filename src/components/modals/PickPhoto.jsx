@@ -5,7 +5,7 @@ import { Btn, Info } from "../ui.jsx";
 
 // Picker confirmation view. Shows the item's product photo (auto-pulled from
 // Shopify when available, or pasted manually here) and the "Item picked" action.
-export function PickPhoto({ order, item, onPicked, onSetImage, onSetNote, onClose }) {
+export function PickPhoto({ order, item, onPicked, onSetImage, onSetNote, onClose, qtyLabel = "Pick qty", actionLabel = "Item picked" }) {
   const [saving, setSaving] = React.useState(false);
   const [url, setUrl] = React.useState(item.imageUrl || "");
   const [savingImg, setSavingImg] = React.useState(false);
@@ -83,12 +83,12 @@ export function PickPhoto({ order, item, onPicked, onSetImage, onSetNote, onClos
           )}
 
           <div className="grid mt-4 mb-4" style={{ gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-            <Info label="Pick qty" value={`×${item.qty}`} />
+            <Info label={qtyLabel} value={`×${item.qty}`} />
             <Info label="Dept" value={item.dept} />
             <Info label="For" value={`#${order.orderNo} · ${order.customer}`} />
           </div>
           <Btn kind="brass" onClick={pick} disabled={saving}>
-            <Check size={15} />{saving ? "Saving…" : "Item picked"}
+            <Check size={15} />{saving ? "Saving…" : actionLabel}
           </Btn>
         </div>
       </div>

@@ -191,6 +191,7 @@ export const localAdapter = {
       if (patch.completedBy !== undefined) it.completedBy = patch.completedBy || null;
       if (patch.imageUrl !== undefined) it.imageUrl = patch.imageUrl || null;
       if (patch.note !== undefined) it.note = patch.note || null;
+      if (patch.inProgress !== undefined) it.inProgress = !!patch.inProgress;
     });
   },
 

@@ -485,12 +485,13 @@ export default function App() {
                                 <ItemLine
                                   key={it.id} it={it} flash={flashItem === it.id}
                                   onDept={(dep) => board.updateItem(it.id, { dept: dep })}
-                                  onOpen={() => setDoc({ o, items: deptItems })}
+                                  onOpen={() => setPickItem({ o, it, wo: true })}
                                   right={
                                     <span className="flex items-center gap-2">
                                       {it.note && <Bell size={16} color={C.high} fill={C.high} title={`Note: ${it.note}`} style={{ flexShrink: 0 }} />}
                                       <MoveMenu stage={it.stage} onMove={(s) => (s === "awaiting" ? setMatTarget(it.id) : board.moveItem(it.id, s))} />
                                       {!multi && <Btn onClick={() => setDoc({ o, items: [it] })}><Printer size={13} />Print</Btn>}
+                                      <Btn kind={it.inProgress ? "green" : "ghost"} onClick={() => board.updateItem(it.id, { inProgress: !it.inProgress })}><Hammer size={13} />In progress</Btn>
                                       <Btn kind="dark" onClick={() => board.finishItem(it.id)}><Check size={13} />Mark done</Btn>
                                     </span>
                                   }
@@ -649,6 +650,8 @@ export default function App() {
       {pickItem && (
         <PickPhoto
           order={pickItem.o} item={pickItem.it}
+          qtyLabel={pickItem.wo ? "Qty" : "Pick qty"}
+          actionLabel={pickItem.wo ? "Mark done" : "Item picked"}
           onPicked={async () => { await board.finishItem(pickItem.it.id); setPickItem(null); }}
           onSetImage={(url) => board.updateItem(pickItem.it.id, { imageUrl: url })}
           onSetNote={(n) => board.updateItem(pickItem.it.id, { note: n })}
