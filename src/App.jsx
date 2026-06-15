@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import {
   Clock, Printer, Plus, Truck, CheckCircle2, AlertTriangle, Hammer,
-  Flag, Check, ArrowRight, ShoppingCart, LogOut, Store, MapPin, Package, X,
+  Flag, Check, ArrowRight, ShoppingCart, LogOut, Store, MapPin, Package, X, Bell,
 } from "lucide-react";
 import { C, PRI, PRI_CYCLE, PRI_RANK, elapsed, blocked, pct, dueLabel, priLabel, effectivePriority } from "./theme.js";
 import { backendMode } from "./lib/db.js";
@@ -43,6 +43,7 @@ export default function App() {
   const [detailId, setDetailId] = useState(null);
   const [flashOrderId, setFlashOrderId] = useState(null); // order to scroll to + flash after a search jump
   const [confirmStock, setConfirmStock] = useState(null); // New Orders item id awaiting the "already picked?" answer
+  const [pickNotesOnly, setPickNotesOnly] = useState(false); // Pick List: show only orders with a noted item
   const [pickItem, setPickItem] = useState(null); // { o, it }
   const [orderView, setOrderView] = useState("all");
   const [showNew, setShowNew] = useState(false);
@@ -152,6 +153,7 @@ export default function App() {
   // ---- derived views ----
   const newOrders = orders.filter((o) => o.items.some((it) => it.stage === "new"));
   const pickOrders = orders.filter((o) => o.items.some((it) => it.stage === "picklist"));
+  const pickNoted = pickOrders.filter((o) => o.items.some((it) => it.stage === "picklist" && it.note));
   const workOrders = orders.filter((o) => o.items.some((it) => it.stage === "workorder"));
   const qbActive = wo.workOrders.filter((w) => !w.done); // QuickBooks work orders not yet done
   const buyOrders = orders.filter((o) => o.items.some((it) => it.needsMaterial && it.materials.some((m) => !m.received)));
@@ -325,9 +327,22 @@ export default function App() {
             )}
 
             {tab === "pick" && (
-              <Tabwrap title="PICK LIST" sub="Click an item to see its image, then grab it and check it off.">
-                {!pickOrders.length && <Empty>Empty. In-stock items show up here after triage.</Empty>}
-                {[...pickOrders].sort(byUrgency).map((o) => (
+              <Tabwrap
+                title="PICK LIST"
+                sub="Click an item to see its image, then grab it and check it off."
+                action={
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => setPickNotesOnly(false)} className="px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wide" style={!pickNotesOnly ? { background: C.ink, color: "#fff" } : { background: "#fff", color: C.inkSoft, border: `1px solid ${C.line}` }}>All</button>
+                    <button onClick={() => setPickNotesOnly(true)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wide" style={pickNotesOnly ? { background: C.ink, color: "#fff" } : { background: "#fff", color: C.inkSoft, border: `1px solid ${C.line}` }}>
+                      <Bell size={12} />With notes{pickNoted.length ? ` · ${pickNoted.length}` : ""}
+                    </button>
+                  </div>
+                }
+              >
+                {!(pickNotesOnly ? pickNoted : pickOrders).length && (
+                  <Empty>{pickNotesOnly ? "No items have notes right now." : "Empty. In-stock items show up here after triage."}</Empty>
+                )}
+                {[...(pickNotesOnly ? pickNoted : pickOrders)].sort(byUrgency).map((o) => (
                   <Group key={o.id} o={o} now={now} onPriority={board.setPriority}>
                     {o.items.filter((it) => it.stage === "picklist").map((it) => (
                       <ItemLine
@@ -336,6 +351,7 @@ export default function App() {
                         onOpen={() => setPickItem({ o, it })}
                         right={
                           <span className="flex items-center gap-2">
+                            {it.note && <Bell size={16} color={C.high} fill={C.high} title={`Note: ${it.note}`} style={{ flexShrink: 0 }} />}
                             <MoveMenu stage={it.stage} onMove={(s) => (s === "awaiting" ? setMatTarget(it.id) : board.moveItem(it.id, s))} />
                             <Btn kind="dark" onClick={() => board.finishItem(it.id)}><Check size={13} />Item picked</Btn>
                           </span>
@@ -420,6 +436,7 @@ export default function App() {
                           onOpen={() => setDoc({ o, it })}
                           right={
                             <span className="flex items-center gap-2">
+                              {it.note && <Bell size={16} color={C.high} fill={C.high} title={`Note: ${it.note}`} style={{ flexShrink: 0 }} />}
                               <MoveMenu stage={it.stage} onMove={(s) => (s === "awaiting" ? setMatTarget(it.id) : board.moveItem(it.id, s))} />
                               <Btn onClick={() => setDoc({ o, it })}><Printer size={13} />Print</Btn>
                               <Btn kind="dark" onClick={() => board.finishItem(it.id)}><Check size={13} />Mark done</Btn>
