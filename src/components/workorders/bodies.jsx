@@ -89,7 +89,8 @@ function AddRow({ onClick }) {
 const tag = { fontSize: 11, fontWeight: 700, color: C.inkSoft, background: C.grayBg, padding: "2px 6px", letterSpacing: 0.5 };
 
 // ---- Shop (basic) ----
-export function BasicBody({ fields, set, orderNo, numLabel = "WO #", imageUrl }) {
+export function BasicBody({ fields, set, orderNo, numLabel = "WO #", imageUrl, items }) {
+  const multi = items && items.length > 1;
   return (
     <>
       <div className="flex items-start justify-between" style={{ marginBottom: 18 }}>
@@ -112,7 +113,21 @@ export function BasicBody({ fields, set, orderNo, numLabel = "WO #", imageUrl })
       )}
 
       <div style={{ marginBottom: 18 }}>
-        <FieldEdit label="Product"><EI value={fields.product} onChange={(v) => set("product", v)} bold full /></FieldEdit>
+        {multi ? (
+          <div className="mb-3">
+            <span className="inline-block px-2 py-1 font-bold uppercase tracking-wide" style={{ fontSize: 12, color: C.inkSoft, background: C.grayBg }}>Products</span>
+            <div style={{ marginTop: 6, border: `1px solid ${C.line}` }}>
+              {items.map((it, i) => (
+                <div key={i} className="flex items-center justify-between" style={{ borderTop: i === 0 ? "none" : `1px solid ${C.line}`, padding: "5px 10px" }}>
+                  <span style={{ fontSize: 14, fontWeight: 700 }}>{it.name}</span>
+                  <span style={{ fontFamily: "ui-monospace,monospace", fontWeight: 700 }}>×{it.qty}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <FieldEdit label="Product"><EI value={fields.product} onChange={(v) => set("product", v)} bold full /></FieldEdit>
+        )}
         <FieldEdit label="Ordered by"><EI value={fields.orderedBy} onChange={(v) => set("orderedBy", v)} bold full /></FieldEdit>
         <FieldEdit label="Ordered on"><EI value={fields.orderedOn} onChange={(v) => set("orderedOn", v)} bold full /></FieldEdit>
         <FieldEdit label="Color"><EI value={fields.color} onChange={(v) => set("color", v)} bold full /></FieldEdit>

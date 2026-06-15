@@ -427,25 +427,47 @@ export default function App() {
                 {workCombined ? (
                   <CombinedItems orders={workOrders} stage="workorder" />
                 ) : (
-                  workOrders.map((o) => (
-                    <Group key={o.id} o={o} now={now} onPriority={board.setPriority}>
-                      {o.items.filter((it) => it.stage === "workorder").map((it) => (
-                        <ItemLine
-                          key={it.id} it={it} flash={flashItem === it.id}
-                          onDept={(dep) => board.updateItem(it.id, { dept: dep })}
-                          onOpen={() => setDoc({ o, it })}
-                          right={
-                            <span className="flex items-center gap-2">
-                              {it.note && <Bell size={16} color={C.high} fill={C.high} title={`Note: ${it.note}`} style={{ flexShrink: 0 }} />}
-                              <MoveMenu stage={it.stage} onMove={(s) => (s === "awaiting" ? setMatTarget(it.id) : board.moveItem(it.id, s))} />
-                              <Btn onClick={() => setDoc({ o, it })}><Printer size={13} />Print</Btn>
-                              <Btn kind="dark" onClick={() => board.finishItem(it.id)}><Check size={13} />Mark done</Btn>
-                            </span>
-                          }
-                        />
-                      ))}
-                    </Group>
-                  ))
+                  workOrders.map((o) => {
+                    const woItems = o.items.filter((it) => it.stage === "workorder");
+                    const depts = [...new Set(woItems.map((it) => it.dept))];
+                    return (
+                      <Group key={o.id} o={o} now={now} onPriority={board.setPriority}>
+                        {depts.map((dept) => {
+                          const deptItems = woItems.filter((it) => it.dept === dept);
+                          const multi = deptItems.length > 1;
+                          return (
+                            <div key={dept}>
+                              {multi && (
+                                <div className="flex items-center gap-2 px-4 py-2" style={{ background: C.concrete, borderBottom: `1px solid ${C.line}` }}>
+                                  <DeptBadge d={dept} />
+                                  <span style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5, color: C.inkSoft }}>Work order</span>
+                                  <span style={{ fontSize: 12, color: C.gray }}>· {deptItems.length} items</span>
+                                  <span className="ml-auto">
+                                    <Btn onClick={() => setDoc({ o, items: deptItems })}><Printer size={13} />Print work order</Btn>
+                                  </span>
+                                </div>
+                              )}
+                              {deptItems.map((it) => (
+                                <ItemLine
+                                  key={it.id} it={it} flash={flashItem === it.id}
+                                  onDept={(dep) => board.updateItem(it.id, { dept: dep })}
+                                  onOpen={() => setDoc({ o, items: deptItems })}
+                                  right={
+                                    <span className="flex items-center gap-2">
+                                      {it.note && <Bell size={16} color={C.high} fill={C.high} title={`Note: ${it.note}`} style={{ flexShrink: 0 }} />}
+                                      <MoveMenu stage={it.stage} onMove={(s) => (s === "awaiting" ? setMatTarget(it.id) : board.moveItem(it.id, s))} />
+                                      {!multi && <Btn onClick={() => setDoc({ o, items: [it] })}><Printer size={13} />Print</Btn>}
+                                      <Btn kind="dark" onClick={() => board.finishItem(it.id)}><Check size={13} />Mark done</Btn>
+                                    </span>
+                                  }
+                                />
+                              ))}
+                            </div>
+                          );
+                        })}
+                      </Group>
+                    );
+                  })
                 )}
               </Tabwrap>
             )}
@@ -536,7 +558,7 @@ export default function App() {
                               {o.trackingNumber && <span style={{ fontFamily: "ui-monospace,monospace", marginLeft: 6 }}>· {o.trackingNumber}</span>}
                             </span>
                           ) : (
-                            <Btn onClick={(e) => { e.stopPropagation(); setDoc({ o, it: o.items.find((i) => i.stage === "workorder" || i.stage === "done") || o.items[0] }); }}>
+                            <Btn onClick={(e) => { e.stopPropagation(); setDoc({ o, items: [o.items.find((i) => i.stage === "workorder" || i.stage === "done") || o.items[0]] }); }}>
                               <Printer size={13} />Work order
                             </Btn>
                           )}
@@ -599,7 +621,7 @@ export default function App() {
           onClose={() => setPickItem(null)}
         />
       )}
-      {doc && <WorkOrderDoc order={doc.o} item={doc.it} onSave={(patch) => board.updateItem(doc.it.id, patch)} onClose={() => setDoc(null)} />}
+      {doc && <WorkOrderDoc order={doc.o} items={doc.items} onSave={(patch) => Promise.all(doc.items.map((it) => board.updateItem(it.id, patch)))} onClose={() => setDoc(null)} />}
       {fulfillTarget && (
         <FulfillModal
           order={fulfillTarget.order}

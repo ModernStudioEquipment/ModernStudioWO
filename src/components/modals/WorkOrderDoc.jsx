@@ -7,36 +7,45 @@ import { bodyFor } from "../workorders/bodies.jsx";
 
 const DEPT_TO_TYPE = { Shop: "shop", CNC: "cnc", Sewing: "sewing", Saw: "saw" };
 
-// Printable work order for a Shopify (customer-order) item. The sheet now
-// matches the item's DEPARTMENT (Shop/CNC/Sewing/Saw) — same templates as the
-// QuickBooks sheets — pre-filled from the order item. Core fields (product /
-// qty / color / completed-by) save back to the item; the department-specific
-// scratch fields (CNC steps, extra sewing/saw rows, notes) are for printing.
-export function WorkOrderDoc({ order, item, onSave, onClose }) {
-  const type = DEPT_TO_TYPE[item.dept] || "shop";
+// Printable work order for a customer order's items in ONE department — all of
+// that department's items go on a single sheet. Sewing/Saw list them as rows;
+// Shop/CNC use one product (or a combined line for several). "Completed by"
+// saves to every item on the sheet.
+export function WorkOrderDoc({ order, items, onSave, onClose }) {
+  const type = DEPT_TO_TYPE[items[0]?.dept] || "shop";
   const form = WO_FORMS[type];
   const isLines = form.layout === "lineItems";
-
   const orderedOn = new Date(order.receivedAt).toLocaleDateString("en-US", {
     month: "long", day: "numeric", year: "numeric",
   });
 
   const [fields, setFields] = useState(() => {
     const base = initFields(form);
-    if ("product" in base) base.product = item.name;
-    if ("total" in base) base.total = String(item.qty);
-    if ("color" in base) base.color = item.color || "";
     if ("orderedBy" in base) base.orderedBy = order.contact || "";
     if ("orderedOn" in base) base.orderedOn = orderedOn;
     if ("priority" in base) base.priority = order.priority || "Normal";
     if ("dueDate" in base && order.dueDate) base.dueDate = dueLabel(order.dueDate);
-    base.completedBy = item.completedBy || "";
+    base.completedBy = items[0]?.completedBy || "";
     if (isLines) {
-      const first = emptyLine(form);
-      if ("product" in first) first.product = item.name;
-      if ("item" in first) first.item = item.name;
-      if ("qty" in first) first.qty = String(item.qty);
-      base.lines = [first];
+      base.lines = items.map((it) => {
+        const ln = emptyLine(form);
+        if ("product" in ln) ln.product = it.name;
+        if ("item" in ln) ln.item = it.name;
+        if ("qty" in ln) ln.qty = String(it.qty);
+        return ln;
+      });
+    } else if (items.length === 1) {
+      base.product = items[0].name;
+      base.total = String(items[0].qty);
+      base.color = items[0].color || "";
+    } else {
+      // Multiple items on a single-product template: never cram them into the top
+      // line (it truncates on paper). CNC → list them on the step lines; Shop →
+      // BasicBody renders them as stacked product rows (from `items`).
+      base.total = String(items.reduce((n, it) => n + (it.qty || 1), 0));
+      if (type === "cnc") {
+        items.slice(0, 6).forEach((it, i) => { base["step" + (i + 1)] = `${it.name} ×${it.qty}`; });
+      }
     }
     return base;
   });
@@ -56,12 +65,7 @@ export function WorkOrderDoc({ order, item, onSave, onClose }) {
     if (saving) return;
     setSaving(true);
     try {
-      if (onSave) {
-        const first = (fields.lines || [])[0] || {};
-        const name = isLines ? (first.product || first.item || item.name) : (fields.product || item.name);
-        const qty = isLines ? first.qty : fields.total;
-        await onSave({ name, qty, color: fields.color || null, completedBy: fields.completedBy || null });
-      }
+      if (onSave) await onSave({ completedBy: fields.completedBy || null });
       if (thenPrint) setTimeout(() => window.print(), 50);
     } finally {
       setSaving(false);
@@ -69,7 +73,11 @@ export function WorkOrderDoc({ order, item, onSave, onClose }) {
   };
 
   const Body = bodyFor(type);
-  const bodyProps = { fields, set, setLineCell, addLine, form, orderNo: order.orderNo, numLabel: "Order #", imageUrl: item.imageUrl };
+  const bodyProps = {
+    fields, set, setLineCell, addLine, form, items,
+    orderNo: order.orderNo, numLabel: "Order #",
+    imageUrl: items.length === 1 ? items[0].imageUrl : null,
+  };
 
   return (
     <div style={overlay} onClick={onClose}>
