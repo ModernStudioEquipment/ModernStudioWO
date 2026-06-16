@@ -3,7 +3,7 @@ import {
   Clock, Printer, Plus, Truck, CheckCircle2, AlertTriangle, Hammer,
   Flag, Check, ArrowRight, ShoppingCart, LogOut, Store, MapPin, Package, X, Bell, ExternalLink,
 } from "lucide-react";
-import { C, PRI, PRI_CYCLE, PRI_RANK, elapsed, blocked, pct, dueLabel, priLabel, effectivePriority, trackingUrl } from "./theme.js";
+import { C, PRI, PRI_CYCLE, PRI_RANK, elapsed, blocked, pct, dueLabel, priLabel, effectivePriority, trackingUrl, stagedTooLong, stagedDwellMs } from "./theme.js";
 import { backendMode } from "./lib/db.js";
 import { useAuth } from "./hooks/useAuth.js";
 import { useOrders } from "./hooks/useOrders.js";
@@ -67,10 +67,10 @@ export default function App() {
       if (el) {
         el.scrollIntoView({ behavior: "smooth", block: "center" });
         el.classList.add("flash-order");
-        setTimeout(() => el.classList.remove("flash-order"), 1700);
+        setTimeout(() => el.classList.remove("flash-order"), 2800);
       }
     }, 60);
-    const t2 = setTimeout(() => setFlashOrderId(null), 1900);
+    const t2 = setTimeout(() => setFlashOrderId(null), 3000);
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [flashOrderId]);
 
@@ -793,6 +793,15 @@ function FulfillmentBoard({ orders, now, onOpen, onMarkShipped, onPickedUp, vari
                 <div style={{ fontSize: 12, color: C.gray }}>Ordered by {o.contact} · {elapsed(now - o.receivedAt)} ago</div>
               </div>
               <Pill c={p.c} bg={p.bg} Icon={Flag}>{priLabel(o.priority)}</Pill>
+              {variant === "shipping" && !shipped && stagedTooLong(o, now) && (
+                <span
+                  onClick={(e) => e.stopPropagation()}
+                  title={`Staged to ship ${elapsed(stagedDwellMs(o, now))} — hasn't gone out yet`}
+                  style={{ display: "inline-flex", flexShrink: 0 }}
+                >
+                  <Flag size={16} color={C.rush} fill={C.rush} />
+                </span>
+              )}
               <div className="basis-full sm:basis-auto sm:ml-auto flex flex-wrap items-center gap-3" style={{ fontSize: 13 }}>
                 <span className="flex items-center gap-1">
                   <MapPin size={15} color={C.gray} />

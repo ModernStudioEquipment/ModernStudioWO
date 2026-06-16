@@ -100,5 +100,5 @@ body,
   }
 }
 .flash-order {
-  animation: flashOrder 1.7s ease-out;
+  animation: flashOrder 0.9s ease-out 3;
 }

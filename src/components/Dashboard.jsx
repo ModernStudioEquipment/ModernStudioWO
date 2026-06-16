@@ -1,5 +1,5 @@
 import React from "react";
-import { C, elapsed, effectivePriority, sittingLevel, stageEnteredAt } from "../theme.js";
+import { C, elapsed, effectivePriority, sittingLevel, stageEnteredAt, stagedTooLong } from "../theme.js";
 
 // The shop's home screen — a live at-a-glance view computed from the same orders
 // + work orders the rest of the app uses. Cards and pipeline stages click
@@ -49,6 +49,7 @@ export function Dashboard({ orders = [], workOrders = [], now, onNavigate, onOpe
   const hasLevel = (o, lvl) => orderActive(o) && o.items.some((it) => active(it) && sittingLevel(it, ts) === lvl);
   orders.filter((o) => effectivePriority(o, ts) === "RUSH" && orderActive(o)).sort((a, b) => a.receivedAt - b.receivedAt).forEach((o) => add(o, "URGENT", "rush"));
   orders.filter((o) => hasLevel(o, "stale")).sort((a, b) => idleSince(a) - idleSince(b)).forEach((o) => add(o, "STALE", "stale", idleSince(o)));
+  orders.filter((o) => stagedTooLong(o, ts)).sort((a, b) => new Date(a.fulfilledAt) - new Date(b.fulfilledAt)).forEach((o) => add(o, "TO SHIP", "ship", new Date(o.fulfilledAt).getTime()));
   orders.forEach((o) => {
     if (o.items.some((it) => it.stage === "awaiting" && it.materials.some((m) => !m.received))) add(o, "BLOCKED", "high");
   });
@@ -85,7 +86,7 @@ export function Dashboard({ orders = [], workOrders = [], now, onNavigate, onOpe
   const timeStr = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }).toLowerCase().replace(" ", "");
 
   const card = { background: C.surface, border: `0.5px solid ${C.line}`, borderRadius: 8 };
-  const tagStyle = { rush: { c: C.rush, bg: C.rushBg }, high: { c: C.high, bg: C.highBg }, stale: { c: C.rush, bg: C.rushBg }, sitting: { c: C.high, bg: C.highBg } };
+  const tagStyle = { rush: { c: C.rush, bg: C.rushBg }, high: { c: C.high, bg: C.highBg }, stale: { c: C.rush, bg: C.rushBg }, sitting: { c: C.high, bg: C.highBg }, ship: { c: C.gold, bg: C.goldBg } };
   const sectionLabel = { fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.6 };
 
   const Kpi = ({ label, value, accent, sub, hot, to }) => (

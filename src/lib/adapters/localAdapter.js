@@ -139,6 +139,7 @@ export const localAdapter = {
       willCall: Boolean(willCall),
       dueDate: dueDate || null,
       fulfillment: null,
+      fulfilledAt: null,
       location: null,
       trackingNumber: null,
       pickedUpAt: null,
@@ -245,6 +246,7 @@ export const localAdapter = {
     if (o) {
       o.fulfillment = method;
       o.location = location;
+      o.fulfilledAt = new Date().toISOString();
     }
     write(orders);
   },

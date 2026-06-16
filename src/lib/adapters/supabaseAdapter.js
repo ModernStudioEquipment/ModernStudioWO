@@ -54,6 +54,7 @@ function mapOrder(row) {
     willCall: row.will_call,
     dueDate: row.due_date || null,
     fulfillment: row.fulfillment, // null | 'willcall' | 'shipping'
+    fulfilledAt: row.fulfilled_at || null,
     location: row.fulfillment_location,
     trackingNumber: row.tracking_number,
     pickedUpAt: row.picked_up_at || null,

@@ -93,6 +93,19 @@ export function sittingLevel(item, now = Date.now()) {
   return null;
 }
 
+// An order staged to ship (in the Shipping tab, no tracking number yet) gets
+// flagged once it's been sitting staged for a full day — someone needs to hand
+// it to the carrier.
+export const STAGED_FLAG_MS = 24 * 60 * 60 * 1000;
+export function stagedDwellMs(order, now = Date.now()) {
+  if (!order || order.fulfillment !== "shipping" || order.trackingNumber || !order.fulfilledAt) return null;
+  return Math.max(0, now - new Date(order.fulfilledAt).getTime());
+}
+export function stagedTooLong(order, now = Date.now()) {
+  const d = stagedDwellMs(order, now);
+  return d != null && d >= STAGED_FLAG_MS;
+}
+
 // Build a carrier tracking URL from a tracking number. Detects UPS / USPS /
 // FedEx / DHL by the number's format (the shop ships with several carriers);
 // falls back to a Google tracking search when the carrier isn't clear — Google
