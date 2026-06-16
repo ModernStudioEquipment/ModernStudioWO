@@ -59,6 +59,22 @@ export const STAGE_LABELS = {
   awaiting: "Purchasing",
   done: "Done",
 };
+// Build a carrier tracking URL from a tracking number. Detects UPS / USPS /
+// FedEx / DHL by the number's format (the shop ships with several carriers);
+// falls back to a Google tracking search when the carrier isn't clear — Google
+// recognizes tracking numbers and surfaces the status + carrier link.
+export function trackingUrl(raw) {
+  const num = String(raw || "").replace(/\s+/g, "");
+  if (!num) return null;
+  const enc = encodeURIComponent(num);
+  if (/^1Z[0-9A-Z]{16}$/i.test(num)) return `https://www.ups.com/track?loc=en_US&tracknum=${enc}`;
+  if (/^[A-Z]{2}\d{9}US$/i.test(num)) return `https://tools.usps.com/go/TrackConfirmAction?tLabels=${enc}`;
+  if (/^9[0-9]{15,21}$/.test(num)) return `https://tools.usps.com/go/TrackConfirmAction?tLabels=${enc}`;
+  if (/^(\d{12}|\d{15}|\d{20})$/.test(num)) return `https://www.fedex.com/fedextrack/?trknbr=${enc}`;
+  if (/^\d{10}$/.test(num)) return `https://www.dhl.com/us-en/home/tracking/tracking-express.html?submit=1&tracking-id=${enc}`;
+  return `https://www.google.com/search?q=${enc}`;
+}
+
 // The four shop departments (match the custom work-order types).
 export const DEPTS = ["Shop", "CNC", "Sewing", "Saw"];
 export const PRIORITIES = ["Normal", "High", "RUSH"]; // stored values; UI shows PRI[x].label

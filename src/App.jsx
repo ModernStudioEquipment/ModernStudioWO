@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
 import {
   Clock, Printer, Plus, Truck, CheckCircle2, AlertTriangle, Hammer,
-  Flag, Check, ArrowRight, ShoppingCart, LogOut, Store, MapPin, Package, X, Bell,
+  Flag, Check, ArrowRight, ShoppingCart, LogOut, Store, MapPin, Package, X, Bell, ExternalLink,
 } from "lucide-react";
-import { C, PRI, PRI_CYCLE, PRI_RANK, elapsed, blocked, pct, dueLabel, priLabel, effectivePriority } from "./theme.js";
+import { C, PRI, PRI_CYCLE, PRI_RANK, elapsed, blocked, pct, dueLabel, priLabel, effectivePriority, trackingUrl } from "./theme.js";
 import { backendMode } from "./lib/db.js";
 import { useAuth } from "./hooks/useAuth.js";
 import { useOrders } from "./hooks/useOrders.js";
@@ -590,7 +590,9 @@ export default function App() {
                           ) : st.key === "willcall" || st.key === "shipping" || st.key === "shipped" ? (
                             <span className="flex items-center gap-1" style={{ fontSize: 12, color: C.gray }}>
                               <MapPin size={12} />{o.location}
-                              {o.trackingNumber && <span style={{ fontFamily: "ui-monospace,monospace", marginLeft: 6 }}>· {o.trackingNumber}</span>}
+                              {o.trackingNumber && (
+                                <a href={trackingUrl(o.trackingNumber)} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} title="Track this shipment (opens the carrier's site)" style={{ fontFamily: "ui-monospace,monospace", marginLeft: 6, color: C.blue, textDecoration: "none" }}>· {o.trackingNumber}<ExternalLink size={10} style={{ marginLeft: 2, verticalAlign: "-1px" }} /></a>
+                              )}
                             </span>
                           ) : (
                             <Btn onClick={(e) => { e.stopPropagation(); setDoc({ o, items: [o.items.find((i) => i.stage === "workorder" || i.stage === "done") || o.items[0]] }); }}>
@@ -797,7 +799,16 @@ function FulfillmentBoard({ orders, now, onOpen, onMarkShipped, onPickedUp, vari
                 </span>
                 {variant === "shipping" && (
                   shipped ? (
-                    <Pill c={C.green} bg={C.greenBg} Icon={Package}>{o.trackingNumber}</Pill>
+                    <a
+                      href={trackingUrl(o.trackingNumber)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      title="Track this shipment (opens the carrier's site in a new tab)"
+                      style={{ textDecoration: "none" }}
+                    >
+                      <Pill c={C.green} bg={C.greenBg} Icon={Package}>{o.trackingNumber}<ExternalLink size={11} style={{ marginLeft: 3 }} /></Pill>
+                    </a>
                   ) : (
                     <Btn kind="dark" onClick={(e) => { e.stopPropagation(); onMarkShipped(o); }}>
                       <Truck size={13} />Shipped

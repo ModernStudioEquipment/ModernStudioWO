@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { X, Trash2, RotateCcw, Clock, ChevronDown } from "lucide-react";
-import { C, PRI, elapsed, itemStatusText } from "../../theme.js";
+import { X, Trash2, RotateCcw, Clock, ChevronDown, ExternalLink } from "lucide-react";
+import { C, PRI, elapsed, itemStatusText, trackingUrl } from "../../theme.js";
 import { Pill, Info, Stepper, DeptBadge, PriorityPill } from "../ui.jsx";
 import { ItemTimeline } from "../ItemTimeline.jsx";
 
@@ -39,7 +39,13 @@ export function OrderDetail({ order, status, now, onPriority, onUpdateItem, onUn
           {order.fulfillment && (
             <div style={{ fontSize: 13, color: C.inkSoft, marginBottom: 8 }}>
               {order.fulfillment === "shipping" ? "Staged at" : "Will call at"}: <b>{order.location || "—"}</b>
-              {order.fulfillment === "shipping" && order.trackingNumber && <> · Tracking: <b>{order.trackingNumber}</b></>}
+              {order.fulfillment === "shipping" && order.trackingNumber && (
+                <> · Tracking:{" "}
+                  <a href={trackingUrl(order.trackingNumber)} target="_blank" rel="noopener noreferrer" title="Track this shipment (opens the carrier's site)" style={{ color: C.blue, fontWeight: 700, textDecoration: "none" }}>
+                    {order.trackingNumber}<ExternalLink size={11} style={{ marginLeft: 3, verticalAlign: "-1px" }} />
+                  </a>
+                </>
+              )}
             </div>
           )}
           <div style={{ height: 6, background: C.line, borderRadius: 3, overflow: "hidden", marginBottom: 18 }}>
