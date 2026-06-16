@@ -218,13 +218,12 @@ export function Empty({ children }) {
   );
 }
 
-export function Tabwrap({ title, sub, action, children }) {
+export function Tabwrap({ title, action, children }) {
   return (
     <div>
       <div className="mb-3 flex items-start gap-3">
         <div>
           <div className="font-bold" style={{ fontSize: 16 }}>{title}</div>
-          {sub && <div style={{ fontSize: 13, color: C.gray }}>{sub}</div>}
         </div>
         {action && <div className="ml-auto">{action}</div>}
       </div>
