@@ -160,8 +160,6 @@ async function run({ commit }) {
       alreadyOnBoard: mapped.length - toAdd.length,
       existingSources: [...new Set(Object.values(existingSource))],
       wouldAdd: toAdd.length,
-      // One-time check that we're reading the invoice date from the right field.
-      rawDateFields: { transactionDate: list[0]?.transactionDate, txnDate: list[0]?.txnDate, date: list[0]?.date },
       sample: toAdd.slice(0, 6).map((m) => ({
         orderNo: m.orderNo,
         date: m.receivedAt,
