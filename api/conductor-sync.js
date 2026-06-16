@@ -14,6 +14,10 @@
 
 const CONDUCTOR_BASE = "https://api.conductor.is/v1/quickbooks-desktop";
 
+// QuickBooks Desktop reads go through the Web Connector and can take a while;
+// give the function room (Vercel caps this per plan).
+export const maxDuration = 60;
+
 export async function GET() {
   return run({ commit: false });
 }
@@ -37,13 +41,23 @@ async function run({ commit }) {
   if (missing.length) return json(500, { error: "Not configured", missing });
 
   // --- 1. Pull sales orders from QuickBooks (through Conductor) ---
-  const qbRes = await fetch(`${CONDUCTOR_BASE}/sales-orders?limit=50`, {
-    headers: {
-      Authorization: `Bearer ${conductorKey}`,
-      "Conductor-End-User-Id": endUserId,
-    },
-  });
-  const qbText = await qbRes.text();
+  let qbRes, qbText;
+  try {
+    qbRes = await fetch(`${CONDUCTOR_BASE}/sales-orders?limit=50`, {
+      headers: {
+        Authorization: `Bearer ${conductorKey}`,
+        "Conductor-End-User-Id": endUserId,
+      },
+      signal: AbortSignal.timeout(45000),
+    });
+    qbText = await qbRes.text();
+  } catch (e) {
+    return json(504, {
+      error: "QuickBooks didn't respond",
+      hint: "Make sure the office PC running QuickBooks Desktop is on, QuickBooks is open, and the QuickBooks Web Connector is running — Conductor reads QuickBooks live, so that machine has to be reachable.",
+      detail: String(e).slice(0, 200),
+    });
+  }
   if (!qbRes.ok) {
     return json(502, { error: "Conductor request failed", status: qbRes.status, detail: qbText.slice(0, 600) });
   }
