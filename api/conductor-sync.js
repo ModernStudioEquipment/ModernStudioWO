@@ -56,13 +56,13 @@ async function run({ commit }) {
   ].filter(Boolean);
   if (missing.length) return json(500, { error: "Not configured", missing });
 
-  // --- 1. Pull sales orders from QuickBooks (through Conductor) ---
-  // Only recent orders: keeps the QuickBooks query fast (no scanning years of
-  // history) and avoids dumping old orders onto the board.
+  // --- 1. Pull recent invoices from QuickBooks (through Conductor) ---
+  // Only recent ones: keeps the QuickBooks query fast (no scanning years of
+  // history) and avoids dumping old invoices onto the board.
   const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   let qbRes, qbText;
   try {
-    qbRes = await fetch(`${CONDUCTOR_BASE}/sales-orders?limit=25&transactionDateFrom=${since}`, {
+    qbRes = await fetch(`${CONDUCTOR_BASE}/invoices?limit=25&transactionDateFrom=${since}`, {
       headers: {
         Authorization: `Bearer ${conductorKey}`,
         "Conductor-End-User-Id": endUserId,
@@ -90,7 +90,7 @@ async function run({ commit }) {
     const customer =
       (so.customer && (so.customer.fullName || so.customer.name)) ||
       so.customerFullName || so.customerName || "QuickBooks customer";
-    const lines = so.lines || so.salesOrderLines || so.lineItems || so.salesOrderLineItems || [];
+    const lines = so.lines || so.invoiceLines || so.lineItems || [];
     const items = lines
       // Real product/service lines have an item; skip note/annotation/blank lines.
       .filter((ln) => ln.item && (ln.item.fullName || ln.item.name))
@@ -110,21 +110,18 @@ async function run({ commit }) {
           position: i,
         };
       });
-    // Treat as open unless QuickBooks says it's done. Field names vary; default
-    // to open when we can't tell, so nothing is silently dropped.
-    const open = !(so.isFullyInvoiced || so.isManuallyClosed || so.isClosed);
-    // Orders tagged with an online sales channel/store (e.g. Shopify) already
+    // Invoices tagged with an online sales channel/store (e.g. Shopify) already
     // come in through their own webhook — skip them here to avoid duplicates.
     const fromOnlineStore = !!(so.salesStoreName || so.salesChannelName || so.salesStoreType);
-    return { orderNo, customer, items, open, fromOnlineStore };
-  }).filter((o) => o.orderNo && o.items.length && o.open && !o.fromOnlineStore);
+    return { orderNo, customer, items, fromOnlineStore };
+  }).filter((o) => o.orderNo && o.items.length && !o.fromOnlineStore);
 
   // --- 3a. Preview (no writes) — used to verify the mapping safely ---
   if (!commit) {
     return json(200, {
       mode: "preview",
       pulledFromQuickBooks: list.length,
-      eligibleOpenOrders: mapped.length,
+      eligibleInvoices: mapped.length,
       sample: mapped.slice(0, 5).map((m) => ({
         orderNo: m.orderNo,
         customer: m.customer,
