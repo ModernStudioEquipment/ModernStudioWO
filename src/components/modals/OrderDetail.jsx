@@ -1,7 +1,8 @@
 import React, { useState } from "react";
-import { X, Trash2, RotateCcw } from "lucide-react";
+import { X, Trash2, RotateCcw, Clock, ChevronDown } from "lucide-react";
 import { C, PRI, elapsed, itemStatusText } from "../../theme.js";
 import { Pill, Info, Stepper, DeptBadge, PriorityPill } from "../ui.jsx";
+import { ItemTimeline } from "../ItemTimeline.jsx";
 
 // The office "where's my order?" view — full detail with a per-product
 // progress tracker. Items reconverge here even though they're triaged and
@@ -9,6 +10,7 @@ import { Pill, Info, Stepper, DeptBadge, PriorityPill } from "../ui.jsx";
 export function OrderDetail({ order, status, now, onPriority, onUpdateItem, onUnpick, onCancel, onClose }) {
   const [confirming, setConfirming] = useState(false);
   const [reason, setReason] = useState("Customer cancelled");
+  const [openTimeline, setOpenTimeline] = useState(null); // item id whose timeline is expanded
   const done = order.items.filter((i) => i.stage === "done").length;
   const total = order.items.length;
   const receivedOn = new Date(order.receivedAt).toLocaleDateString("en-US", {
@@ -46,7 +48,9 @@ export function OrderDetail({ order, status, now, onPriority, onUpdateItem, onUn
           <div style={{ fontSize: 11, fontWeight: 700, color: C.gray, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>
             Products ordered
           </div>
-          {order.items.map((it) => (
+          {order.items.map((it) => {
+            const open = openTimeline === it.id;
+            return (
             <div key={it.id} className="rounded mb-2 p-3" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
               <div className="flex items-center gap-2">
                 <DeptBadge d={it.dept} onChange={onUpdateItem ? (dep) => onUpdateItem(it.id, { dept: dep }) : undefined} />
@@ -57,6 +61,20 @@ export function OrderDetail({ order, status, now, onPriority, onUpdateItem, onUn
                 </span>
               </div>
               <Stepper it={it} />
+              <button
+                onClick={() => setOpenTimeline(open ? null : it.id)}
+                className="inline-flex items-center gap-1 mt-3"
+                style={{ fontSize: 12, fontWeight: 700, color: C.blue }}
+                title="See where this product has been and how long"
+              >
+                <Clock size={12} />{open ? "Hide timeline" : "View timeline"}
+                <ChevronDown size={13} style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
+              </button>
+              {open && (
+                <div style={{ marginTop: 10, paddingTop: 12, borderTop: `1px solid ${C.line}` }}>
+                  <ItemTimeline events={it.events} now={now} />
+                </div>
+              )}
               {it.stage === "awaiting" && it.materials.some((m) => !m.received) && (
                 <div style={{ fontSize: 12, color: C.high, marginTop: 10 }}>
                   Waiting on: {it.materials.filter((m) => !m.received).map((m) => `${m.name}${m.amount ? ` (${m.amount})` : ""}`).join(", ")}
@@ -73,7 +91,8 @@ export function OrderDetail({ order, status, now, onPriority, onUpdateItem, onUn
                 </button>
               )}
             </div>
-          ))}
+            );
+          })}
 
           {onCancel && (
             <div style={{ borderTop: `1px solid ${C.line}`, marginTop: 16, paddingTop: 14 }}>

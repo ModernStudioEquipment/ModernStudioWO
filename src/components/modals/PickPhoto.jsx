@@ -1,34 +1,15 @@
 import React from "react";
 import { X, Camera, Check, ImagePlus } from "lucide-react";
-import { C, STAGE_LABELS } from "../../theme.js";
+import { C } from "../../theme.js";
 import { Btn, Info } from "../ui.jsx";
-
-// One line of the item history timeline — turns a stored event into plain text.
-const stageName = (s) => STAGE_LABELS[s] || s || "—";
-function eventText(e) {
-  if (e.kind === "created") return `Added to ${stageName(e.to)}`;
-  if (e.kind === "moved") return `${stageName(e.from)} → ${stageName(e.to)}`;
-  if (e.kind === "in_progress") return e.to === "true" ? "Marked in progress" : "In-progress cleared";
-  if (e.kind === "dept") return `Department: ${e.from} → ${e.to}`;
-  return e.kind;
-}
-const eventTime = (at) =>
-  new Date(at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+import { ItemTimeline } from "../ItemTimeline.jsx";
 
 function History({ events }) {
   if (!events || !events.length) return null;
   return (
     <div className="mt-4">
       <div style={{ fontSize: 11, fontWeight: 700, color: C.gray, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>History</div>
-      <div style={{ borderLeft: `2px solid ${C.line}`, paddingLeft: 14, marginLeft: 3 }}>
-        {events.map((e) => (
-          <div key={e.id} style={{ position: "relative", paddingBottom: 12 }}>
-            <span style={{ position: "absolute", left: -21, top: 3, width: 8, height: 8, borderRadius: 4, background: C.ink, border: `2px solid ${C.concrete}` }} />
-            <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{eventText(e)}</div>
-            <div style={{ fontSize: 11, color: C.gray }}>{eventTime(e.at)}</div>
-          </div>
-        ))}
-      </div>
+      <ItemTimeline events={events} />
     </div>
   );
 }
