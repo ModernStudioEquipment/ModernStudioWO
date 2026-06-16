@@ -62,7 +62,7 @@ async function run({ commit }) {
   const since = new Date(Date.now() - 16 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   let qbRes, qbText;
   try {
-    qbRes = await fetch(`${CONDUCTOR_BASE}/invoices?limit=50&transactionDateFrom=${since}`, {
+    qbRes = await fetch(`${CONDUCTOR_BASE}/invoices?limit=150&transactionDateFrom=${since}`, {
       headers: {
         Authorization: `Bearer ${conductorKey}`,
         "Conductor-End-User-Id": endUserId,
