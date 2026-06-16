@@ -6,9 +6,9 @@ import { Btn } from "../ui.jsx";
 // Purchasing: when a material is marked ordered, record who placed the order,
 // the vendor it was ordered from, and the PO number.
 export function OrderedModal({ material, onConfirm, onClose }) {
-  const [orderedBy, setOrderedBy] = useState("");
-  const [vendor, setVendor] = useState("");
-  const [poNumber, setPoNumber] = useState("");
+  const [orderedBy, setOrderedBy] = useState(material.orderedBy || "");
+  const [vendor, setVendor] = useState(material.vendor || "");
+  const [poNumber, setPoNumber] = useState(material.poNumber || "");
   const [saving, setSaving] = useState(false);
   const confirm = async () => {
     if (saving) return;

@@ -207,11 +207,9 @@ export const supabaseAdapter = {
   },
 
   async unmarkOrdered(materialId) {
-    const full = { ordered: false, ordered_by: null, vendor: null, po_number: null };
-    let { error } = await supabase.from("materials").update(full).eq("id", materialId);
-    if (error) {
-      ({ error } = await supabase.from("materials").update({ ordered: false }).eq("id", materialId));
-    }
+    // Flip ordered off but KEEP the vendor / PO / who, so an accidental toggle
+    // doesn't lose what was entered — re-marking brings it right back.
+    const { error } = await supabase.from("materials").update({ ordered: false }).eq("id", materialId);
     fail(error);
   },
 

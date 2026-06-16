@@ -227,11 +227,9 @@ export const localAdapter = {
   },
 
   async unmarkOrdered(materialId) {
+    // Keep vendor / PO / who so an accidental toggle doesn't lose the info.
     mutateMaterial(materialId, (m) => {
       m.ordered = false;
-      m.orderedBy = null;
-      m.vendor = null;
-      m.poNumber = null;
     });
   },
 
