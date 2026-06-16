@@ -33,44 +33,65 @@ function eventText(e) {
   return e.kind;
 }
 
-export function ItemTimeline({ events, now = Date.now() }) {
+export function ItemTimeline({ events, now = Date.now(), currentStage }) {
   if (!events || !events.length) {
     return <div style={{ fontSize: 12, color: C.gray }}>No history recorded yet.</div>;
   }
   const at = (e) => new Date(e.at).getTime();
-  // Time spent in a stage runs until the NEXT stage change (ignoring in-progress
-  // / dept events in between), or until now for the stage it's in right now.
+  // Next logged stage change after event i (ignoring in-progress / dept events),
+  // or null if there isn't one.
   const nextStageAt = (i) => {
     for (let j = i + 1; j < events.length; j++) if (isStageEvent(events[j])) return at(events[j]);
-    return now;
+    return null;
   };
   const stageEvents = events.filter(isStageEvent);
-  const current = stageEvents[stageEvents.length - 1];
+  const lastStage = stageEvents[stageEvents.length - 1];
+  // The item's actual stage is the source of truth. If the logged events don't
+  // reach it, the item moved before history tracking started — so we know WHERE
+  // it is but not how long it's been there.
+  const realStage = currentStage || (lastStage && lastStage.to);
+  const complete = !lastStage || lastStage.to === realStage;
+  const enteredCurrentAt = complete && lastStage ? at(lastStage) : null;
 
   return (
     <div>
-      {current && (
+      {realStage && (
         <div className="mb-2" style={{ fontSize: 13 }}>
-          <span style={{ fontWeight: 800 }}>In {stageName(current.to)}</span>
-          <span style={{ color: C.gray }}> · {fmtDur(now - at(current))} so far</span>
+          <span style={{ fontWeight: 800 }}>In {stageName(realStage)}</span>
+          {enteredCurrentAt != null ? (
+            <span style={{ color: C.gray }}> · {fmtDur(now - enteredCurrentAt)} so far</span>
+          ) : (
+            <span style={{ color: C.gray }}> · here before history tracking started</span>
+          )}
         </div>
       )}
       <div style={{ borderLeft: `2px solid ${C.line}`, paddingLeft: 14, marginLeft: 3 }}>
         {events.map((e, i) => {
           const stage = isStageEvent(e);
-          const dwell = stage ? nextStageAt(i) - at(e) : 0;
-          const last = i === events.length - 1;
+          const nextAt = stage ? nextStageAt(i) : null;
+          // Only show a dwell when we actually know it: either we logged the move
+          // out (nextAt), or this stage is the item's real current stage.
+          let dwell = null;
+          if (stage && nextAt != null) dwell = `${fmtDur(nextAt - at(e))} in ${stageName(e.to)}`;
+          else if (stage && e.to === realStage) dwell = `${fmtDur(now - at(e))} in ${stageName(e.to)} (still here)`;
           return (
             <div key={e.id} style={{ position: "relative", paddingBottom: 12 }}>
-              <span style={{ position: "absolute", left: -21, top: 3, width: 8, height: 8, borderRadius: 4, background: last ? C.green : C.ink, border: `2px solid ${C.concrete}` }} />
+              <span style={{ position: "absolute", left: -21, top: 3, width: 8, height: 8, borderRadius: 4, background: complete && i === events.length - 1 ? C.green : C.ink, border: `2px solid ${C.concrete}` }} />
               <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{eventText(e)}</div>
               <div style={{ fontSize: 11, color: C.gray }}>
                 {fmtTime(e.at)}
-                {stage && <> · {fmtDur(dwell)} in {stageName(e.to)}{nextStageAt(i) === now ? " (still here)" : ""}</>}
+                {dwell && <> · {dwell}</>}
               </div>
             </div>
           );
         })}
+        {!complete && realStage && (
+          <div style={{ position: "relative", paddingBottom: 2 }}>
+            <span style={{ position: "absolute", left: -21, top: 3, width: 8, height: 8, borderRadius: 4, background: C.green, border: `2px solid ${C.concrete}` }} />
+            <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>Now in {stageName(realStage)}</div>
+            <div style={{ fontSize: 11, color: C.gray }}>Moved here before history tracking — earlier moves weren't recorded</div>
+          </div>
+        )}
       </div>
     </div>
   );

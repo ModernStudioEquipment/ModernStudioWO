@@ -4,12 +4,12 @@ import { C } from "../../theme.js";
 import { Btn, Info } from "../ui.jsx";
 import { ItemTimeline } from "../ItemTimeline.jsx";
 
-function History({ events }) {
-  if (!events || !events.length) return null;
+function History({ item }) {
+  if (!item.events || !item.events.length) return null;
   return (
     <div className="mt-4">
       <div style={{ fontSize: 11, fontWeight: 700, color: C.gray, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>History</div>
-      <ItemTimeline events={events} />
+      <ItemTimeline events={item.events} currentStage={item.stage} />
     </div>
   );
 }
@@ -98,7 +98,7 @@ export function PickPhoto({ order, item, onPicked, onSetImage, onSetNote, onClos
             <Info label="Dept" value={item.dept} />
             <Info label="For" value={`#${order.orderNo} · ${order.customer}`} />
           </div>
-          <History events={item.events} />
+          <History item={item} />
           <div style={{ marginTop: 16 }}>
             <Btn kind="brass" onClick={pick} disabled={saving}>
               <Check size={15} />{saving ? "Saving…" : actionLabel}

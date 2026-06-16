@@ -78,7 +78,7 @@ export function OrderDetail({ order, status, now, onPriority, onUpdateItem, onUn
               </button>
               {open && (
                 <div style={{ marginTop: 10, paddingTop: 12, borderTop: `1px solid ${C.line}` }}>
-                  <ItemTimeline events={it.events} now={now} />
+                  <ItemTimeline events={it.events} now={now} currentStage={it.stage} />
                 </div>
               )}
               {it.stage === "awaiting" && it.materials.some((m) => !m.received) && (
