@@ -223,7 +223,7 @@ export function Tabwrap({ title, action, children }) {
     <div>
       <div className="mb-3 flex items-start gap-3">
         <div>
-          <div className="font-bold" style={{ fontSize: 16 }}>{title}</div>
+          <div className="font-bold" style={{ fontSize: 16, textTransform: "uppercase", letterSpacing: 0.5 }}>{title}</div>
         </div>
         {action && <div className="ml-auto">{action}</div>}
       </div>

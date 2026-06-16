@@ -109,7 +109,7 @@ export function Dashboard({ orders = [], workOrders = [], now, onNavigate, onOpe
     <div>
       <div className="flex items-center mb-3 flex-wrap gap-2">
         <div>
-          <div className="font-bold" style={{ fontSize: 17 }}>Shop dashboard</div>
+          <div className="font-bold" style={{ fontSize: 17, textTransform: "uppercase", letterSpacing: 0.5 }}>Shop dashboard</div>
         </div>
         <div className="ml-auto flex items-center gap-3" style={{ fontSize: 12.5, color: C.gray }}>
           <span className="flex items-center gap-1.5"><span style={{ width: 7, height: 7, borderRadius: 4, background: C.green }} />Live</span>
