@@ -41,14 +41,17 @@ async function run({ commit }) {
   if (missing.length) return json(500, { error: "Not configured", missing });
 
   // --- 1. Pull sales orders from QuickBooks (through Conductor) ---
+  // Only recent orders: keeps the QuickBooks query fast (no scanning years of
+  // history) and avoids dumping old orders onto the board.
+  const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   let qbRes, qbText;
   try {
-    qbRes = await fetch(`${CONDUCTOR_BASE}/sales-orders?limit=1`, {
+    qbRes = await fetch(`${CONDUCTOR_BASE}/sales-orders?limit=25&transactionDateFrom=${since}`, {
       headers: {
         Authorization: `Bearer ${conductorKey}`,
         "Conductor-End-User-Id": endUserId,
       },
-      signal: AbortSignal.timeout(55000),
+      signal: AbortSignal.timeout(58000),
     });
     qbText = await qbRes.text();
   } catch (e) {
