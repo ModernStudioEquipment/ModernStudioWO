@@ -521,7 +521,7 @@ export default function App() {
               <Tabwrap title="PURCHASING" sub="Grouped by order. Hit “have it” and the item moves to Work Order.">
                 {!buyOrders.length && <Empty>Nothing to buy. Materials land here when an item is triaged “need material.”</Empty>}
                 {buyOrders.map((o) => (
-                  <Group key={o.id} o={o} now={now} onPriority={board.setPriority}>
+                  <Group key={o.id} o={o} now={now} onPriority={board.setPriority} onOpen={() => setDetailId(o.id)}>
                     {o.items.filter((it) => it.needsMaterial).map((it) =>
                       it.materials.filter((m) => !m.received).map((m) => (
                         <div key={m.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>

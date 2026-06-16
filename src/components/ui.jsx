@@ -138,11 +138,13 @@ export function MoveMenu({ stage, onMove }) {
   );
 }
 
-export function OrderHeader({ o, now, onPriority }) {
+export function OrderHeader({ o, now, onPriority, onOpen }) {
   return (
     <div
+      onClick={onOpen}
+      title={onOpen ? "Open order details" : undefined}
       className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3"
-      style={{ borderBottom: `1px solid ${C.line}`, background: "#fff", borderTopLeftRadius: 6, borderTopRightRadius: 6 }}
+      style={{ borderBottom: `1px solid ${C.line}`, background: "#fff", borderTopLeftRadius: 6, borderTopRightRadius: 6, cursor: onOpen ? "pointer" : "default" }}
     >
       <span className="font-bold" style={{ fontFamily: "ui-monospace,monospace", fontSize: 16 }}>
         #{o.orderNo}
@@ -159,11 +161,11 @@ export function OrderHeader({ o, now, onPriority }) {
   );
 }
 
-export function Group({ o, now, children, onPriority }) {
+export function Group({ o, now, children, onPriority, onOpen }) {
   const p = PRI[o.priority] || PRI.Normal;
   return (
     <div id={`order-${o.id}`} className="rounded mb-3" style={{ background: "#fff", border: `1px solid ${C.line}`, borderLeft: `4px solid ${p.c}` }}>
-      <OrderHeader o={o} now={now} onPriority={onPriority} />
+      <OrderHeader o={o} now={now} onPriority={onPriority} onOpen={onOpen} />
       {children}
     </div>
   );
