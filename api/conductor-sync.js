@@ -59,10 +59,10 @@ async function run({ commit }) {
   // --- 1. Pull recent invoices from QuickBooks (through Conductor) ---
   // Only recent ones: keeps the QuickBooks query fast (no scanning years of
   // history) and avoids dumping old invoices onto the board.
-  const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const since = new Date(Date.now() - 16 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   let qbRes, qbText;
   try {
-    qbRes = await fetch(`${CONDUCTOR_BASE}/invoices?limit=25&transactionDateFrom=${since}`, {
+    qbRes = await fetch(`${CONDUCTOR_BASE}/invoices?limit=50&transactionDateFrom=${since}`, {
       headers: {
         Authorization: `Bearer ${conductorKey}`,
         "Conductor-End-User-Id": endUserId,
@@ -92,8 +92,13 @@ async function run({ commit }) {
       so.customerFullName || so.customerName || "QuickBooks customer";
     const lines = so.lines || so.invoiceLines || so.lineItems || [];
     const items = lines
-      // Real product/service lines have an item; skip note/annotation/blank lines.
-      .filter((ln) => ln.item && (ln.item.fullName || ln.item.name))
+      // Real product lines have an item; skip note/annotation/blank lines, and
+      // skip shipping/freight charge lines (not something to pick or make).
+      .filter((ln) => {
+        if (!ln.item || !(ln.item.fullName || ln.item.name)) return false;
+        const txt = `${ln.item.fullName || ln.item.name} ${ln.description || ln.memo || ""}`.toLowerCase();
+        return !/shipping|freight/.test(txt);
+      })
       .map((ln, i) => {
         const code = (ln.item.fullName || ln.item.name || "").trim();
         const desc = (ln.description || ln.memo || "").trim();
