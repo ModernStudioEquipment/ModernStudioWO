@@ -76,14 +76,21 @@ async function run({ commit }) {
       so.customerFullName || so.customerName || "QuickBooks customer";
     const lines = so.lines || so.salesOrderLines || so.lineItems || so.salesOrderLineItems || [];
     const items = lines
-      .map((ln, i) => ({
-        name: (ln.item && (ln.item.fullName || ln.item.name)) || ln.description || ln.memo || "Item",
-        qty: String(ln.quantity ?? ln.quantityOrdered ?? ln.qty ?? 1),
-        dept: "Shop",
-        color: null,
-        position: i,
-      }))
-      .filter((it) => it.name);
+      // Real product/service lines have an item; skip note/annotation/blank lines.
+      .filter((ln) => ln.item && (ln.item.fullName || ln.item.name))
+      .map((ln, i) => {
+        const code = ln.item.fullName || ln.item.name;
+        const desc = (ln.description || ln.memo || "").trim();
+        return {
+          name: code, // the QuickBooks item code/name shows on the board row
+          // stash the description in the note so it shows when the item is opened
+          note: desc && desc !== code ? desc : null,
+          qty: String(ln.quantity ?? ln.quantityOrdered ?? ln.qty ?? 1),
+          dept: "Shop",
+          color: null,
+          position: i,
+        };
+      });
     // Treat as open unless QuickBooks says it's done. Field names vary; default
     // to open when we can't tell, so nothing is silently dropped.
     const open = !(so.isFullyInvoiced || so.isManuallyClosed || so.isClosed);
@@ -99,7 +106,7 @@ async function run({ commit }) {
       sample: mapped.slice(0, 5).map((m) => ({
         orderNo: m.orderNo,
         customer: m.customer,
-        items: m.items.map((it) => `${it.name} ×${it.qty}`),
+        items: m.items.map((it) => `${it.name} ×${it.qty}${it.note ? ` — ${it.note}` : ""}`),
       })),
       note: "Preview only — nothing inserted. POST to this endpoint to commit.",
     });

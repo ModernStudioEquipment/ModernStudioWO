@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import {
   Clock, Printer, Plus, Truck, CheckCircle2, AlertTriangle, Hammer,
-  Flag, Check, ArrowRight, ShoppingCart, LogOut, Store, MapPin, Package, X, Bell, ExternalLink,
+  Flag, Check, ArrowRight, ShoppingCart, LogOut, Store, MapPin, Package, X, Bell, ExternalLink, RefreshCw,
 } from "lucide-react";
 import { C, PRI, PRI_CYCLE, PRI_RANK, elapsed, blocked, pct, dueLabel, priLabel, effectivePriority, trackingUrl, stagedTooLong, stagedDwellMs } from "./theme.js";
 import { backendMode } from "./lib/db.js";
@@ -52,6 +52,7 @@ export default function App() {
   const [trackTarget, setTrackTarget] = useState(null); // order being marked shipped
   const [pickupTarget, setPickupTarget] = useState(null); // will-call order being marked picked up
   const [orderTarget, setOrderTarget] = useState(null); // purchasing material being marked ordered (asks who/vendor/PO)
+  const [syncing, setSyncing] = useState(false); // QuickBooks sync in progress
   const [customDoc, setCustomDoc] = useState(null); // work order sheet open for edit ({type} = new, or a saved WO)
   const [workCombined, setWorkCombined] = useState(false); // Work Order tab: combine like items across orders
 
@@ -152,6 +153,29 @@ export default function App() {
   // Re-route every like-item in a combined row to a new department at once.
   const setCombinedDept = (row, dept) =>
     Promise.all(row.entries.map((e) => board.updateItem(e.it.id, { dept })));
+
+  // Pull recent QuickBooks sales orders onto the board (via the Conductor sync
+  // function). Takes up to ~a minute since it reads QuickBooks live.
+  const syncQuickBooks = async () => {
+    if (syncing) return;
+    setSyncing(true);
+    try {
+      const res = await fetch("/api/conductor-sync", { method: "POST" });
+      const data = await res.json();
+      if (typeof data.inserted === "number") {
+        alert(`QuickBooks sync complete: ${data.inserted} new order${data.inserted === 1 ? "" : "s"} added` +
+          `${data.skipped ? `, ${data.skipped} already on the board` : ""}.`);
+      } else {
+        alert(`QuickBooks sync didn't finish:\n${data.error || "Unknown error"}` +
+          `${data.hint ? `\n\n${data.hint}` : ""}`);
+      }
+      await board.refetch();
+    } catch (e) {
+      alert("QuickBooks sync failed: " + (e.message || String(e)));
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   // Close out a completed order via Ship or Will Call. Records the location and
   // sends the order to the matching top tab.
@@ -345,7 +369,12 @@ export default function App() {
             {tab === "new" && (
               <Tabwrap
                 title="NEW ORDERS"
-                action={<Btn kind="dark" onClick={() => setShowNew(true)}><Plus size={13} />New order</Btn>}
+                action={
+                  <div className="flex items-center gap-2 flex-wrap justify-end">
+                    <Btn onClick={syncQuickBooks} disabled={syncing}><RefreshCw size={13} />{syncing ? "Syncing QuickBooks…" : "Sync QuickBooks"}</Btn>
+                    <Btn kind="dark" onClick={() => setShowNew(true)}><Plus size={13} />New order</Btn>
+                  </div>
+                }
               >
                 {!newOrders.length && <Empty>Nothing waiting. New orders land here the moment they come in.</Empty>}
                 {newOrders.map((o) => (
