@@ -487,7 +487,7 @@ export default function App() {
                                   onDept={(dep) => board.updateItem(it.id, { dept: dep })}
                                   onOpen={() => setPickItem({ o, it, wo: true })}
                                   right={
-                                    <span className="flex items-center gap-2">
+                                    <span className="flex flex-wrap items-center justify-end gap-2">
                                       {it.note && <Bell size={16} color={C.high} fill={C.high} title={`Note: ${it.note}`} style={{ flexShrink: 0 }} />}
                                       <MoveMenu stage={it.stage} onMove={(s) => (s === "awaiting" ? setMatTarget(it.id) : board.moveItem(it.id, s))} />
                                       {!multi && <Btn onClick={() => setDoc({ o, items: [it] })}><Printer size={13} />Print</Btn>}
