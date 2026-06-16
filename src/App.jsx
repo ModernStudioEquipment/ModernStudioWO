@@ -279,7 +279,7 @@ export default function App() {
            On phones it wraps: logo + search on top, full-width scrollable tabs below. ---- */}
       <div className="flex items-center gap-x-4 gap-y-2 px-5 py-3 flex-wrap md:flex-nowrap" style={{ background: C.ink, color: "#fff", position: "sticky", top: 0, zIndex: 50 }}>
         <button
-          onClick={() => setTab("dash")}
+          onClick={() => { setTab("dash"); window.scrollTo({ top: 0, behavior: "smooth" }); }}
           className="shrink-0"
           title="Go to dashboard"
           style={{ display: "flex", alignItems: "center", background: "transparent", border: "none", padding: 0, cursor: "pointer" }}
@@ -290,7 +290,7 @@ export default function App() {
           {TABS.map((t) => (
             <button
               key={t.k}
-              onClick={() => setTab(t.k)}
+              onClick={() => { setTab(t.k); window.scrollTo({ top: 0, behavior: "smooth" }); }}
               className="relative px-3 py-1.5 rounded font-bold shrink-0 whitespace-nowrap"
               style={{ fontSize: 13, background: tab === t.k ? "rgba(255,255,255,0.14)" : "transparent", color: tab === t.k ? "#fff" : "rgba(255,255,255,0.65)" }}
             >
