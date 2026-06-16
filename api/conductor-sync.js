@@ -119,7 +119,12 @@ async function run({ commit }) {
     // come in through their own webhook — skip them here to avoid duplicates.
     const fromOnlineStore = !!(so.salesStoreName || so.salesChannelName || so.salesStoreType);
     return { orderNo, customer, items, fromOnlineStore };
-  }).filter((o) => o.orderNo && o.items.length && !o.fromOnlineStore);
+  }).filter((o) =>
+    o.orderNo &&
+    o.orderNo.startsWith("4") && // real invoices start with 4; 3xxxx are sales/Shopify orders
+    o.items.length &&
+    !o.fromOnlineStore
+  );
 
   // --- Dedup: which invoice numbers are already on the board (ANY source)? ---
   // Shopify orders that flow into QuickBooks as invoices share the order number,
