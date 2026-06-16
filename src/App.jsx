@@ -555,7 +555,7 @@ export default function App() {
             )}
 
             {tab === "orders" && (
-              <Tabwrap title="Orders — the office view" sub="Click an order for full details. Filter or sort with the buttons below.">
+              <Tabwrap title="Orders">
                 <div className="flex items-center gap-2 mb-3 flex-wrap">
                   {OFILTERS.map((f) => (
                     <button
@@ -625,13 +625,13 @@ export default function App() {
             )}
 
             {tab === "willcall" && (
-              <Tabwrap title="Will Call — held for pickup">
+              <Tabwrap title="Will Call">
                 <FulfillmentBoard variant="willcall" orders={willCallOrders} now={now} onOpen={setDetailId} onPickedUp={setPickupTarget} emptyText="Nothing on will-call yet. Completed orders land here when you mark them Will Call." />
               </Tabwrap>
             )}
 
             {tab === "shipping" && (
-              <Tabwrap title="Shipping — staged to go out">
+              <Tabwrap title="Shipping">
                 <FulfillmentBoard variant="shipping" orders={shippingOrders} now={now} onOpen={setDetailId} onMarkShipped={setTrackTarget} emptyText="Nothing shipping yet. Completed orders land here when you mark them Ship." />
               </Tabwrap>
             )}
