@@ -108,6 +108,7 @@ async function run({ commit }) {
         customer: m.customer,
         items: m.items.map((it) => `${it.name} ×${it.qty}${it.note ? ` — ${it.note}` : ""}`),
       })),
+      rawFirstOrder: list[0] || null,
       note: "Preview only — nothing inserted. POST to this endpoint to commit.",
     });
   }
