@@ -97,9 +97,10 @@ async function run({ commit }) {
       .filter((ln) => {
         if (!ln.item || !(ln.item.fullName || ln.item.name)) return false;
         const txt = `${ln.item.fullName || ln.item.name} ${ln.description || ln.memo || ""}`.toLowerCase();
-        // Skip non-product lines: shipping/freight and financial adjustments.
-        // (Deliberately specific terms so real products aren't dropped.)
-        return !/shipping|freight|discount|\bdeposit\b|\brefund\b|store credit|gift ?card|\bpayment\b/.test(txt);
+        // Skip non-product lines: shipping/freight, financial adjustments, and
+        // fee/labor charges. (Deliberately specific terms so real products aren't
+        // dropped — \bfee\b won't hit "coffee", \blabor\b won't hit "collaborate".)
+        return !/shipping|freight|discount|\bdeposit\b|\brefund\b|store credit|gift ?card|\bpayment\b|\bfee\b|\blabor\b/.test(txt);
       })
       .map((ln, i) => {
         const code = (ln.item.fullName || ln.item.name || "").trim();
@@ -120,7 +121,10 @@ async function run({ commit }) {
     // Invoices tagged with an online sales channel/store (e.g. Shopify) already
     // come in through their own webhook — skip them here to avoid duplicates.
     const fromOnlineStore = !!(so.salesStoreName || so.salesChannelName || so.salesStoreType);
-    return { orderNo, customer, items, fromOnlineStore };
+    // The invoice's real date — used as the order's received_at so the board
+    // shows when the order actually came in, not when we synced it.
+    const receivedAt = String(so.transactionDate || so.txnDate || so.date || "").slice(0, 10) || null;
+    return { orderNo, customer, items, fromOnlineStore, receivedAt };
   }).filter((o) =>
     o.orderNo &&
     o.orderNo.startsWith("4") && // real invoices start with 4; 3xxxx are sales/Shopify orders
@@ -156,9 +160,11 @@ async function run({ commit }) {
       alreadyOnBoard: mapped.length - toAdd.length,
       existingSources: [...new Set(Object.values(existingSource))],
       wouldAdd: toAdd.length,
-      allItemNames: [...new Set(toAdd.flatMap((m) => m.items.map((it) => it.name)))].sort(),
+      // One-time check that we're reading the invoice date from the right field.
+      rawDateFields: { transactionDate: list[0]?.transactionDate, txnDate: list[0]?.txnDate, date: list[0]?.date },
       sample: toAdd.slice(0, 6).map((m) => ({
         orderNo: m.orderNo,
+        date: m.receivedAt,
         customer: m.customer,
         items: m.items.map((it) => `${it.name} ×${it.qty}`),
       })),
@@ -180,6 +186,7 @@ async function run({ commit }) {
           priority: "Normal",
           source: "QuickBooks",
           will_call: false,
+          received_at: m.receivedAt, // the invoice's real date
         },
         p_items: m.items,
       }),
