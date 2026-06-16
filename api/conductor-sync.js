@@ -121,36 +121,46 @@ async function run({ commit }) {
     return { orderNo, customer, items, fromOnlineStore };
   }).filter((o) => o.orderNo && o.items.length && !o.fromOnlineStore);
 
-  // --- 3a. Preview (no writes) — used to verify the mapping safely ---
-  if (!commit) {
-    return json(200, {
-      mode: "preview",
-      pulledFromQuickBooks: list.length,
-      eligibleInvoices: mapped.length,
-      sample: mapped.slice(0, 5).map((m) => ({
-        orderNo: m.orderNo,
-        customer: m.customer,
-        items: m.items.map((it) => `${it.name} ×${it.qty}${it.note ? ` — ${it.note}` : ""}`),
-      })),
-      note: "Preview only — nothing inserted. POST to this endpoint to commit.",
-    });
-  }
-
-  // --- 3b. Commit: dedupe against existing QuickBooks orders, then insert ---
+  // --- Dedup: which invoice numbers are already on the board (ANY source)? ---
+  // Shopify orders that flow into QuickBooks as invoices share the order number,
+  // so matching against any existing order avoids re-adding Shopify (or
+  // already-synced) orders. One bulk lookup instead of a query per invoice.
   const sb = {
     apikey: serviceKey,
     Authorization: `Bearer ${serviceKey}`,
     "Content-Type": "application/json",
   };
-  let inserted = 0, skippedDuplicate = 0, failed = 0, firstError = null;
-  for (const m of mapped) {
-    const dupRes = await fetch(
-      `${url}/rest/v1/orders?select=id&source=eq.QuickBooks&order_no=eq.${encodeURIComponent(m.orderNo)}&limit=1`,
-      { headers: sb }
-    );
-    const dups = await dupRes.json();
-    if (Array.isArray(dups) && dups.length) { skippedDuplicate++; continue; }
+  const nums = [...new Set(mapped.map((m) => m.orderNo))];
+  const existingSource = {};
+  if (nums.length) {
+    const inList = nums.map((n) => `"${String(n).replace(/"/g, "")}"`).join(",");
+    const exRes = await fetch(`${url}/rest/v1/orders?select=order_no,source&order_no=in.(${encodeURIComponent(inList)})`, { headers: sb });
+    const ex = await exRes.json().catch(() => []);
+    if (Array.isArray(ex)) ex.forEach((o) => { existingSource[o.order_no] = o.source; });
+  }
+  const toAdd = mapped.filter((m) => !existingSource[m.orderNo]);
 
+  // --- Preview (no writes) ---
+  if (!commit) {
+    return json(200, {
+      mode: "preview",
+      pulledFromQuickBooks: list.length,
+      eligibleInvoices: mapped.length,
+      alreadyOnBoard: mapped.length - toAdd.length,
+      existingSources: [...new Set(Object.values(existingSource))],
+      wouldAdd: toAdd.length,
+      sample: toAdd.slice(0, 6).map((m) => ({
+        orderNo: m.orderNo,
+        customer: m.customer,
+        items: m.items.map((it) => `${it.name} ×${it.qty}`),
+      })),
+      note: "Preview only — nothing inserted.",
+    });
+  }
+
+  // --- Commit: insert the genuinely new invoices ---
+  let inserted = 0, failed = 0, firstError = null;
+  for (const m of toAdd) {
     const ins = await fetch(`${url}/rest/v1/rpc/create_order`, {
       method: "POST",
       headers: sb,
@@ -169,7 +179,7 @@ async function run({ commit }) {
     if (ins.ok) inserted++;
     else { failed++; if (!firstError) firstError = { status: ins.status, detail: (await ins.text()).slice(0, 400) }; }
   }
-  return json(200, { mode: "commit", pulledFromQuickBooks: list.length, eligible: mapped.length, inserted, skippedDuplicate, failed, firstError });
+  return json(200, { mode: "commit", pulledFromQuickBooks: list.length, eligible: mapped.length, alreadyOnBoard: mapped.length - toAdd.length, inserted, failed, firstError });
 }
 
 function json(status, b) {
