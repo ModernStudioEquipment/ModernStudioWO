@@ -94,8 +94,11 @@ async function run({ commit }) {
     // Treat as open unless QuickBooks says it's done. Field names vary; default
     // to open when we can't tell, so nothing is silently dropped.
     const open = !(so.isFullyInvoiced || so.isManuallyClosed || so.isClosed);
-    return { orderNo, customer, items, open };
-  }).filter((o) => o.orderNo && o.items.length && o.open);
+    // Orders tagged with an online sales channel/store (e.g. Shopify) already
+    // come in through their own webhook — skip them here to avoid duplicates.
+    const fromOnlineStore = !!(so.salesStoreName || so.salesChannelName || so.salesStoreType);
+    return { orderNo, customer, items, open, fromOnlineStore };
+  }).filter((o) => o.orderNo && o.items.length && o.open && !o.fromOnlineStore);
 
   // --- 3a. Preview (no writes) — used to verify the mapping safely ---
   if (!commit) {
@@ -107,13 +110,6 @@ async function run({ commit }) {
         orderNo: m.orderNo,
         customer: m.customer,
         items: m.items.map((it) => `${it.name} ×${it.qty}${it.note ? ` — ${it.note}` : ""}`),
-      })),
-      channels: list.map((so) => ({
-        refNumber: so.refNumber,
-        customer: so.customer && (so.customer.fullName || so.customer.name),
-        store: so.salesStoreName || null,
-        channel: so.salesChannelName || null,
-        storeType: so.salesStoreType || null,
       })),
       note: "Preview only — nothing inserted. POST to this endpoint to commit.",
     });
