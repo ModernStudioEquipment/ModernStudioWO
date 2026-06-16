@@ -75,7 +75,14 @@ function mutateItem(itemId, fn) {
   for (const o of orders) {
     const it = o.items.find((i) => i.id === itemId);
     if (it) {
+      // Snapshot before/after to log history the same way the DB trigger does.
+      const before = { stage: it.stage, dept: it.dept, inProgress: !!it.inProgress };
       fn(it, o);
+      it.events = it.events || [];
+      const at = new Date().toISOString();
+      if (it.stage !== before.stage) it.events.push({ id: uid(), kind: "moved", from: before.stage, to: it.stage, at });
+      if (!!it.inProgress !== before.inProgress) it.events.push({ id: uid(), kind: "in_progress", from: null, to: String(!!it.inProgress), at });
+      if (it.dept !== before.dept) it.events.push({ id: uid(), kind: "dept", from: before.dept, to: it.dept, at });
       break;
     }
   }
@@ -149,6 +156,7 @@ export const localAdapter = {
         stage: "new",
         needsMaterial: false,
         materials: [],
+        events: [{ id: uid(), kind: "created", from: null, to: "new", at: new Date().toISOString() }],
       })),
     });
     write(orders);

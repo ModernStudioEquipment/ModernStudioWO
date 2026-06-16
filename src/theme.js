@@ -51,6 +51,14 @@ export const effectivePriority = (order, now = Date.now()) =>
   dueSoon(order.dueDate, now) ? "RUSH" : (order.priority || "Normal");
 
 export const STAGES = ["new", "picklist", "workorder", "awaiting", "done"];
+// Friendly names for each stage — used by the item history timeline.
+export const STAGE_LABELS = {
+  new: "New Orders",
+  picklist: "Pick List",
+  workorder: "Work Order",
+  awaiting: "Purchasing",
+  done: "Done",
+};
 // The four shop departments (match the custom work-order types).
 export const DEPTS = ["Shop", "CNC", "Sewing", "Saw"];
 export const PRIORITIES = ["Normal", "High", "RUSH"]; // stored values; UI shows PRI[x].label

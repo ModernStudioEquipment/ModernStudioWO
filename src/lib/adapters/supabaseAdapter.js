@@ -28,6 +28,10 @@ function mapOrder(row) {
       imageUrl: it.image_url || null,
       note: it.note || null,
       inProgress: it.in_progress || false,
+      events: (it.item_events || [])
+        .slice()
+        .sort((a, b) => a.created_at.localeCompare(b.created_at))
+        .map((e) => ({ id: e.id, kind: e.kind, from: e.from_val, to: e.to_val, at: e.created_at })),
       materials: (it.materials || [])
         .slice()
         .sort((a, b) => a.created_at.localeCompare(b.created_at))
@@ -64,10 +68,19 @@ export const supabaseAdapter = {
   needsAuth: true,
 
   async getOrders() {
-    const { data, error } = await supabase
+    // Try with the item history (item_events). If that table isn't there yet
+    // (migration 0013 not run), fall back to loading the board without history
+    // so nothing breaks — the timeline just stays empty until the table exists.
+    let { data, error } = await supabase
       .from("orders")
-      .select("*, items(*, materials(*))")
+      .select("*, items(*, materials(*), item_events(*))")
       .order("received_at", { ascending: false });
+    if (error) {
+      ({ data, error } = await supabase
+        .from("orders")
+        .select("*, items(*, materials(*))")
+        .order("received_at", { ascending: false }));
+    }
     fail(error);
     return (data || []).map(mapOrder);
   },
@@ -80,6 +93,7 @@ export const supabaseAdapter = {
       .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, cb)
       .on("postgres_changes", { event: "*", schema: "public", table: "items" }, cb)
       .on("postgres_changes", { event: "*", schema: "public", table: "materials" }, cb)
+      .on("postgres_changes", { event: "*", schema: "public", table: "item_events" }, cb)
       .on("postgres_changes", { event: "*", schema: "public", table: "work_orders" }, cb)
       .subscribe();
     return () => supabase.removeChannel(channel);
