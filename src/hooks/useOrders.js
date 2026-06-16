@@ -72,7 +72,7 @@ export function useOrders(enabled) {
     addMaterials: act((itemId, rows) => db.addMaterials(itemId, rows)),
     finishItem: act((itemId) => db.finishItem(itemId)),
     updateItem: act((itemId, patch) => db.updateItem(itemId, patch)),
-    markOrdered: act((materialId) => db.markOrdered(materialId)),
+    markOrdered: act((materialId, details) => db.markOrdered(materialId, details)),
     receiveMaterial: act((materialId) => db.receiveMaterial(materialId)),
     setPriority: act((orderId, priority) => db.setPriority(orderId, priority)),
     fulfillOrder: act((orderId, method, location) => db.fulfillOrder(orderId, method, location)),
