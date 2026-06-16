@@ -26,6 +26,22 @@ export async function POST() {
   return run({ commit: true });
 }
 
+// One-off maintenance: remove synced QuickBooks orders so the next sync re-pulls
+// them fresh (e.g. after a mapping change). Only touches source='QuickBooks'
+// orders, which are re-syncable. Guarded by ?reset=quickbooks.
+export async function DELETE(request) {
+  if (new URL(request.url).searchParams.get("reset") !== "quickbooks") {
+    return json(400, { error: "Add ?reset=quickbooks to confirm removing synced QuickBooks orders." });
+  }
+  const url = process.env.VITE_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SECRET_KEY;
+  if (!url || !serviceKey) return json(500, { error: "Not configured" });
+  const sb = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, Prefer: "return=representation" };
+  const res = await fetch(`${url}/rest/v1/orders?source=eq.QuickBooks`, { method: "DELETE", headers: sb });
+  const body = await res.json().catch(() => null);
+  return json(res.ok ? 200 : 502, { deleted: Array.isArray(body) ? body.length : 0, detail: res.ok ? undefined : body });
+}
+
 async function run({ commit }) {
   const conductorKey = process.env.CONDUCTOR_SECRET_KEY;
   const endUserId = process.env.CONDUCTOR_END_USER_ID;
@@ -79,12 +95,15 @@ async function run({ commit }) {
       // Real product/service lines have an item; skip note/annotation/blank lines.
       .filter((ln) => ln.item && (ln.item.fullName || ln.item.name))
       .map((ln, i) => {
-        const code = ln.item.fullName || ln.item.name;
+        const code = (ln.item.fullName || ln.item.name || "").trim();
         const desc = (ln.description || ln.memo || "").trim();
+        // The description is the real product name — show it on the row. Keep
+        // the item number in the note for reference (when it adds anything).
+        const name = desc || code || "Item";
+        const showCode = code && code !== name && code.toLowerCase() !== "custom item";
         return {
-          name: code, // the QuickBooks item code/name shows on the board row
-          // stash the description in the note so it shows when the item is opened
-          note: desc && desc !== code ? desc : null,
+          name,
+          note: showCode ? `Item #: ${code}` : null,
           qty: String(ln.quantity ?? ln.quantityOrdered ?? ln.qty ?? 1),
           dept: "Shop",
           color: null,
