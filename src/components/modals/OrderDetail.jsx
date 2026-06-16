@@ -68,15 +68,27 @@ export function OrderDetail({ order, status, now, onPriority, onUpdateItem, onUn
                 </span>
               </div>
               <Stepper it={it} />
-              <button
-                onClick={() => setOpenTimeline(open ? null : it.id)}
-                className="inline-flex items-center gap-1 mt-3"
-                style={{ fontSize: 12, fontWeight: 700, color: C.blue }}
-                title="See where this product has been and how long"
-              >
-                <Clock size={12} />{open ? "Hide timeline" : "View timeline"}
-                <ChevronDown size={13} style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
-              </button>
+              <div className="flex items-center justify-between gap-3 mt-3 flex-wrap">
+                <button
+                  onClick={() => setOpenTimeline(open ? null : it.id)}
+                  className="inline-flex items-center gap-1"
+                  style={{ fontSize: 12, fontWeight: 700, color: C.blue }}
+                  title="See where this product has been and how long"
+                >
+                  <Clock size={12} />{open ? "Hide timeline" : "View timeline"}
+                  <ChevronDown size={13} style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
+                </button>
+                {it.stage === "done" && onUnpick && (
+                  <button
+                    onClick={() => onUnpick(it.id)}
+                    className="inline-flex items-center gap-1"
+                    style={{ fontSize: 12, color: C.gray, fontWeight: 700 }}
+                    title="Send this item back to the pick list"
+                  >
+                    <RotateCcw size={12} />Undo pick — back to pick list
+                  </button>
+                )}
+              </div>
               {open && (
                 <div style={{ marginTop: 10, paddingTop: 12, borderTop: `1px solid ${C.line}` }}>
                   <ItemTimeline events={it.events} now={now} currentStage={it.stage} />
@@ -86,16 +98,6 @@ export function OrderDetail({ order, status, now, onPriority, onUpdateItem, onUn
                 <div style={{ fontSize: 12, color: C.high, marginTop: 10 }}>
                   Waiting on: {it.materials.filter((m) => !m.received).map((m) => `${m.name}${m.amount ? ` (${m.amount})` : ""}`).join(", ")}
                 </div>
-              )}
-              {it.stage === "done" && onUnpick && (
-                <button
-                  onClick={() => onUnpick(it.id)}
-                  className="inline-flex items-center gap-1 mt-2"
-                  style={{ fontSize: 12, color: C.blue, fontWeight: 700 }}
-                  title="Send this item back to the pick list"
-                >
-                  <RotateCcw size={12} />Undo pick — back to pick list
-                </button>
               )}
             </div>
             );

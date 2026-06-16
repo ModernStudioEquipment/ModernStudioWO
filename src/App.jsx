@@ -167,13 +167,15 @@ export default function App() {
   const confirmTracking = async (trackingNumber) => {
     await board.markShipped(trackTarget.id, trackingNumber);
     setTrackTarget(null);
-    setTab("shipped"); // order moves out of Shipping and into the Shipped tab
+    setTab("completed"); // order moves out of Shipping and into the Completed tab
   };
 
-  // Will Call: mark an order picked up (records who collected it).
+  // Will Call: mark an order picked up (records who collected it). It then
+  // moves out of Will Call into the Completed tab.
   const confirmPickup = async (by) => {
     await board.markPickedUp(pickupTarget.id, by);
     setPickupTarget(null);
+    setTab("completed");
   };
 
   // Save a custom work order — update in place when editing, otherwise create.
@@ -201,10 +203,15 @@ export default function App() {
   const oProg = (o) => !oInTriage(o) && !oDone(o);
   // Completed = production done but not yet shipped/will-called (awaiting that call).
   const awaitingFulfill = (o) => oDone(o) && !o.fulfillment;
-  const willCallOrders = orders.filter((o) => o.fulfillment === "willcall");
+  // Will Call tab = still awaiting pickup. Once picked up, an order is complete
+  // and moves to the Completed tab (alongside shipped orders).
+  const willCallOrders = orders.filter((o) => o.fulfillment === "willcall" && !o.pickedUpAt);
+  const pickedUpOrders = orders.filter((o) => o.fulfillment === "willcall" && o.pickedUpAt);
   // Shipping = staged, no tracking yet. Shipped = tracking logged, out the door.
   const shippingOrders = orders.filter((o) => o.fulfillment === "shipping" && !o.trackingNumber);
   const shippedOrders = orders.filter((o) => o.fulfillment === "shipping" && o.trackingNumber);
+  // Completed tab = finished orders: shipped + picked up.
+  const completedOrders = [...shippedOrders, ...pickedUpOrders];
   // The Orders tab is the active worklist: drop orders that have shipped or been
   // picked up (they still live on in the Shipped / Will Call tabs).
   const ordersForList = orders.filter((o) => !o.trackingNumber && !o.pickedUpAt);
@@ -249,7 +256,7 @@ export default function App() {
     : tab === "buy" ? buyOrders
     : tab === "willcall" ? willCallOrders
     : tab === "shipping" ? shippingOrders
-    : tab === "shipped" ? shippedOrders
+    : tab === "completed" ? completedOrders
     : orders;
 
   const orderStatus = (o) => {
@@ -272,7 +279,7 @@ export default function App() {
     { k: "orders", label: "Orders" },
     { k: "willcall", label: "Will Call", n: willCallOrders.length },
     { k: "shipping", label: "Shipping", n: shippingOrders.length },
-    { k: "shipped", label: "Shipped", n: shippedOrders.length },
+    { k: "completed", label: "Completed", n: completedOrders.length },
   ];
 
   return (
@@ -618,20 +625,29 @@ export default function App() {
             )}
 
             {tab === "willcall" && (
-              <Tabwrap title="Will Call — held for pickup" sub="Completed orders waiting for the customer to collect. Location is where to find them.">
+              <Tabwrap title="Will Call — held for pickup">
                 <FulfillmentBoard variant="willcall" orders={willCallOrders} now={now} onOpen={setDetailId} onPickedUp={setPickupTarget} emptyText="Nothing on will-call yet. Completed orders land here when you mark them Will Call." />
               </Tabwrap>
             )}
 
             {tab === "shipping" && (
-              <Tabwrap title="Shipping — staged to go out" sub="Where each order is staged in the shop. Hit Shipped to log the tracking number once it leaves.">
+              <Tabwrap title="Shipping — staged to go out">
                 <FulfillmentBoard variant="shipping" orders={shippingOrders} now={now} onOpen={setDetailId} onMarkShipped={setTrackTarget} emptyText="Nothing shipping yet. Completed orders land here when you mark them Ship." />
               </Tabwrap>
             )}
 
-            {tab === "shipped" && (
-              <Tabwrap title="Shipped — out the door" sub="Dispatched orders with their tracking numbers.">
-                <FulfillmentBoard variant="shipping" orders={shippedOrders} now={now} onOpen={setDetailId} emptyText="Nothing shipped yet. Orders move here once you log a tracking number in Shipping." />
+            {tab === "completed" && (
+              <Tabwrap title="Completed">
+                <SectionHeader label="Shipped" count={shippedOrders.length} />
+                <div style={{ marginTop: 8 }}>
+                  <FulfillmentBoard variant="shipping" orders={shippedOrders} now={now} onOpen={setDetailId} emptyText="Nothing shipped yet. Orders land here once you log a tracking number in Shipping." />
+                </div>
+                <div style={{ marginTop: 22 }}>
+                  <SectionHeader label="Picked up — will call" count={pickedUpOrders.length} />
+                </div>
+                <div style={{ marginTop: 8 }}>
+                  <FulfillmentBoard variant="willcall" orders={pickedUpOrders} now={now} onOpen={setDetailId} emptyText="Nothing picked up yet. Will-call orders land here once they're collected." />
+                </div>
               </Tabwrap>
             )}
           </>
