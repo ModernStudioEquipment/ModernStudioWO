@@ -6,7 +6,7 @@ import { DeptIcon } from "../ui.jsx";
 // Manual order entry (phone orders today; Shopify auto-pull is a later phase).
 // One row per product on the order — each becomes an item that gets triaged
 // and routed independently.
-const blankItem = () => ({ name: "", qty: 1, dept: "Shop", color: "" });
+const blankItem = () => ({ name: "", qty: "1", dept: "Shop", color: "" });
 
 export function NewOrderModal({ getNextOrderNo, onCreate, onClose }) {
   const [orderNo, setOrderNo] = useState("");
@@ -45,7 +45,7 @@ export function NewOrderModal({ getNextOrderNo, onCreate, onClose }) {
         dueDate: dueDate || null,
         items: validItems.map((it) => ({
           name: it.name.trim(),
-          qty: Number(it.qty) || 1,
+          qty: String(it.qty ?? "").trim() || "1",
           dept: it.dept,
           color: it.color.trim() || null,
         })),
@@ -128,12 +128,13 @@ export function NewOrderModal({ getNextOrderNo, onCreate, onClose }) {
                 style={inp}
               />
               <input
-                type="number" min="1"
+                type="text"
                 value={it.qty}
                 onChange={(e) => updItem(i, "qty", e.target.value)}
                 className="px-2 py-2 outline-none text-center"
-                style={{ ...inp, width: 64 }}
-                title="Quantity"
+                style={{ ...inp, width: 80 }}
+                title="Quantity — a number, or a measurement like 5 ft / 10 in"
+                placeholder="Qty"
               />
               <div className="flex" style={{ border: `1px solid ${C.line}`, borderRadius: 6, overflow: "hidden" }}>
                 {DEPTS.map((d) => (

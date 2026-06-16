@@ -149,7 +149,7 @@ export const localAdapter = {
       items: items.map((it) => ({
         id: uid(),
         name: it.name,
-        qty: Number(it.qty) || 1,
+        qty: String(it.qty ?? "").trim() || "1",
         dept: it.dept || "Shop",
         color: it.color || null,
         imageUrl: it.imageUrl || null,
@@ -181,6 +181,9 @@ export const localAdapter = {
         amount: r.amount,
         ordered: false,
         received: false,
+        orderedBy: null,
+        vendor: null,
+        poNumber: null,
       }));
     });
   },
@@ -194,7 +197,7 @@ export const localAdapter = {
   async updateItem(itemId, patch) {
     mutateItem(itemId, (it) => {
       if (patch.name !== undefined) it.name = patch.name;
-      if (patch.qty !== undefined) it.qty = parseInt(patch.qty, 10) || it.qty;
+      if (patch.qty !== undefined) it.qty = String(patch.qty ?? "").trim() || it.qty;
       if (patch.color !== undefined) it.color = patch.color || null;
       if (patch.dept !== undefined) it.dept = patch.dept;
       if (patch.completedBy !== undefined) it.completedBy = patch.completedBy || null;
@@ -214,9 +217,12 @@ export const localAdapter = {
     mutateItem(itemId, (it) => { it.stage = stage; it.needsMaterial = false; });
   },
 
-  async markOrdered(materialId) {
+  async markOrdered(materialId, details = {}) {
     mutateMaterial(materialId, (m) => {
       m.ordered = true;
+      m.orderedBy = details.orderedBy || null;
+      m.vendor = details.vendor || null;
+      m.poNumber = details.poNumber || null;
     });
   },
 

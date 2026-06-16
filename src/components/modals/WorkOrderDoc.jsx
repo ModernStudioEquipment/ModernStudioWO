@@ -42,7 +42,7 @@ export function WorkOrderDoc({ order, items, onSave, onClose }) {
       // Multiple items on a single-product template: never cram them into the top
       // line (it truncates on paper). CNC → list them on the step lines; Shop →
       // BasicBody renders them as stacked product rows (from `items`).
-      base.total = String(items.reduce((n, it) => n + (it.qty || 1), 0));
+      base.total = String(items.reduce((n, it) => n + (parseFloat(it.qty) || 1), 0));
       if (type === "cnc") {
         items.slice(0, 6).forEach((it, i) => { base["step" + (i + 1)] = `${it.name} ×${it.qty}`; });
       }

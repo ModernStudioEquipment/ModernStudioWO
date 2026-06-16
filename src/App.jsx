@@ -23,6 +23,7 @@ import { NewOrderModal } from "./components/modals/NewOrderModal.jsx";
 import { FulfillModal } from "./components/modals/FulfillModal.jsx";
 import { TrackingModal } from "./components/modals/TrackingModal.jsx";
 import { PickedUpModal } from "./components/modals/PickedUpModal.jsx";
+import { OrderedModal } from "./components/modals/OrderedModal.jsx";
 import { CustomWorkOrderDoc } from "./components/modals/CustomWorkOrderDoc.jsx";
 import { WO_TYPES } from "./components/workorders/forms.js";
 
@@ -50,6 +51,7 @@ export default function App() {
   const [fulfillTarget, setFulfillTarget] = useState(null); // { order, method }
   const [trackTarget, setTrackTarget] = useState(null); // order being marked shipped
   const [pickupTarget, setPickupTarget] = useState(null); // will-call order being marked picked up
+  const [orderTarget, setOrderTarget] = useState(null); // purchasing material being marked ordered (asks who/vendor/PO)
   const [customDoc, setCustomDoc] = useState(null); // work order sheet open for edit ({type} = new, or a saved WO)
   const [workCombined, setWorkCombined] = useState(false); // Work Order tab: combine like items across orders
 
@@ -524,9 +526,16 @@ export default function App() {
                           <span style={{ fontFamily: "ui-monospace,monospace", fontWeight: 700 }}>{m.amount}</span>
                           <span className="basis-full sm:basis-auto sm:ml-auto flex flex-wrap items-center gap-2">
                             {m.ordered ? (
-                              <Pill c={C.blue} bg={C.blueBg} Icon={ShoppingCart}>ordered</Pill>
+                              <span className="flex items-center gap-2 flex-wrap">
+                                <Pill c={C.blue} bg={C.blueBg} Icon={ShoppingCart}>ordered</Pill>
+                                {(m.poNumber || m.vendor || m.orderedBy) && (
+                                  <span style={{ fontSize: 11, color: C.gray }}>
+                                    {[m.poNumber && `PO ${m.poNumber}`, m.vendor, m.orderedBy && `by ${m.orderedBy}`].filter(Boolean).join(" · ")}
+                                  </span>
+                                )}
+                              </span>
                             ) : (
-                              <Btn kind="ghost" onClick={() => board.markOrdered(m.id)}><ShoppingCart size={13} />Mark ordered</Btn>
+                              <Btn kind="ghost" onClick={() => setOrderTarget(m)}><ShoppingCart size={13} />Mark ordered</Btn>
                             )}
                             <Btn kind="green" onClick={() => haveIt(it, m)}><ArrowRight size={13} />Have it → Work Order</Btn>
                           </span>
@@ -677,6 +686,13 @@ export default function App() {
           onClose={() => setPickupTarget(null)}
         />
       )}
+      {orderTarget && (
+        <OrderedModal
+          material={orderTarget}
+          onConfirm={async (details) => { await board.markOrdered(orderTarget.id, details); setOrderTarget(null); }}
+          onClose={() => setOrderTarget(null)}
+        />
+      )}
       {confirmStock && (
         <div
           onClick={() => setConfirmStock(null)}
@@ -726,7 +742,7 @@ function CombinedItems({ orders, stage, onMake, onDept }) {
         const key = `${it.name}__${it.color || ""}`;
         if (!map.has(key)) map.set(key, { name: it.name, color: it.color, dept: it.dept, qty: 0, sources: [], entries: [] });
         const e = map.get(key);
-        e.qty += it.qty || 1;
+        e.qty += parseFloat(it.qty) || 1;
         e.sources.push({ orderNo: o.orderNo, qty: it.qty || 1 });
         e.entries.push({ o, it });
       })

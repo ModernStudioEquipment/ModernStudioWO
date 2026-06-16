@@ -41,6 +41,9 @@ function mapOrder(row) {
           amount: m.amount,
           ordered: m.ordered,
           received: m.received,
+          orderedBy: m.ordered_by || null,
+          vendor: m.vendor || null,
+          poNumber: m.po_number || null,
         })),
     }));
   return {
@@ -135,7 +138,7 @@ export const supabaseAdapter = {
       },
       p_items: items.map((it, i) => ({
         name: it.name,
-        qty: Number(it.qty) || 1,
+        qty: String(it.qty ?? "").trim() || "1",
         dept: it.dept || "Shop",
         color: it.color || null,
         position: i,
@@ -169,7 +172,7 @@ export const supabaseAdapter = {
   async updateItem(itemId, patch) {
     const upd = {};
     if (patch.name !== undefined) upd.name = patch.name;
-    if (patch.qty !== undefined) upd.qty = Math.max(1, parseInt(patch.qty, 10) || 1);
+    if (patch.qty !== undefined) upd.qty = String(patch.qty ?? "").trim() || "1";
     if (patch.color !== undefined) upd.color = patch.color || null;
     if (patch.dept !== undefined) upd.dept = patch.dept;
     if (patch.completedBy !== undefined) upd.completed_by = patch.completedBy || null;
@@ -193,8 +196,13 @@ export const supabaseAdapter = {
     fail(error);
   },
 
-  async markOrdered(materialId) {
-    const { error } = await supabase.from("materials").update({ ordered: true }).eq("id", materialId);
+  async markOrdered(materialId, details = {}) {
+    const full = { ordered: true, ordered_by: details.orderedBy || null, vendor: details.vendor || null, po_number: details.poNumber || null };
+    let { error } = await supabase.from("materials").update(full).eq("id", materialId);
+    if (error) {
+      // Fallback for before the 0015 migration (vendor / PO columns absent).
+      ({ error } = await supabase.from("materials").update({ ordered: true }).eq("id", materialId));
+    }
     fail(error);
   },
 
