@@ -67,7 +67,7 @@ async function run({ commit }) {
         Authorization: `Bearer ${conductorKey}`,
         "Conductor-End-User-Id": endUserId,
       },
-      signal: AbortSignal.timeout(58000),
+      signal: AbortSignal.timeout(50000),
     });
     qbText = await qbRes.text();
   } catch (e) {

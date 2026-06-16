@@ -161,17 +161,20 @@ export default function App() {
     setSyncing(true);
     try {
       const res = await fetch("/api/conductor-sync", { method: "POST" });
-      const data = await res.json();
-      if (typeof data.inserted === "number") {
-        alert(`QuickBooks sync complete: ${data.inserted} new order${data.inserted === 1 ? "" : "s"} added` +
-          `${data.skipped ? `, ${data.skipped} already on the board` : ""}.`);
-      } else {
-        alert(`QuickBooks sync didn't finish:\n${data.error || "Unknown error"}` +
-          `${data.hint ? `\n\n${data.hint}` : ""}`);
-      }
+      let data = null;
+      try { data = await res.json(); } catch { /* slow/cut-off response — sync may still have run */ }
       await board.refetch();
-    } catch (e) {
-      alert("QuickBooks sync failed: " + (e.message || String(e)));
+      if (data && typeof data.inserted === "number") {
+        alert(`QuickBooks sync complete: ${data.inserted} new order${data.inserted === 1 ? "" : "s"} added` +
+          `${data.skippedDuplicate ? `, ${data.skippedDuplicate} already on the board` : ""}.`);
+      } else if (data && data.error) {
+        alert(`QuickBooks sync didn't finish:\n${data.error}${data.hint ? `\n\n${data.hint}` : ""}`);
+      } else {
+        alert("Sync sent — QuickBooks can take up to a minute, and any new orders will appear on the board on their own. If nothing showed up, make sure the office PC, QuickBooks, and the Web Connector are all running, then try again.");
+      }
+    } catch {
+      await board.refetch();
+      alert("Couldn't confirm the sync — new orders may still appear shortly. If not, check that the office PC + QuickBooks Web Connector are running, then try again.");
     } finally {
       setSyncing(false);
     }
