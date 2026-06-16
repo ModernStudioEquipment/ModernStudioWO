@@ -96,11 +96,10 @@ async function run({ commit }) {
       // skip shipping/freight charge lines (not something to pick or make).
       .filter((ln) => {
         if (!ln.item || !(ln.item.fullName || ln.item.name)) return false;
-        // Match on the item code only (not the description) so a product whose
-        // description happens to mention "discount"/"misc" isn't dropped.
-        const code = (ln.item.fullName || ln.item.name || "").toLowerCase();
+        const txt = `${ln.item.fullName || ln.item.name} ${ln.description || ln.memo || ""}`.toLowerCase();
         // Skip non-product lines: shipping/freight and financial adjustments.
-        return !/shipping|freight|discount|\bdeposit\b|\brefund\b|store credit|gift ?card|\bpayment\b/.test(code);
+        // (Deliberately specific terms so real products aren't dropped.)
+        return !/shipping|freight|discount|\bdeposit\b|\brefund\b|store credit|gift ?card|\bpayment\b/.test(txt);
       })
       .map((ln, i) => {
         const code = (ln.item.fullName || ln.item.name || "").trim();
