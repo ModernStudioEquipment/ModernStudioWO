@@ -99,6 +99,12 @@ export function OrderDetail({ order, status, now, onPriority, onUpdateItem, onUn
                   Waiting on: {it.materials.filter((m) => !m.received).map((m) => `${m.name}${m.amount ? ` (${m.amount})` : ""}`).join(", ")}
                 </div>
               )}
+              {it.materials && it.materials.filter((m) => m.ordered).map((m) => (
+                <div key={m.id} style={{ fontSize: 12, color: C.gray, marginTop: 8 }}>
+                  <span style={{ fontWeight: 700, color: C.blue }}>Ordered</span> · {m.name}
+                  {[m.vendor && `from ${m.vendor}`, m.poNumber && `PO ${m.poNumber}`, m.orderedBy && `by ${m.orderedBy}`].filter(Boolean).map((s) => ` · ${s}`).join("")}
+                </div>
+              ))}
             </div>
             );
           })}

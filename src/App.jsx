@@ -534,7 +534,9 @@ export default function App() {
                           <span className="basis-full sm:basis-auto sm:ml-auto flex flex-wrap items-center gap-2">
                             {m.ordered ? (
                               <span className="flex items-center gap-2 flex-wrap">
-                                <Pill c={C.blue} bg={C.blueBg} Icon={ShoppingCart}>ordered</Pill>
+                                <button onClick={() => board.unmarkOrdered(m.id)} title="Click to mark as NOT ordered" style={{ background: "none", border: "none", padding: 0, cursor: "pointer", display: "inline-flex" }}>
+                                  <Pill c={C.blue} bg={C.blueBg} Icon={ShoppingCart}>ordered</Pill>
+                                </button>
                                 {(m.poNumber || m.vendor || m.orderedBy) && (
                                   <span style={{ fontSize: 11, color: C.gray }}>
                                     {[m.poNumber && `PO ${m.poNumber}`, m.vendor, m.orderedBy && `by ${m.orderedBy}`].filter(Boolean).join(" · ")}

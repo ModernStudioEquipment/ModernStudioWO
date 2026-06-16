@@ -73,6 +73,7 @@ export function useOrders(enabled) {
     finishItem: act((itemId) => db.finishItem(itemId)),
     updateItem: act((itemId, patch) => db.updateItem(itemId, patch)),
     markOrdered: act((materialId, details) => db.markOrdered(materialId, details)),
+    unmarkOrdered: act((materialId) => db.unmarkOrdered(materialId)),
     receiveMaterial: act((materialId) => db.receiveMaterial(materialId)),
     setPriority: act((orderId, priority) => db.setPriority(orderId, priority)),
     fulfillOrder: act((orderId, method, location) => db.fulfillOrder(orderId, method, location)),

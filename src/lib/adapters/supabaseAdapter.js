@@ -206,6 +206,15 @@ export const supabaseAdapter = {
     fail(error);
   },
 
+  async unmarkOrdered(materialId) {
+    const full = { ordered: false, ordered_by: null, vendor: null, po_number: null };
+    let { error } = await supabase.from("materials").update(full).eq("id", materialId);
+    if (error) {
+      ({ error } = await supabase.from("materials").update({ ordered: false }).eq("id", materialId));
+    }
+    fail(error);
+  },
+
   async receiveMaterial(materialId) {
     const { error } = await supabase.rpc("receive_material", { p_material_id: materialId });
     fail(error);

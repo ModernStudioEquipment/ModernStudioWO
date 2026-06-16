@@ -226,6 +226,15 @@ export const localAdapter = {
     });
   },
 
+  async unmarkOrdered(materialId) {
+    mutateMaterial(materialId, (m) => {
+      m.ordered = false;
+      m.orderedBy = null;
+      m.vendor = null;
+      m.poNumber = null;
+    });
+  },
+
   // "Receive" / "have it": mark received; if the item was waiting and all of
   // its materials are now in, advance it into Work Order.
   async receiveMaterial(materialId) {
