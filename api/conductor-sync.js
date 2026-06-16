@@ -43,7 +43,7 @@ async function run({ commit }) {
   // --- 1. Pull sales orders from QuickBooks (through Conductor) ---
   let qbRes, qbText;
   try {
-    qbRes = await fetch(`${CONDUCTOR_BASE}/sales-orders?limit=50`, {
+    qbRes = await fetch(`${CONDUCTOR_BASE}/sales-orders?limit=1`, {
       headers: {
         Authorization: `Bearer ${conductorKey}`,
         "Conductor-End-User-Id": endUserId,
