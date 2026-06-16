@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Clock, Wrench, Scissors, Cpu, Hammer, Flag, Check, ChevronDown } from "lucide-react";
-import { C, PRI, PRIORITIES, DEPTS, elapsed } from "../theme.js";
+import { C, PRI, PRIORITIES, DEPTS, elapsed, sittingLevel, itemIdleMs, STAGE_LABELS } from "../theme.js";
 
 const DEPT_ICONS = { Shop: Hammer, CNC: Cpu, Sewing: Scissors, Saw: Wrench };
 export const DeptIcon = ({ d, size = 12 }) => {
@@ -169,7 +169,25 @@ export function Group({ o, now, children, onPriority }) {
   );
 }
 
-export function ItemLine({ it, right, onOpen, flash, onDept }) {
+// "At a glance" flag: shows on an item that's been sitting in its stage with no
+// movement — amber "Sitting Nd" at 3+ days, red "Stale Nd" at 6+ days.
+export function SittingBadge({ it, now = Date.now() }) {
+  const level = sittingLevel(it, now);
+  if (!level) return null;
+  const stale = level === "stale";
+  const dur = elapsed(itemIdleMs(it, now));
+  return (
+    <span
+      className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-bold uppercase tracking-wide"
+      style={{ color: stale ? C.rush : C.high, background: stale ? C.rushBg : C.highBg, flexShrink: 0 }}
+      title={`No movement in ${dur} · sitting in ${STAGE_LABELS[it.stage] || it.stage}`}
+    >
+      <Clock size={12} />{stale ? "Stale" : "Sitting"} {dur}
+    </span>
+  );
+}
+
+export function ItemLine({ it, right, onOpen, flash, onDept, now }) {
   return (
     <div
       ref={flash ? (el) => el && el.scrollIntoView({ behavior: "smooth", block: "center" }) : undefined}
@@ -185,6 +203,7 @@ export function ItemLine({ it, right, onOpen, flash, onDept }) {
       <DeptBadge d={it.dept} onChange={onDept} />
       <span className="font-bold flex-1 min-w-0 sm:flex-none" style={{ fontSize: 14 }}>{it.name}</span>
       <span style={{ fontFamily: "ui-monospace,monospace", color: C.inkSoft }}>×{it.qty}</span>
+      <SittingBadge it={it} now={now} />
       <span className="basis-full sm:basis-auto sm:ml-auto flex justify-end" onClick={(e) => e.stopPropagation()}>{right}</span>
     </div>
   );

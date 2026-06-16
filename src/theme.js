@@ -59,6 +59,29 @@ export const STAGE_LABELS = {
   awaiting: "Purchasing",
   done: "Done",
 };
+// "Sitting too long" thresholds — how long an item can sit in one stage with no
+// movement before the board flags it. Warn (amber) at 3 days, stale (red) at 6.
+export const SITTING_WARN_MS = 3 * 24 * 60 * 60 * 1000;
+export const SITTING_STALE_MS = 6 * 24 * 60 * 60 * 1000;
+
+// Idle time = how long since anything last happened to this item (its newest
+// history event). Every item has at least its "created" event, so it's always set.
+export function itemIdleMs(item, now = Date.now()) {
+  const evs = (item && item.events) || [];
+  if (!evs.length) return 0;
+  const last = Math.max(...evs.map((e) => new Date(e.at).getTime()));
+  return Math.max(0, now - last);
+}
+
+// null | "warn" | "stale" — flags active (not done) items that haven't moved.
+export function sittingLevel(item, now = Date.now()) {
+  if (!item || item.stage === "done") return null;
+  const idle = itemIdleMs(item, now);
+  if (idle >= SITTING_STALE_MS) return "stale";
+  if (idle >= SITTING_WARN_MS) return "warn";
+  return null;
+}
+
 // Build a carrier tracking URL from a tracking number. Detects UPS / USPS /
 // FedEx / DHL by the number's format (the shop ships with several carriers);
 // falls back to a Google tracking search when the carrier isn't clear — Google

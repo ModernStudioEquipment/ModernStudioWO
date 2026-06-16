@@ -380,7 +380,7 @@ export default function App() {
                   <Group key={o.id} o={o} now={now} onPriority={board.setPriority}>
                     {o.items.filter((it) => it.stage === "picklist").map((it) => (
                       <ItemLine
-                        key={it.id} it={it}
+                        key={it.id} it={it} now={now}
                         onDept={(dep) => board.updateItem(it.id, { dept: dep })}
                         onOpen={() => setPickItem({ o, it })}
                         right={
@@ -483,7 +483,7 @@ export default function App() {
                               )}
                               {deptItems.map((it) => (
                                 <ItemLine
-                                  key={it.id} it={it} flash={flashItem === it.id}
+                                  key={it.id} it={it} now={now} flash={flashItem === it.id}
                                   onDept={(dep) => board.updateItem(it.id, { dept: dep })}
                                   onOpen={() => setPickItem({ o, it, wo: true })}
                                   right={
