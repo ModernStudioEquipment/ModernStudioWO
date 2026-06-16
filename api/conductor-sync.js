@@ -121,14 +121,14 @@ async function run({ commit }) {
     Authorization: `Bearer ${serviceKey}`,
     "Content-Type": "application/json",
   };
-  let inserted = 0, skipped = 0;
+  let inserted = 0, skippedDuplicate = 0, failed = 0, firstError = null;
   for (const m of mapped) {
     const dupRes = await fetch(
       `${url}/rest/v1/orders?select=id&source=eq.QuickBooks&order_no=eq.${encodeURIComponent(m.orderNo)}&limit=1`,
       { headers: sb }
     );
     const dups = await dupRes.json();
-    if (Array.isArray(dups) && dups.length) { skipped++; continue; }
+    if (Array.isArray(dups) && dups.length) { skippedDuplicate++; continue; }
 
     const ins = await fetch(`${url}/rest/v1/rpc/create_order`, {
       method: "POST",
@@ -145,9 +145,10 @@ async function run({ commit }) {
         p_items: m.items,
       }),
     });
-    if (ins.ok) inserted++; else skipped++;
+    if (ins.ok) inserted++;
+    else { failed++; if (!firstError) firstError = { status: ins.status, detail: (await ins.text()).slice(0, 400) }; }
   }
-  return json(200, { mode: "commit", pulledFromQuickBooks: list.length, eligible: mapped.length, inserted, skipped });
+  return json(200, { mode: "commit", pulledFromQuickBooks: list.length, eligible: mapped.length, inserted, skippedDuplicate, failed, firstError });
 }
 
 function json(status, b) {
