@@ -154,6 +154,7 @@ async function run({ commit }) {
       alreadyOnBoard: mapped.length - toAdd.length,
       existingSources: [...new Set(Object.values(existingSource))],
       wouldAdd: toAdd.length,
+      allItemNames: [...new Set(toAdd.flatMap((m) => m.items.map((it) => it.name)))].sort(),
       sample: toAdd.slice(0, 6).map((m) => ({
         orderNo: m.orderNo,
         customer: m.customer,
