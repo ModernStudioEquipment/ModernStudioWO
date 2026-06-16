@@ -1,5 +1,5 @@
 import React from "react";
-import { C, elapsed, effectivePriority, sittingLevel, itemIdleMs } from "../theme.js";
+import { C, elapsed, effectivePriority, sittingLevel, stageEnteredAt } from "../theme.js";
 
 // The shop's home screen — a live at-a-glance view computed from the same orders
 // + work orders the rest of the app uses. Cards and pipeline stages click
@@ -35,13 +35,14 @@ export function Dashboard({ orders = [], workOrders = [], now, onNavigate, onOpe
     seen.add(o.id);
     attn.push({ id: o.id, no: o.orderNo, name: o.customer, tag, kind, t: t ?? o.receivedAt });
   };
-  // How long the longest-sitting active item on an order has been idle (for the
-  // "sitting"/"stale" rows, so the time column shows idle time, not order age).
+  // When the longest-sitting flagged item entered its stage (so the time column
+  // on "sitting"/"stale" rows shows how long it's been sitting, not order age).
   const idleSince = (o) => {
     let oldest = Infinity;
-    o.items.filter(active).forEach((it) => {
-      const evs = it.events || [];
-      if (evs.length) oldest = Math.min(oldest, Math.max(...evs.map((e) => new Date(e.at).getTime())));
+    o.items.forEach((it) => {
+      if (!sittingLevel(it, ts)) return;
+      const t = stageEnteredAt(it);
+      if (t != null) oldest = Math.min(oldest, t);
     });
     return oldest === Infinity ? o.receivedAt : oldest;
   };

@@ -9,7 +9,7 @@ import { useAuth } from "./hooks/useAuth.js";
 import { useOrders } from "./hooks/useOrders.js";
 import { useWorkOrders } from "./hooks/useWorkOrders.js";
 import {
-  Pill, Btn, Group, ItemLine, Empty, Tabwrap, DeptBadge, PriorityPill, MoveMenu,
+  Pill, Btn, Group, ItemLine, Empty, Tabwrap, DeptBadge, PriorityPill, MoveMenu, SittingBadge,
 } from "./components/ui.jsx";
 import { Auth } from "./components/Auth.jsx";
 import { Logo } from "./components/Logo.jsx";
@@ -347,6 +347,7 @@ export default function App() {
                           <DeptBadge d={it.dept} onChange={(dep) => board.updateItem(it.id, { dept: dep })} />
                           <span className="font-bold" style={{ fontSize: 14 }}>{it.name}</span>
                           <span style={{ fontFamily: "ui-monospace,monospace", color: C.inkSoft }}>×{it.qty}</span>
+                          <SittingBadge it={it} now={now} />
                         </div>
                         <div className="flex gap-2">
                           <button onClick={() => setConfirmStock(it)} className="flex-1 py-2 rounded font-bold uppercase tracking-wide text-xs" style={{ background: C.greenBg, color: C.green, border: `1px solid ${C.green}` }}>In stock</button>

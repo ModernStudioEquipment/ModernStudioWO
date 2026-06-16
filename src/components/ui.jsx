@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Clock, Wrench, Scissors, Cpu, Hammer, Flag, Check, ChevronDown } from "lucide-react";
-import { C, PRI, PRIORITIES, DEPTS, elapsed, sittingLevel, itemIdleMs, STAGE_LABELS } from "../theme.js";
+import { C, PRI, PRIORITIES, DEPTS, elapsed, sittingLevel, stageDwellMs, STAGE_LABELS } from "../theme.js";
 
 const DEPT_ICONS = { Shop: Hammer, CNC: Cpu, Sewing: Scissors, Saw: Wrench };
 export const DeptIcon = ({ d, size = 12 }) => {
@@ -169,20 +169,21 @@ export function Group({ o, now, children, onPriority }) {
   );
 }
 
-// "At a glance" flag: shows on an item that's been sitting in its stage with no
-// movement — amber "Sitting Nd" at 3+ days, red "Stale Nd" at 6+ days.
+// "At a glance" flag: a small flag icon on an item that's been sitting in its
+// current stage too long — amber at 3+ days, red at 6+ days. Compact on purpose
+// (keeps rows clean on mobile); the duration + stage show when you open it.
 export function SittingBadge({ it, now = Date.now() }) {
   const level = sittingLevel(it, now);
   if (!level) return null;
   const stale = level === "stale";
-  const dur = elapsed(itemIdleMs(it, now));
+  const c = stale ? C.rush : C.high;
+  const dur = elapsed(stageDwellMs(it, now) || 0);
   return (
     <span
-      className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-bold uppercase tracking-wide"
-      style={{ color: stale ? C.rush : C.high, background: stale ? C.rushBg : C.highBg, flexShrink: 0 }}
-      title={`No movement in ${dur} · sitting in ${STAGE_LABELS[it.stage] || it.stage}`}
+      title={`${stale ? "Stale" : "Sitting"} — in ${STAGE_LABELS[it.stage] || it.stage} ${dur} with no movement`}
+      style={{ display: "inline-flex", flexShrink: 0 }}
     >
-      <Clock size={12} />{stale ? "Stale" : "Sitting"} {dur}
+      <Flag size={15} color={c} fill={c} />
     </span>
   );
 }

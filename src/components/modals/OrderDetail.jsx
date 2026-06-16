@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { X, Trash2, RotateCcw, Clock, ChevronDown, ExternalLink } from "lucide-react";
 import { C, PRI, elapsed, itemStatusText, trackingUrl } from "../../theme.js";
-import { Pill, Info, Stepper, DeptBadge, PriorityPill } from "../ui.jsx";
+import { Pill, Info, Stepper, DeptBadge, PriorityPill, SittingBadge } from "../ui.jsx";
 import { ItemTimeline } from "../ItemTimeline.jsx";
 
 // The office "where's my order?" view — full detail with a per-product
@@ -62,6 +62,7 @@ export function OrderDetail({ order, status, now, onPriority, onUpdateItem, onUn
                 <DeptBadge d={it.dept} onChange={onUpdateItem ? (dep) => onUpdateItem(it.id, { dept: dep }) : undefined} />
                 <span className="font-bold" style={{ fontSize: 14 }}>{it.name}</span>
                 <span style={{ fontFamily: "ui-monospace,monospace", color: C.inkSoft }}>×{it.qty}</span>
+                <SittingBadge it={it} now={now} />
                 <span className="ml-auto font-bold" style={{ fontSize: 12, color: it.stage === "done" ? C.green : C.inkSoft }}>
                   {itemStatusText(it)}
                 </span>

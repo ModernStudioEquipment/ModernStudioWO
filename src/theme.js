@@ -64,21 +64,32 @@ export const STAGE_LABELS = {
 export const SITTING_WARN_MS = 3 * 24 * 60 * 60 * 1000;
 export const SITTING_STALE_MS = 6 * 24 * 60 * 60 * 1000;
 
-// Idle time = how long since anything last happened to this item (its newest
-// history event). Every item has at least its "created" event, so it's always set.
-export function itemIdleMs(item, now = Date.now()) {
-  const evs = (item && item.events) || [];
-  if (!evs.length) return 0;
-  const last = Math.max(...evs.map((e) => new Date(e.at).getTime()));
-  return Math.max(0, now - last);
+// When the item entered its CURRENT stage — the timestamp of the last logged
+// move into it.stage. Returns null when that move happened before history
+// tracking started (so we genuinely can't prove how long it's been here).
+export function stageEnteredAt(item) {
+  const evs = ((item && item.events) || []).filter((e) => e.kind === "created" || e.kind === "moved");
+  for (let i = evs.length - 1; i >= 0; i--) {
+    if (evs[i].to === item.stage) return new Date(evs[i].at).getTime();
+  }
+  return null;
 }
 
-// null | "warn" | "stale" — flags active (not done) items that haven't moved.
+// How long the item has been sitting in its current stage, or null if unknown.
+export function stageDwellMs(item, now = Date.now()) {
+  const t = stageEnteredAt(item);
+  return t == null ? null : Math.max(0, now - t);
+}
+
+// null | "warn" | "stale" — only flags active items we can PROVE have been in
+// their current stage too long (3 days warn, 6 days stale). Items whose move
+// into the current stage predates tracking aren't flagged (we can't be sure).
 export function sittingLevel(item, now = Date.now()) {
   if (!item || item.stage === "done") return null;
-  const idle = itemIdleMs(item, now);
-  if (idle >= SITTING_STALE_MS) return "stale";
-  if (idle >= SITTING_WARN_MS) return "warn";
+  const dwell = stageDwellMs(item, now);
+  if (dwell == null) return null;
+  if (dwell >= SITTING_STALE_MS) return "stale";
+  if (dwell >= SITTING_WARN_MS) return "warn";
   return null;
 }
 
