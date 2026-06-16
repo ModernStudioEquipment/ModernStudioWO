@@ -108,7 +108,13 @@ async function run({ commit }) {
         customer: m.customer,
         items: m.items.map((it) => `${it.name} ×${it.qty}${it.note ? ` — ${it.note}` : ""}`),
       })),
-      rawFirstOrder: list[0] || null,
+      channels: list.map((so) => ({
+        refNumber: so.refNumber,
+        customer: so.customer && (so.customer.fullName || so.customer.name),
+        store: so.salesStoreName || null,
+        channel: so.salesChannelName || null,
+        storeType: so.salesStoreType || null,
+      })),
       note: "Preview only — nothing inserted. POST to this endpoint to commit.",
     });
   }
