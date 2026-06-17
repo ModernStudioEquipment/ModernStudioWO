@@ -49,6 +49,17 @@ function writeWO(list) {
   channel?.postMessage("changed");
 }
 
+// Product photo library (name -> url): a photo set for a product is remembered
+// for every order with that product.
+const PHOTO_KEY = "mse_product_photos_v1";
+function readPhotos() {
+  try { return JSON.parse(localStorage.getItem(PHOTO_KEY) || "{}"); } catch { return {}; }
+}
+function writePhotos(map) {
+  localStorage.setItem(PHOTO_KEY, JSON.stringify(map));
+  channel?.postMessage("changed");
+}
+
 // Highest numeric orderNo across the given records, + 1 (regular orders start
 // at 1001). Work-order numbers (>= 100000) are excluded so the two sequences
 // stay independent.
@@ -107,7 +118,10 @@ export const localAdapter = {
   needsAuth: false,
 
   async getOrders() {
-    return read();
+    const orders = read();
+    const photos = readPhotos();
+    orders.forEach((o) => o.items.forEach((it) => { if (!it.imageUrl && photos[it.name]) it.imageUrl = photos[it.name]; }));
+    return orders;
   },
 
   subscribe(cb) {
@@ -268,7 +282,9 @@ export const localAdapter = {
   // Demo mode: no Storage — read the dropped file as a data URL and stash it.
   async uploadItemPhoto(itemId, file) {
     const url = await new Promise((res) => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(file); });
-    mutateItem(itemId, (it) => { it.imageUrl = url; });
+    let name = null;
+    mutateItem(itemId, (it) => { it.imageUrl = url; name = it.name; });
+    if (name) { const m = readPhotos(); m[name] = url; writePhotos(m); } // remember for the product
     return url;
   },
 

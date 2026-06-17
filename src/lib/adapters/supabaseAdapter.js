@@ -12,7 +12,7 @@ const fail = (error) => {
 let channelSeq = 0; // unique realtime channel names — one channel per subscriber
 
 // DB row (snake_case) -> the normalized in-memory shape the UI consumes.
-function mapOrder(row) {
+function mapOrder(row, productPhotos = {}) {
   const items = (row.items || [])
     .slice()
     .sort((a, b) => (a.position ?? 0) - (b.position ?? 0) || a.created_at.localeCompare(b.created_at))
@@ -25,7 +25,7 @@ function mapOrder(row) {
       stage: it.stage,
       needsMaterial: it.needs_material,
       completedBy: it.completed_by,
-      imageUrl: it.image_url || null,
+      imageUrl: it.image_url || productPhotos[it.name] || null,
       note: it.note || null,
       inProgress: it.in_progress || false,
       events: (it.item_events || [])
@@ -98,7 +98,12 @@ export const supabaseAdapter = {
         .order("received_at", { ascending: false }));
     }
     fail(error);
-    return (data || []).map(mapOrder);
+    // Product photo library: a photo remembered per product fills in for any item
+    // that doesn't have its own. Tolerate the table not existing yet (0028).
+    const productPhotos = {};
+    const { data: pp } = await supabase.from("product_photos").select("name,image_url");
+    if (Array.isArray(pp)) pp.forEach((r) => { productPhotos[r.name] = r.image_url; });
+    return (data || []).map((row) => mapOrder(row, productPhotos));
   },
 
   subscribe(cb) {
@@ -203,6 +208,11 @@ export const supabaseAdapter = {
     if (patch.inProgress !== undefined) upd.in_progress = !!patch.inProgress;
     const { error } = await supabase.from("items").update(upd).eq("id", itemId);
     fail(error);
+    // A pasted photo URL is also remembered for the product (same as an upload).
+    if (patch.imageUrl) {
+      const { data: r } = await supabase.from("items").select("name").eq("id", itemId).single();
+      if (r && r.name) await supabase.from("product_photos").upsert({ name: r.name, image_url: patch.imageUrl });
+    }
   },
 
   // Upload a dropped/selected photo file to Storage and save its URL on the item.
@@ -212,8 +222,10 @@ export const supabaseAdapter = {
     const { error: upErr } = await supabase.storage.from("item-photos").upload(path, file, { upsert: true, contentType: file.type || undefined });
     fail(upErr);
     const url = supabase.storage.from("item-photos").getPublicUrl(path).data.publicUrl;
-    const { error } = await supabase.from("items").update({ image_url: url }).eq("id", itemId);
+    const { data: itemRow, error } = await supabase.from("items").update({ image_url: url }).eq("id", itemId).select("name").single();
     fail(error);
+    // Remember this photo for the product so every order with it shows it too.
+    if (itemRow && itemRow.name) await supabase.from("product_photos").upsert({ name: itemRow.name, image_url: url });
     return url;
   },
 
