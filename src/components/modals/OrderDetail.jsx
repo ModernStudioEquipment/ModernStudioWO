@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { X, Trash2, RotateCcw, Clock, ChevronDown, ExternalLink } from "lucide-react";
 import { C, PRI, elapsed, itemStatusText, trackingUrl } from "../../theme.js";
 import { Pill, Info, Stepper, DeptBadge, DuePill, MethodBadge, SittingBadge } from "../ui.jsx";
@@ -13,6 +13,10 @@ export function OrderDetail({ order, status, now, onDueDate, onMethod, onSaveNot
   const [openTimeline, setOpenTimeline] = useState(null); // item id whose timeline is expanded
   const [notes, setNotes] = useState(order.notes || "");
   const [savedNotes, setSavedNotes] = useState(order.notes || "");
+  // Grow the notes box to fit its content (no inner scroll).
+  const notesRef = useRef(null);
+  const growNotes = (el) => { if (el) { el.style.height = "auto"; el.style.height = `${el.scrollHeight}px`; } };
+  useEffect(() => { growNotes(notesRef.current); }, []);
   const done = order.items.filter((i) => i.stage === "done").length;
   const total = order.items.length;
   const receivedOn = new Date(order.receivedAt).toLocaleDateString("en-US", {
@@ -56,12 +60,13 @@ export function OrderDetail({ order, status, now, onDueDate, onMethod, onSaveNot
             <div className="mb-4">
               <div style={{ fontSize: 11, fontWeight: 700, color: C.gray, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Order notes</div>
               <textarea
+                ref={notesRef}
                 value={notes}
-                onChange={(e) => setNotes(e.target.value)}
+                onChange={(e) => { setNotes(e.target.value); growNotes(e.target); }}
                 rows={2}
                 placeholder="Notes about this order…"
                 className="w-full px-2 py-2 outline-none"
-                style={{ border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 13, background: "#fff", resize: "vertical" }}
+                style={{ border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 13, background: "#fff", resize: "none", overflow: "hidden", minHeight: 52 }}
               />
               {notes !== savedNotes && (
                 <button onClick={async () => { await onSaveNotes(notes.trim() || null); setSavedNotes(notes); }}
