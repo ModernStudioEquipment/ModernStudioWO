@@ -184,6 +184,8 @@ export const localAdapter = {
         orderedBy: null,
         vendor: null,
         poNumber: null,
+        orderedAt: null,
+        expectedAt: null,
       }));
     });
   },
@@ -223,6 +225,8 @@ export const localAdapter = {
       m.orderedBy = details.orderedBy || null;
       m.vendor = details.vendor || null;
       m.poNumber = details.poNumber || null;
+      m.orderedAt = details.orderedAt || null;
+      m.expectedAt = details.expectedAt || null;
     });
   },
 

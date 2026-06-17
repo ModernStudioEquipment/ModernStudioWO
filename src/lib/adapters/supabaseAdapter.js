@@ -44,6 +44,8 @@ function mapOrder(row) {
           orderedBy: m.ordered_by || null,
           vendor: m.vendor || null,
           poNumber: m.po_number || null,
+          orderedAt: m.ordered_at || null,
+          expectedAt: m.expected_at || null,
         })),
     }));
   return {
@@ -197,8 +199,13 @@ export const supabaseAdapter = {
   },
 
   async markOrdered(materialId, details = {}) {
-    const full = { ordered: true, ordered_by: details.orderedBy || null, vendor: details.vendor || null, po_number: details.poNumber || null };
+    const full = { ordered: true, ordered_by: details.orderedBy || null, vendor: details.vendor || null, po_number: details.poNumber || null, ordered_at: details.orderedAt || null, expected_at: details.expectedAt || null };
     let { error } = await supabase.from("materials").update(full).eq("id", materialId);
+    if (error) {
+      // Fallback if the 0019 date columns aren't there yet: still save vendor/PO.
+      const { ordered_at, expected_at, ...noDates } = full;
+      ({ error } = await supabase.from("materials").update(noDates).eq("id", materialId));
+    }
     if (error) {
       // Fallback for before the 0015 migration (vendor / PO columns absent).
       ({ error } = await supabase.from("materials").update({ ordered: true }).eq("id", materialId));

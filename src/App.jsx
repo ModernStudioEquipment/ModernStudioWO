@@ -555,23 +555,35 @@ export default function App() {
                 {buyOrders.map((o) => (
                   <Group key={o.id} o={o} now={now} onPriority={board.setPriority} onOpen={() => setDetailId(o.id)}>
                     {o.items.filter((it) => it.needsMaterial).map((it) =>
-                      it.materials.filter((m) => !m.received).map((m) => (
+                      it.materials.filter((m) => !m.received).map((m) => {
+                        // Once the expected date is reached, flag the row so the
+                        // shop knows the material is due in (red if it's overdue).
+                        const today = new Date(now).toLocaleDateString("en-CA");
+                        const expReached = m.ordered && m.expectedAt && today >= m.expectedAt;
+                        const overdue = expReached && today > m.expectedAt;
+                        return (
                         <div key={m.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
                           <DeptBadge d={it.dept} onChange={(dep) => board.updateItem(it.id, { dept: dep })} />
                           <div className="min-w-0">
-                            <div className="font-bold" style={{ fontSize: 14 }}>{m.name}</div>
+                            {/* Click the product to open the order pop-up and edit its details. */}
+                            <button onClick={() => setOrderTarget(m)} title="Click to edit order details" className="font-bold text-left hover:underline" style={{ fontSize: 14, background: "none", border: "none", padding: 0, cursor: "pointer", color: "inherit" }}>{m.name}</button>
                             <div style={{ fontSize: 12, color: C.gray }}>for {it.name}</div>
                           </div>
                           <span style={{ fontFamily: "ui-monospace,monospace", fontWeight: 700 }}>{m.amount}</span>
                           <span className="basis-full sm:basis-auto sm:ml-auto flex flex-wrap items-center gap-2">
+                            {expReached && (
+                              <Pill c={overdue ? C.rush : C.high} bg={overdue ? C.rushBg : C.highBg} Icon={Truck}>
+                                {overdue ? `due ${dueLabel(m.expectedAt)}` : "arriving today"}
+                              </Pill>
+                            )}
                             {m.ordered ? (
                               <span className="flex items-center gap-2 flex-wrap">
                                 <button onClick={() => board.unmarkOrdered(m.id)} title="Click to mark as NOT ordered" style={{ background: "none", border: "none", padding: 0, cursor: "pointer", display: "inline-flex" }}>
                                   <Pill c={C.blue} bg={C.blueBg} Icon={ShoppingCart}>ordered</Pill>
                                 </button>
-                                {(m.poNumber || m.vendor || m.orderedBy) && (
+                                {(m.poNumber || m.vendor || m.orderedBy || m.orderedAt || m.expectedAt) && (
                                   <span style={{ fontSize: 11, color: C.gray }}>
-                                    {[m.poNumber && `PO ${m.poNumber}`, m.vendor, m.orderedBy && `by ${m.orderedBy}`].filter(Boolean).join(" · ")}
+                                    {[m.poNumber && `PO ${m.poNumber}`, m.vendor, m.orderedBy && `by ${m.orderedBy}`, m.orderedAt && `ordered ${dueLabel(m.orderedAt)}`, m.expectedAt && `exp ${dueLabel(m.expectedAt)}`].filter(Boolean).join(" · ")}
                                   </span>
                                 )}
                               </span>
@@ -581,7 +593,8 @@ export default function App() {
                             <Btn kind="green" onClick={() => haveIt(it, m)}><ArrowRight size={13} />Have it → Work Order</Btn>
                           </span>
                         </div>
-                      ))
+                        );
+                      })
                     )}
                   </Group>
                 ))}
