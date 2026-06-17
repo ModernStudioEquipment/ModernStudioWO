@@ -12,7 +12,8 @@ export function NewOrderModal({ getNextOrderNo, onCreate, onClose }) {
   const [orderNo, setOrderNo] = useState("");
   const [customer, setCustomer] = useState("");
   const [contact, setContact] = useState("");
-  const [due, setDue] = useState(""); // datetime-local value "YYYY-MM-DDTHH:MM" (time optional)
+  const [dueDate, setDueDate] = useState("");
+  const [dueTime, setDueTime] = useState(""); // optional "HH:MM"
   const [method, setMethod] = useState(""); // "" | "willcall" | "shipping" — chosen at intake
   const [items, setItems] = useState([blankItem()]);
   const [saving, setSaving] = useState(false);
@@ -41,8 +42,8 @@ export function NewOrderModal({ getNextOrderNo, onCreate, onClose }) {
         source: "phone",
         willCall: method === "willcall",
         fulfillmentMethod: method || null,
-        dueDate: due ? due.slice(0, 10) : null,
-        dueTime: due && due.slice(11, 16) && due.slice(11, 16) !== "00:00" ? due.slice(11, 16) : null,
+        dueDate: dueDate || null,
+        dueTime: dueDate && dueTime ? dueTime : null,
         items: validItems.map((it) => ({
           name: it.name.trim(),
           qty: String(it.qty ?? "").trim() || "1",
@@ -85,13 +86,25 @@ export function NewOrderModal({ getNextOrderNo, onCreate, onClose }) {
 
           <div className="flex flex-wrap items-end gap-4 mb-4">
             <div>
-              <div style={label}>Due date <span style={{ fontWeight: 400, textTransform: "none" }}>(time optional)</span></div>
+              <div style={label}>Due date</div>
               <input
-                type="datetime-local"
-                value={due}
-                onChange={(e) => setDue(e.target.value)}
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
                 className="px-2 py-2 outline-none"
-                style={{ ...inp, color: due ? C.ink : C.gray }}
+                style={{ ...inp, color: dueDate ? C.ink : C.gray }}
+              />
+            </div>
+            <div>
+              <div style={label}>Time <span style={{ fontWeight: 400, textTransform: "none" }}>(optional)</span></div>
+              <input
+                type="time"
+                step={600}
+                value={dueTime}
+                disabled={!dueDate}
+                onChange={(e) => setDueTime(e.target.value)}
+                className="px-2 py-2 outline-none"
+                style={{ ...inp, color: dueTime ? C.ink : C.gray, opacity: dueDate ? 1 : 0.5 }}
               />
             </div>
             <div>

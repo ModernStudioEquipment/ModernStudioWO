@@ -116,10 +116,35 @@ export function PriorityPill({ priority, onChange }) {
   );
 }
 
+// Small popover to set a due date + an OPTIONAL time (10-minute steps, clearable).
+function DueEditor({ initialDate, initialTime, onChange, onClose }) {
+  const [date, setDate] = useState(initialDate || "");
+  const [time, setTime] = useState(initialTime || "");
+  const inp = { border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 13, background: "#fff" };
+  const lbl = { fontSize: 10, fontWeight: 700, color: C.gray, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3 };
+  const apply = (d, t) => { setDate(d); setTime(t); onChange(d || null, d && t ? t : null); };
+  return (
+    <>
+      <div onClick={(e) => { e.stopPropagation(); onClose(); }} style={{ position: "fixed", inset: 0, zIndex: 49 }} />
+      <div onClick={(e) => e.stopPropagation()} style={{ position: "absolute", top: "100%", left: 0, marginTop: 4, zIndex: 50, background: "#fff", border: `1px solid ${C.line}`, borderRadius: 8, padding: 10, boxShadow: "0 8px 24px rgba(20,28,38,0.16)", width: 210 }}>
+        <div style={lbl}>Due date</div>
+        <input type="date" value={date} onChange={(e) => apply(e.target.value, e.target.value ? time : "")} className="w-full px-2 py-1.5 mb-2 outline-none" style={inp} />
+        <div style={lbl}>Time (optional)</div>
+        <div className="flex items-center gap-1">
+          <input type="time" step={600} value={time} disabled={!date} onChange={(e) => apply(date, e.target.value)} className="flex-1 px-2 py-1.5 outline-none" style={{ ...inp, opacity: date ? 1 : 0.5 }} />
+          {time && <button onClick={() => apply(date, "")} title="Remove the time" style={{ padding: "5px 8px", border: `1px solid ${C.line}`, borderRadius: 6, color: C.gray, background: "#fff", fontSize: 12, fontWeight: 700 }}>Clear</button>}
+        </div>
+        {date && <button onClick={() => { apply("", ""); onClose(); }} style={{ marginTop: 8, fontSize: 12, color: C.rush, fontWeight: 700, background: "none", border: "none", padding: 0, cursor: "pointer" }}>Clear due date</button>}
+      </div>
+    </>
+  );
+}
+
 // Due-date pill — the urgency signal that replaced priority. Red when overdue,
 // amber when due within ~2 days, muted otherwise (or "No due date"). When
-// `onChange` is set, clicking it opens a native date picker to set/change it.
+// `onChange` is set, clicking it opens a popover to set the date + optional time.
 export function DuePill({ o, now = Date.now(), onChange }) {
+  const [editing, setEditing] = useState(false);
   const lvl = o.dueDate ? dueLevel(o, now) : null;
   const s = !o.dueDate ? { c: C.gray, bg: C.grayBg } : (lvl ? DUE[lvl] : { c: C.inkSoft, bg: C.grayBg });
   const label = dueLabel(o.dueDate, o.dueTime);
@@ -130,24 +155,10 @@ export function DuePill({ o, now = Date.now(), onChange }) {
     </Pill>
   );
   if (!onChange) return pill;
-  // Date + optional time. Midnight (00:00) means "no specific time" — shown as a
-  // plain date; any other time shows alongside it.
   return (
-    <span style={{ position: "relative", display: "inline-flex", cursor: "pointer" }} title="Set due date (and optional time)">
-      {pill}
-      <input
-        type="datetime-local"
-        value={o.dueDate ? `${o.dueDate}T${o.dueTime || "00:00"}` : ""}
-        onClick={(e) => e.stopPropagation()}
-        onChange={(e) => {
-          const v = e.target.value;
-          if (!v) return onChange(null, null);
-          const date = v.slice(0, 10);
-          const time = v.slice(11, 16);
-          onChange(date, time && time !== "00:00" ? time : null);
-        }}
-        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer", border: "none" }}
-      />
+    <span style={{ position: "relative", display: "inline-flex" }} onClick={(e) => e.stopPropagation()} title="Set due date (time optional)">
+      <span style={{ cursor: "pointer" }} onClick={() => setEditing((v) => !v)}>{pill}</span>
+      {editing && <DueEditor initialDate={o.dueDate} initialTime={o.dueTime} onChange={onChange} onClose={() => setEditing(false)} />}
     </span>
   );
 }
