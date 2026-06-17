@@ -46,6 +46,8 @@ function mapOrder(row) {
           poNumber: m.po_number || null,
           orderedAt: m.ordered_at || null,
           expectedAt: m.expected_at || null,
+          contact: m.contact || null,
+          note: m.note || null,
         })),
     }));
   return {
@@ -155,7 +157,7 @@ export const supabaseAdapter = {
   async createPurchase({ orderNo, dept, materials }) {
     const { error } = await supabase.rpc("create_purchase", {
       p_order: { order_no: orderNo, dept: dept || "Shop" },
-      p_materials: (materials || []).map((m) => ({ name: m.name, amount: m.amount || null })),
+      p_materials: (materials || []).map((m) => ({ name: m.name, amount: m.amount || null, note: m.note || null })),
     });
     fail(error);
   },
@@ -209,17 +211,14 @@ export const supabaseAdapter = {
   },
 
   async markOrdered(materialId, details = {}) {
-    const full = { ordered: true, ordered_by: details.orderedBy || null, vendor: details.vendor || null, po_number: details.poNumber || null, ordered_at: details.orderedAt || null, expected_at: details.expectedAt || null };
+    const base     = { ordered: true, ordered_by: details.orderedBy || null, vendor: details.vendor || null, po_number: details.poNumber || null, amount: details.amount ?? null };
+    const withDates = { ...base, ordered_at: details.orderedAt || null, expected_at: details.expectedAt || null };
+    const full      = { ...withDates, contact: details.contact || null, note: details.note || null };
+    // Try the full row, then degrade for DBs missing the 0022 / 0019 / 0015 columns.
     let { error } = await supabase.from("materials").update(full).eq("id", materialId);
-    if (error) {
-      // Fallback if the 0019 date columns aren't there yet: still save vendor/PO.
-      const { ordered_at, expected_at, ...noDates } = full;
-      ({ error } = await supabase.from("materials").update(noDates).eq("id", materialId));
-    }
-    if (error) {
-      // Fallback for before the 0015 migration (vendor / PO columns absent).
-      ({ error } = await supabase.from("materials").update({ ordered: true }).eq("id", materialId));
-    }
+    if (error) ({ error } = await supabase.from("materials").update(withDates).eq("id", materialId));
+    if (error) ({ error } = await supabase.from("materials").update(base).eq("id", materialId));
+    if (error) ({ error } = await supabase.from("materials").update({ ordered: true }).eq("id", materialId));
     fail(error);
   },
 

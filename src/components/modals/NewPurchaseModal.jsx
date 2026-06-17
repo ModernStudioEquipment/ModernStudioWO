@@ -12,6 +12,7 @@ export function NewPurchaseModal({ getNextOrderNo, onCreate, onClose }) {
   const [orderNo, setOrderNo] = useState("");
   const [dept, setDept] = useState("Shop");
   const [mats, setMats] = useState([blankMat()]);
+  const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
@@ -36,7 +37,7 @@ export function NewPurchaseModal({ getNextOrderNo, onCreate, onClose }) {
       await onCreate({
         orderNo: orderNo.trim() || String(Date.now()),
         dept,
-        materials: validMats.map((m) => ({ name: m.name.trim(), amount: m.amount.trim() || null })),
+        materials: validMats.map((m) => ({ name: m.name.trim(), amount: m.amount.trim() || null, note: note.trim() || null })),
       });
       onClose();
     } catch (e) {
@@ -82,6 +83,11 @@ export function NewPurchaseModal({ getNextOrderNo, onCreate, onClose }) {
             style={{ background: "#fff", color: C.inkSoft, border: `1px solid ${C.line}` }}>
             <Plus size={13} />Add line
           </button>
+
+          <div className="mb-4">
+            <div style={label}>Notes</div>
+            <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. why this is being ordered, stock on hand…" rows={2} className="w-full px-2 py-2 outline-none" style={{ ...inp, resize: "vertical" }} />
+          </div>
 
           {error && <div style={{ fontSize: 13, color: C.rush, marginBottom: 10 }}>{error}</div>}
 

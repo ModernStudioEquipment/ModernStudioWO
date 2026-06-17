@@ -571,7 +571,10 @@ export default function App() {
                           <DeptBadge d={it.dept} onChange={(dep) => board.updateItem(it.id, { dept: dep })} />
                           <div className="min-w-0">
                             {/* Click the product to open the order pop-up and edit its details. */}
-                            <button onClick={() => setOrderTarget(m)} title="Click to edit order details" className="font-bold text-left hover:underline" style={{ fontSize: 14, background: "none", border: "none", padding: 0, cursor: "pointer", color: "inherit" }}>{m.name}</button>
+                            <span className="flex items-center gap-1">
+                              <button onClick={() => setOrderTarget(m)} title="Click to edit order details" className="font-bold text-left hover:underline" style={{ fontSize: 14, background: "none", border: "none", padding: 0, cursor: "pointer", color: "inherit" }}>{m.name}</button>
+                              {m.note && <Bell size={13} color={C.gold} title={m.note} style={{ flexShrink: 0 }} />}
+                            </span>
                             {o.source !== "purchase" && <div style={{ fontSize: 12, color: C.gray }}>for {it.name}</div>}
                           </div>
                           <span style={{ fontFamily: "ui-monospace,monospace", fontWeight: 700 }}>{m.amount}</span>
@@ -586,9 +589,9 @@ export default function App() {
                                 <button onClick={() => board.unmarkOrdered(m.id)} title="Click to mark as NOT ordered" style={{ background: "none", border: "none", padding: 0, cursor: "pointer", display: "inline-flex" }}>
                                   <Pill c={C.blue} bg={C.blueBg} Icon={ShoppingCart}>ordered</Pill>
                                 </button>
-                                {(m.poNumber || m.vendor || m.orderedBy || m.orderedAt || m.expectedAt) && (
+                                {(m.poNumber || m.vendor || m.contact || m.orderedBy || m.orderedAt || m.expectedAt) && (
                                   <span style={{ fontSize: 11, color: C.gray }}>
-                                    {[m.poNumber && `PO ${m.poNumber}`, m.vendor, m.orderedBy && `by ${m.orderedBy}`, m.orderedAt && `ordered ${dueLabel(m.orderedAt)}`, m.expectedAt && `exp ${dueLabel(m.expectedAt)}`].filter(Boolean).join(" · ")}
+                                    {[m.poNumber && `PO ${m.poNumber}`, m.vendor, m.contact && `talked to ${m.contact}`, m.orderedBy && `by ${m.orderedBy}`, m.orderedAt && `ordered ${dueLabel(m.orderedAt)}`, m.expectedAt && `exp ${dueLabel(m.expectedAt)}`].filter(Boolean).join(" · ")}
                                   </span>
                                 )}
                               </span>

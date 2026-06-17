@@ -201,9 +201,11 @@ export const localAdapter = {
           received: false,
           orderedBy: null,
           vendor: null,
+          contact: null,
           poNumber: null,
           orderedAt: null,
           expectedAt: null,
+          note: m.note || null,
         })),
         events: [{ id: uid(), kind: "created", from: null, to: "awaiting", at: new Date().toISOString() }],
       }],
@@ -231,9 +233,11 @@ export const localAdapter = {
         received: false,
         orderedBy: null,
         vendor: null,
+        contact: null,
         poNumber: null,
         orderedAt: null,
         expectedAt: null,
+        note: null,
       }));
     });
   },
@@ -270,11 +274,14 @@ export const localAdapter = {
   async markOrdered(materialId, details = {}) {
     mutateMaterial(materialId, (m) => {
       m.ordered = true;
+      if (details.amount !== undefined) m.amount = details.amount || null;
       m.orderedBy = details.orderedBy || null;
       m.vendor = details.vendor || null;
+      m.contact = details.contact || null;
       m.poNumber = details.poNumber || null;
       m.orderedAt = details.orderedAt || null;
       m.expectedAt = details.expectedAt || null;
+      m.note = details.note || null;
     });
   },
 
