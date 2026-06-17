@@ -310,6 +310,13 @@ export const localAdapter = {
     write(orders);
   },
 
+  async setDueDate(orderId, dueDate) {
+    const orders = read();
+    const o = orders.find((x) => x.id === orderId);
+    if (o) o.dueDate = dueDate || null;
+    write(orders);
+  },
+
   // Close out a completed order: method is 'willcall' or 'shipping', plus a
   // free-text location. Moves it into the matching top tab.
   async fulfillOrder(orderId, method, location) {

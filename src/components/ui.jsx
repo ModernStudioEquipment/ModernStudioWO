@@ -117,12 +117,30 @@ export function PriorityPill({ priority, onChange }) {
 }
 
 // Due-date pill — the urgency signal that replaced priority. Red when overdue,
-// amber when due within ~2 days, muted otherwise (or "No due date").
-export function DuePill({ o, now = Date.now() }) {
-  if (!o.dueDate) return <Pill c={C.gray} bg={C.grayBg} Icon={Flag}>No due date</Pill>;
-  const lvl = dueLevel(o, now);
-  const s = lvl ? DUE[lvl] : { c: C.inkSoft, bg: C.grayBg };
-  return <Pill c={s.c} bg={s.bg} Icon={Flag}>{lvl === "overdue" ? `Overdue · ${dueLabel(o.dueDate)}` : `Due ${dueLabel(o.dueDate)}`}</Pill>;
+// amber when due within ~2 days, muted otherwise (or "No due date"). When
+// `onChange` is set, clicking it opens a native date picker to set/change it.
+export function DuePill({ o, now = Date.now(), onChange }) {
+  const lvl = o.dueDate ? dueLevel(o, now) : null;
+  const s = !o.dueDate ? { c: C.gray, bg: C.grayBg } : (lvl ? DUE[lvl] : { c: C.inkSoft, bg: C.grayBg });
+  const text = !o.dueDate ? "No due date" : (lvl === "overdue" ? `Overdue · ${dueLabel(o.dueDate)}` : `Due ${dueLabel(o.dueDate)}`);
+  const pill = (
+    <Pill c={s.c} bg={s.bg} Icon={Flag}>
+      {text}{onChange && <ChevronDown size={11} style={{ opacity: 0.6 }} />}
+    </Pill>
+  );
+  if (!onChange) return pill;
+  return (
+    <span style={{ position: "relative", display: "inline-flex", cursor: "pointer" }} title="Set due date">
+      {pill}
+      <input
+        type="date"
+        value={o.dueDate || ""}
+        onClick={(e) => e.stopPropagation()}
+        onChange={(e) => onChange(e.target.value || null)}
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer", border: "none" }}
+      />
+    </span>
+  );
 }
 
 const MOVE_TARGETS = [
@@ -147,7 +165,7 @@ export function MoveMenu({ stage, onMove }) {
   );
 }
 
-export function OrderHeader({ o, now, onPriority, onOpen, collapsible, open, onToggle }) {
+export function OrderHeader({ o, now, onDueDate, onOpen, collapsible, open, onToggle }) {
   return (
     <div
       onClick={onOpen}
@@ -173,18 +191,18 @@ export function OrderHeader({ o, now, onPriority, onOpen, collapsible, open, onT
       </div>
       <span className="basis-full sm:basis-auto sm:ml-auto flex items-center gap-2">
         <Pill c={C.inkSoft} bg={C.grayBg} Icon={Clock}>{elapsed(now - o.receivedAt)} ago</Pill>
-        <DuePill o={o} now={now} />
+        <DuePill o={o} now={now} onChange={onDueDate ? (due) => onDueDate(o.id, due) : undefined} />
       </span>
     </div>
   );
 }
 
-export function Group({ o, now, children, onPriority, onOpen, collapsible }) {
+export function Group({ o, now, children, onDueDate, onOpen, collapsible }) {
   const lvl = dueLevel(o, now);
   const [open, setOpen] = useState(true);
   return (
     <div id={`order-${o.id}`} className="rounded mb-3" style={{ background: "#fff", border: `1px solid ${C.line}`, borderLeft: `4px solid ${lvl ? DUE[lvl].c : C.line}` }}>
-      <OrderHeader o={o} now={now} onPriority={onPriority} onOpen={onOpen}
+      <OrderHeader o={o} now={now} onDueDate={onDueDate} onOpen={onOpen}
         collapsible={collapsible} open={open} onToggle={() => setOpen((v) => !v)} />
       {(!collapsible || open) && children}
     </div>

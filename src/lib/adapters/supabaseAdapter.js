@@ -239,6 +239,11 @@ export const supabaseAdapter = {
     fail(error);
   },
 
+  async setDueDate(orderId, dueDate) {
+    const { error } = await supabase.from("orders").update({ due_date: dueDate || null }).eq("id", orderId);
+    fail(error);
+  },
+
   async fulfillOrder(orderId, method, location) {
     const { error } = await supabase
       .from("orders")

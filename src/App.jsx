@@ -384,7 +384,7 @@ export default function App() {
               >
                 {!newOrders.length && <Empty>Nothing waiting. New orders land here the moment they come in.</Empty>}
                 {newOrders.map((o) => (
-                  <Group key={o.id} o={o} now={now} onPriority={board.setPriority} collapsible>
+                  <Group key={o.id} o={o} now={now} onDueDate={board.setDueDate} collapsible>
                     {o.items.filter((it) => it.stage === "new").map((it) => (
                       <div key={it.id} className="px-4 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
                         <div className="flex items-center gap-2 mb-2">
@@ -422,7 +422,7 @@ export default function App() {
                   <Empty>{pickNotesOnly ? "No items have notes right now." : "Empty. In-stock items show up here after triage."}</Empty>
                 )}
                 {[...(pickNotesOnly ? pickNoted : pickOrders)].sort(byUrgency).map((o) => (
-                  <Group key={o.id} o={o} now={now} onPriority={board.setPriority}>
+                  <Group key={o.id} o={o} now={now} onDueDate={board.setDueDate}>
                     {o.items.filter((it) => it.stage === "picklist").map((it) => (
                       <ItemLine
                         key={it.id} it={it} now={now}
@@ -510,7 +510,7 @@ export default function App() {
                     const woItems = o.items.filter((it) => it.stage === "workorder");
                     const depts = [...new Set(woItems.map((it) => it.dept))];
                     return (
-                      <Group key={o.id} o={o} now={now} onPriority={board.setPriority}>
+                      <Group key={o.id} o={o} now={now} onDueDate={board.setDueDate}>
                         {depts.map((dept) => {
                           const deptItems = woItems.filter((it) => it.dept === dept);
                           const multi = deptItems.length > 1;
@@ -556,7 +556,7 @@ export default function App() {
               <Tabwrap title="PURCHASING" action={<Btn kind="dark" onClick={() => setShowNewPurchase(true)}><Plus size={13} />New purchase</Btn>}>
                 {!buyOrders.length && <Empty>Nothing to buy. Materials land here when an item is triaged “need material.”</Empty>}
                 {buyOrders.map((o) => (
-                  <Group key={o.id} o={o} now={now} onPriority={board.setPriority} onOpen={() => setDetailId(o.id)}>
+                  <Group key={o.id} o={o} now={now} onDueDate={board.setDueDate} onOpen={() => setDetailId(o.id)}>
                     {o.items.filter((it) => it.needsMaterial).map((it) =>
                       it.materials.filter((m) => !m.received).map((m) => {
                         // Once the expected date is reached, flag the row so the
@@ -638,7 +638,7 @@ export default function App() {
                             Ordered by {o.contact} · {elapsed(now - o.receivedAt)} ago
                           </div>
                         </div>
-                        <DuePill o={o} now={now} />
+                        <DuePill o={o} now={now} onChange={(due) => board.setDueDate(o.id, due)} />
                         <div className="basis-full sm:basis-auto sm:ml-auto flex flex-wrap items-center gap-3">
                           <div className="flex flex-wrap items-center gap-1">
                             {o.items.map((it) => (
@@ -727,7 +727,7 @@ export default function App() {
           order={detailOrder}
           status={orderStatus(detailOrder)}
           now={now}
-          onPriority={(pr) => board.setPriority(detailOrder.id, pr)}
+          onDueDate={(due) => board.setDueDate(detailOrder.id, due)}
           onUpdateItem={(itemId, patch) => board.updateItem(itemId, patch)}
           onUnpick={(itemId) => board.unpickItem(itemId)}
           onCancel={(reason) => board.cancelOrder(detailOrder.id, reason)}
