@@ -296,11 +296,16 @@ export const localAdapter = {
 
   // "Receive" / "have it": mark received; if the item was waiting and all of
   // its materials are now in, advance it into Work Order.
-  async receiveMaterial(materialId) {
+  async receiveMaterial(materialId, opts = {}) {
     mutateMaterial(materialId, (m, it) => {
       m.received = true;
-      if (it.stage === "awaiting" && it.materials.every((x) => x.received)) {
-        it.stage = "workorder";
+      m.receivedQty = opts.qtyReceived || null;
+      m.receivedNote = opts.note || null;
+      // Item leaves Purchasing once ALL its materials are in, moving to the
+      // stage chosen in the receive popup (default Work Order).
+      if (it.materials.every((x) => x.received)) {
+        it.stage = opts.stage || "workorder";
+        it.needsMaterial = false;
       }
     });
   },

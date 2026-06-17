@@ -48,6 +48,8 @@ function mapOrder(row) {
           expectedAt: m.expected_at || null,
           contact: m.contact || null,
           note: m.note || null,
+          receivedQty: m.received_qty || null,
+          receivedNote: m.received_note || null,
         })),
     }));
   return {
@@ -234,9 +236,23 @@ export const supabaseAdapter = {
     fail(error);
   },
 
-  async receiveMaterial(materialId) {
-    const { error } = await supabase.rpc("receive_material", { p_material_id: materialId });
-    fail(error);
+  async receiveMaterial(materialId, opts = {}) {
+    // Mark received (+ qty/note); fall back if the 0026 columns aren't there yet.
+    let res = await supabase.from("materials")
+      .update({ received: true, received_qty: opts.qtyReceived || null, received_note: opts.note || null })
+      .eq("id", materialId).select("item_id").single();
+    if (res.error) {
+      res = await supabase.from("materials").update({ received: true }).eq("id", materialId).select("item_id").single();
+    }
+    fail(res.error);
+    const itemId = res.data && res.data.item_id;
+    if (!itemId) return;
+    // Item leaves Purchasing only once ALL its materials are received — then it
+    // moves to the stage chosen in the receive popup (default Work Order).
+    const { data: mats } = await supabase.from("materials").select("received").eq("item_id", itemId);
+    if (Array.isArray(mats) && mats.every((m) => m.received)) {
+      await supabase.from("items").update({ stage: opts.stage || "workorder", needs_material: false }).eq("id", itemId);
+    }
   },
 
   async setPriority(orderId, priority) {

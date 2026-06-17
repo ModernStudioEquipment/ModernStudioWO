@@ -25,6 +25,7 @@ import { FulfillModal } from "./components/modals/FulfillModal.jsx";
 import { TrackingModal } from "./components/modals/TrackingModal.jsx";
 import { PickedUpModal } from "./components/modals/PickedUpModal.jsx";
 import { OrderedModal } from "./components/modals/OrderedModal.jsx";
+import { ReceiveModal } from "./components/modals/ReceiveModal.jsx";
 import { CustomWorkOrderDoc } from "./components/modals/CustomWorkOrderDoc.jsx";
 import { WO_TYPES } from "./components/workorders/forms.js";
 
@@ -54,6 +55,7 @@ export default function App() {
   const [trackTarget, setTrackTarget] = useState(null); // order being marked shipped
   const [pickupTarget, setPickupTarget] = useState(null); // will-call order being marked picked up
   const [orderTarget, setOrderTarget] = useState(null); // purchasing material being marked ordered (asks who/vendor/PO)
+  const [receiveTarget, setReceiveTarget] = useState(null); // { it, m } material being received (asks dest tab/qty/note)
   const [syncing, setSyncing] = useState(false); // QuickBooks sync in progress
   const [customDoc, setCustomDoc] = useState(null); // work order sheet open for edit ({type} = new, or a saved WO)
   const [workCombined, setWorkCombined] = useState(false); // Work Order tab: combine like items across orders
@@ -109,14 +111,16 @@ export default function App() {
   };
   const cyclePri = (orderId, cur) => board.setPriority(orderId, PRI_CYCLE[cur]);
 
-  // "Have it": material is on the shelf. Mark received; if that was the last
-  // thing the item was waiting on, it auto-moves to Work Order — jump there
-  // and flash it so the move is visible.
-  const haveIt = async (it, m) => {
-    const fresh = await board.receiveMaterial(m.id);
-    const moved = fresh.flatMap((o) => o.items).find((x) => x.id === it.id);
-    if (moved && moved.stage === "workorder") {
-      setTab("work");
+  // Receiving a material (from the receive popup): mark it received with the
+  // qty/note, and — once all the item's materials are in — move the item to the
+  // chosen stage. Jump to that tab + flash so the move is visible.
+  const confirmReceive = async ({ stage, qtyReceived, note }) => {
+    const it = receiveTarget.it;
+    await board.receiveMaterial(receiveTarget.m.id, { stage, qtyReceived, note });
+    setReceiveTarget(null);
+    const tabFor = { picklist: "pick", workorder: "work" };
+    if (tabFor[stage]) {
+      setTab(tabFor[stage]);
       setFlashItem(it.id);
       setTimeout(() => setFlashItem(null), 4400); // ~5 flashes at 0.85s
     }
@@ -596,7 +600,7 @@ export default function App() {
                             ) : (
                               <Btn kind="ghost" onClick={() => setOrderTarget(m)}><ShoppingCart size={13} />Mark ordered</Btn>
                             )}
-                            <Btn kind="green" onClick={() => haveIt(it, m)}><ArrowRight size={13} />Have it → Work Order</Btn>
+                            <Btn kind="green" onClick={() => setReceiveTarget({ it, m })}><Check size={13} />Received</Btn>
                           </span>
                         </div>
                         );
@@ -716,6 +720,13 @@ export default function App() {
           getNextOrderNo={board.nextOrderNo}
           onCreate={board.createOrder}
           onClose={() => setShowNew(false)}
+        />
+      )}
+      {receiveTarget && (
+        <ReceiveModal
+          material={receiveTarget.m}
+          onConfirm={confirmReceive}
+          onClose={() => setReceiveTarget(null)}
         />
       )}
       {showNewPurchase && (
