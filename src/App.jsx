@@ -386,7 +386,7 @@ export default function App() {
               >
                 {!newOrders.length && <Empty>Nothing waiting. New orders land here the moment they come in.</Empty>}
                 {newOrders.map((o) => (
-                  <Group key={o.id} o={o} now={now} onPriority={board.setPriority}>
+                  <Group key={o.id} o={o} now={now} onPriority={board.setPriority} collapsible>
                     {o.items.filter((it) => it.stage === "new").map((it) => (
                       <div key={it.id} className="px-4 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
                         <div className="flex items-center gap-2 mb-2">

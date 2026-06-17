@@ -128,7 +128,6 @@ export function BasicBody({ fields, set, orderNo, numLabel = "WO #", imageUrl, i
         ) : (
           <FieldEdit label="Product"><EI value={fields.product} onChange={(v) => set("product", v)} bold full /></FieldEdit>
         )}
-        <FieldEdit label="Ordered by"><EI value={fields.orderedBy} onChange={(v) => set("orderedBy", v)} bold full /></FieldEdit>
         <FieldEdit label="Ordered on"><EI value={fields.orderedOn} onChange={(v) => set("orderedOn", v)} bold full /></FieldEdit>
         <FieldEdit label="Color"><EI value={fields.color} onChange={(v) => set("color", v)} bold full /></FieldEdit>
         <FieldEdit label="Notes"><EI value={fields.notes} onChange={(v) => set("notes", v)} size={15} full /></FieldEdit>
@@ -157,7 +156,6 @@ export function CncBody({ fields, set, orderNo, numLabel = "WO #", imageUrl }) {
       <div className="flex items-start justify-between" style={{ marginBottom: 6 }}>
         <div style={{ flex: 1 }}>
           <FieldEdit label="Product"><EI value={fields.product} onChange={(v) => set("product", v)} bold full /></FieldEdit>
-          <FieldEdit label="Ordered by"><EI value={fields.orderedBy} onChange={(v) => set("orderedBy", v)} bold full /></FieldEdit>
           <FieldEdit label="Ordered on"><EI value={fields.orderedOn} onChange={(v) => set("orderedOn", v)} bold full /></FieldEdit>
         </div>
         <div style={{ width: 170, textAlign: "right" }}>
@@ -195,7 +193,6 @@ export function SewingBody({ fields, set, setLineCell, addLine, form, orderNo, n
           <RowEdit label="Order date"><EI value={fields.orderDate} onChange={(v) => set("orderDate", v)} size={13} bold full /></RowEdit>
           <RowEdit label="Due date"><EI value={fields.dueDate} onChange={(v) => set("dueDate", v)} size={13} bold full /></RowEdit>
           <RowEdit label="Time"><EI value={fields.time} onChange={(v) => set("time", v)} size={13} bold full /></RowEdit>
-          <RowEdit label="Ordered by"><EI value={fields.orderedBy} onChange={(v) => set("orderedBy", v)} size={13} bold full /></RowEdit>
         </div>
       </div>
 

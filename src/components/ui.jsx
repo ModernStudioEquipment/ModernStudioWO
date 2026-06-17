@@ -138,7 +138,7 @@ export function MoveMenu({ stage, onMove }) {
   );
 }
 
-export function OrderHeader({ o, now, onPriority, onOpen }) {
+export function OrderHeader({ o, now, onPriority, onOpen, collapsible, open, onToggle }) {
   return (
     <div
       onClick={onOpen}
@@ -146,6 +146,15 @@ export function OrderHeader({ o, now, onPriority, onOpen }) {
       className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3"
       style={{ borderBottom: `1px solid ${C.line}`, background: "#fff", borderTopLeftRadius: 6, borderTopRightRadius: 6, cursor: onOpen ? "pointer" : "default" }}
     >
+      {collapsible && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggle && onToggle(); }}
+          title={open ? "Collapse" : "Expand"}
+          style={{ background: "none", border: "none", padding: 0, cursor: "pointer", display: "inline-flex", color: C.gray, flexShrink: 0 }}
+        >
+          <ChevronDown size={18} style={{ transform: open ? "none" : "rotate(-90deg)", transition: "transform 0.15s" }} />
+        </button>
+      )}
       <span className="font-bold" style={{ fontFamily: "ui-monospace,monospace", fontSize: 16 }}>
         #{o.orderNo}
       </span>
@@ -161,12 +170,14 @@ export function OrderHeader({ o, now, onPriority, onOpen }) {
   );
 }
 
-export function Group({ o, now, children, onPriority, onOpen }) {
+export function Group({ o, now, children, onPriority, onOpen, collapsible }) {
   const p = PRI[o.priority] || PRI.Normal;
+  const [open, setOpen] = useState(true);
   return (
     <div id={`order-${o.id}`} className="rounded mb-3" style={{ background: "#fff", border: `1px solid ${C.line}`, borderLeft: `4px solid ${p.c}` }}>
-      <OrderHeader o={o} now={now} onPriority={onPriority} onOpen={onOpen} />
-      {children}
+      <OrderHeader o={o} now={now} onPriority={onPriority} onOpen={onOpen}
+        collapsible={collapsible} open={open} onToggle={() => setOpen((v) => !v)} />
+      {(!collapsible || open) && children}
     </div>
   );
 }
