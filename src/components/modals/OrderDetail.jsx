@@ -33,7 +33,7 @@ export function OrderDetail({ order, status, now, onDueDate, onMethod, onSaveNot
           <button onClick={onClose} className="ml-auto" style={{ color: "#fff" }}><X size={18} /></button>
         </div>
         <div className="p-4">
-          <div className="grid mb-4" style={{ gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+          <div className="grid mb-4 grid-cols-2 sm:grid-cols-3" style={{ gap: 10 }}>
             <Info label="Company" value={order.customer} />
             <Info label="Ordered by" value={order.contact} />
             <Info label="Received" value={`${receivedOn} · ${elapsed(now - order.receivedAt)} ago`} />

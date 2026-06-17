@@ -161,7 +161,7 @@ export function Dashboard({ orders = [], workOrders = [], now, onNavigate, onOpe
         </div>
       </div>
 
-      <div className="grid mb-3" style={{ gridTemplateColumns: "1.5fr 1fr", gap: 12, alignItems: "start" }}>
+      <div className="grid mb-3 grid-cols-1 md:grid-cols-[1.5fr_1fr]" style={{ gap: 12, alignItems: "start" }}>
         <div style={{ ...card, overflow: "hidden" }}>
           <div className="flex items-center justify-between" style={{ padding: "10px 14px", borderBottom: `0.5px solid ${C.concrete}` }}>
             <span style={sectionLabel}>Needs attention</span>
