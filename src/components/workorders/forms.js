@@ -26,7 +26,8 @@ export const WO_FORMS = {
     layout: "fields",
     fields: [
       { key: "product", label: "Product", type: "text", full: true },
-      { key: "total", label: "Total / qty", type: "text" },
+      { key: "order", label: "Order", type: "text" },
+      { key: "total", label: "Total", type: "text" },
       { key: "orderedOn", label: "Ordered on", type: "text", default: today },
       { key: "dueDate", label: "Due date", type: "text" },
       { key: "color", label: "Color", type: "text" },
@@ -41,7 +42,8 @@ export const WO_FORMS = {
     fields: [
       { key: "product", label: "Product", type: "text", full: true },
       { key: "partNo", label: "Part #", type: "text" },
-      { key: "total", label: "Total / qty", type: "text" },
+      { key: "order", label: "Order", type: "text" },
+      { key: "total", label: "Total", type: "text" },
       { key: "orderedOn", label: "Ordered on", type: "text", default: today },
       { key: "dueDate", label: "Due date", type: "text" },
       { key: "step1", label: "Step 1", type: "text", full: true },

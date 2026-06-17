@@ -34,13 +34,15 @@ export function WorkOrderDoc({ order, items, onSave, onClose }) {
       });
     } else if (items.length === 1) {
       base.product = items[0].name;
-      base.total = String(items[0].qty);
+      base.order = String(items[0].qty); // how many this order needs
+      base.total = String(items[0].qty); // default make-qty; the shop can bump it
       base.color = items[0].color || "";
     } else {
       // Multiple items on a single-product template: never cram them into the top
       // line (it truncates on paper). CNC → list them on the step lines; Shop →
       // BasicBody renders them as stacked product rows (from `items`).
-      base.total = String(items.reduce((n, it) => n + (parseFloat(it.qty) || 1), 0));
+      base.order = String(items.reduce((n, it) => n + (parseFloat(it.qty) || 1), 0));
+      base.total = base.order; // default make-qty to the ordered total; shop can bump it
       if (type === "cnc") {
         items.slice(0, 6).forEach((it, i) => { base["step" + (i + 1)] = `${it.name} ×${it.qty}`; });
       }

@@ -232,7 +232,8 @@ export const supabaseAdapter = {
 
   async setForInventory(materialId, forInventory) {
     const { error } = await supabase.from("materials").update({ for_inventory: !!forInventory }).eq("id", materialId);
-    fail(error);
+    // No-op quietly if the 0027 column isn't there yet (don't show a scary banner).
+    if (error && !/for_inventory/.test(error.message || "")) fail(error);
   },
 
   async unmarkOrdered(materialId) {

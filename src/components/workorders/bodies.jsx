@@ -98,6 +98,7 @@ export function BasicBody({ fields, set, orderNo, numLabel = "WO #", imageUrl, i
         <div style={{ textAlign: "right", minWidth: 200 }}>
           <RowEdit label={numLabel}><ONo value={orderNo} /></RowEdit>
           <RowEdit label="Due date"><EI value={fields.dueDate} onChange={(v) => set("dueDate", v)} size={13} bold full /></RowEdit>
+          <RowEdit label="Order"><EI value={fields.order} onChange={(v) => set("order", v)} size={13} bold mono full /></RowEdit>
           <RowEdit label="Total"><EI value={fields.total} onChange={(v) => set("total", v)} size={13} bold mono full /></RowEdit>
         </div>
       </div>
@@ -149,6 +150,7 @@ export function CncBody({ fields, set, orderNo, numLabel = "WO #", imageUrl }) {
         <div style={{ textAlign: "right", minWidth: 200 }}>
           <RowEdit label={numLabel}><ONo value={orderNo} /></RowEdit>
           <RowEdit label="Due date"><EI value={fields.dueDate} onChange={(v) => set("dueDate", v)} size={13} bold full /></RowEdit>
+          <RowEdit label="Order"><EI value={fields.order} onChange={(v) => set("order", v)} size={13} bold mono full /></RowEdit>
           <RowEdit label="Total"><EI value={fields.total} onChange={(v) => set("total", v)} size={13} bold mono full /></RowEdit>
         </div>
       </div>
