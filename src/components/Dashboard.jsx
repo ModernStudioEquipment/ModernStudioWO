@@ -1,5 +1,5 @@
 import React from "react";
-import { C, elapsed, effectivePriority, sittingLevel, stageEnteredAt, stagedTooLong } from "../theme.js";
+import { C, elapsed, dueLevel, sittingLevel, stageEnteredAt, stagedTooLong } from "../theme.js";
 
 // The shop's home screen — a live at-a-glance view computed from the same orders
 // + work orders the rest of the app uses. Cards and pipeline stages click
@@ -12,7 +12,7 @@ export function Dashboard({ orders = [], workOrders = [], now, onNavigate, onOpe
   const orderActive = (o) => o.items.length > 0 && o.items.some(active) && !fulfilled(o);
 
   // ---- KPIs ----
-  const rushCount = orders.filter((o) => effectivePriority(o, ts) === "RUSH" && orderActive(o)).length;
+  const dueSoonCount = orders.filter((o) => dueLevel(o, ts) && orderActive(o)).length;
   const inProgItems = items.filter((it) => it.stage === "workorder").length;
   const inProgOrders = orders.filter((o) => o.items.some((it) => it.stage === "workorder")).length;
   const awaitingCount = items.filter((it) => it.stage === "awaiting").length;
@@ -66,14 +66,14 @@ export function Dashboard({ orders = [], workOrders = [], now, onNavigate, onOpe
     return oldest === Infinity ? o.receivedAt : oldest;
   };
   const hasLevel = (o, lvl) => orderActive(o) && o.items.some((it) => active(it) && sittingLevel(it, ts) === lvl);
-  orders.filter((o) => effectivePriority(o, ts) === "RUSH" && orderActive(o)).sort((a, b) => a.receivedAt - b.receivedAt).forEach((o) => add(o, "URGENT", "rush"));
+  orders.filter((o) => dueLevel(o, ts) === "overdue" && orderActive(o)).sort((a, b) => a.receivedAt - b.receivedAt).forEach((o) => add(o, "OVERDUE", "stale"));
+  orders.filter((o) => dueLevel(o, ts) === "soon" && orderActive(o)).sort((a, b) => a.receivedAt - b.receivedAt).forEach((o) => add(o, "DUE SOON", "high"));
   orders.filter((o) => matLateSince(o) !== Infinity).sort((a, b) => matLateSince(a) - matLateSince(b)).forEach((o) => add(o, "MATERIAL LATE", "stale", matLateSince(o)));
   orders.filter((o) => hasLevel(o, "stale")).sort((a, b) => idleSince(a) - idleSince(b)).forEach((o) => add(o, "STALE", "stale", idleSince(o)));
   orders.filter((o) => stagedTooLong(o, ts)).sort((a, b) => new Date(a.fulfilledAt) - new Date(b.fulfilledAt)).forEach((o) => add(o, "TO SHIP", "ship", new Date(o.fulfilledAt).getTime()));
   orders.forEach((o) => {
     if (o.items.some((it) => it.stage === "awaiting" && it.materials.some((m) => !m.received))) add(o, "BLOCKED", "high");
   });
-  orders.filter((o) => effectivePriority(o, ts) === "High" && orderActive(o)).sort((a, b) => a.receivedAt - b.receivedAt).forEach((o) => add(o, "HIGH", "high"));
   orders.filter((o) => hasLevel(o, "warn")).sort((a, b) => idleSince(a) - idleSince(b)).forEach((o) => add(o, "SITTING", "sitting", idleSince(o)));
   const attention = attn.slice(0, 8);
 
@@ -138,7 +138,7 @@ export function Dashboard({ orders = [], workOrders = [], now, onNavigate, onOpe
       </div>
 
       <div className="grid mb-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 12 }}>
-        <Kpi label="Urgent orders" value={rushCount} accent={C.rush} sub={rushCount ? "need attention now" : "none right now"} hot to="orders" />
+        <Kpi label="Due soon" value={dueSoonCount} accent={C.rush} sub={dueSoonCount ? "due ≤2 days / overdue" : "none right now"} hot to="orders" />
         <Kpi label="In progress" value={pWork} accent={C.blue} sub={`across ${inProgOrders} order${inProgOrders === 1 ? "" : "s"}`} to="work" />
         <Kpi label="Awaiting material" value={awaitingCount} accent={C.high} sub={awaitingCount ? "in purchasing" : "nothing waiting"} hot to="buy" />
         <Kpi label="Materials arriving" value={arrivingCount} accent={overdueCount ? C.rush : C.gold} sub={overdueCount ? `${overdueCount} overdue` : arrivingCount ? "expected today" : "none due"} hot to="buy" />

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Clock, Wrench, Scissors, Cpu, Hammer, Flag, Check, ChevronDown } from "lucide-react";
-import { C, PRI, PRIORITIES, DEPTS, elapsed, sittingLevel, stageDwellMs, STAGE_LABELS } from "../theme.js";
+import { C, PRI, PRIORITIES, DEPTS, elapsed, sittingLevel, stageDwellMs, STAGE_LABELS, dueLabel, dueLevel, DUE } from "../theme.js";
 
 const DEPT_ICONS = { Shop: Hammer, CNC: Cpu, Sewing: Scissors, Saw: Wrench };
 export const DeptIcon = ({ d, size = 12 }) => {
@@ -116,6 +116,15 @@ export function PriorityPill({ priority, onChange }) {
   );
 }
 
+// Due-date pill — the urgency signal that replaced priority. Red when overdue,
+// amber when due within ~2 days, muted otherwise (or "No due date").
+export function DuePill({ o, now = Date.now() }) {
+  if (!o.dueDate) return <Pill c={C.gray} bg={C.grayBg} Icon={Flag}>No due date</Pill>;
+  const lvl = dueLevel(o, now);
+  const s = lvl ? DUE[lvl] : { c: C.inkSoft, bg: C.grayBg };
+  return <Pill c={s.c} bg={s.bg} Icon={Flag}>{lvl === "overdue" ? `Overdue · ${dueLabel(o.dueDate)}` : `Due ${dueLabel(o.dueDate)}`}</Pill>;
+}
+
 const MOVE_TARGETS = [
   { stage: "new", label: "New Orders" },
   { stage: "picklist", label: "Pick List" },
@@ -164,17 +173,17 @@ export function OrderHeader({ o, now, onPriority, onOpen, collapsible, open, onT
       </div>
       <span className="basis-full sm:basis-auto sm:ml-auto flex items-center gap-2">
         <Pill c={C.inkSoft} bg={C.grayBg} Icon={Clock}>{elapsed(now - o.receivedAt)} ago</Pill>
-        <PriorityPill priority={o.priority} onChange={onPriority ? (p) => onPriority(o.id, p) : undefined} />
+        <DuePill o={o} now={now} />
       </span>
     </div>
   );
 }
 
 export function Group({ o, now, children, onPriority, onOpen, collapsible }) {
-  const p = PRI[o.priority] || PRI.Normal;
+  const lvl = dueLevel(o, now);
   const [open, setOpen] = useState(true);
   return (
-    <div id={`order-${o.id}`} className="rounded mb-3" style={{ background: "#fff", border: `1px solid ${C.line}`, borderLeft: `4px solid ${p.c}` }}>
+    <div id={`order-${o.id}`} className="rounded mb-3" style={{ background: "#fff", border: `1px solid ${C.line}`, borderLeft: `4px solid ${lvl ? DUE[lvl].c : C.line}` }}>
       <OrderHeader o={o} now={now} onPriority={onPriority} onOpen={onOpen}
         collapsible={collapsible} open={open} onToggle={() => setOpen((v) => !v)} />
       {(!collapsible || open) && children}

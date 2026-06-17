@@ -22,7 +22,6 @@ export function WorkOrderDoc({ order, items, onSave, onClose }) {
   const [fields, setFields] = useState(() => {
     const base = initFields(form);
     if ("orderedOn" in base) base.orderedOn = orderedOn;
-    if ("priority" in base) base.priority = order.priority || "Normal";
     if ("dueDate" in base && order.dueDate) base.dueDate = dueLabel(order.dueDate);
     base.completedBy = items[0]?.completedBy || "";
     if (isLines) {

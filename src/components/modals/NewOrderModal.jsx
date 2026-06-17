@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { X, Plus, Trash2 } from "lucide-react";
-import { C, PRI, PRIORITIES, DEPTS } from "../../theme.js";
+import { C, DEPTS } from "../../theme.js";
 import { DeptIcon } from "../ui.jsx";
 
 // Manual order entry (phone orders today; Shopify auto-pull is a later phase).
@@ -12,7 +12,6 @@ export function NewOrderModal({ getNextOrderNo, onCreate, onClose }) {
   const [orderNo, setOrderNo] = useState("");
   const [customer, setCustomer] = useState("");
   const [contact, setContact] = useState("");
-  const [priority, setPriority] = useState("Normal");
   const [dueDate, setDueDate] = useState("");
   const [willCall, setWillCall] = useState(false);
   const [items, setItems] = useState([blankItem()]);
@@ -39,7 +38,6 @@ export function NewOrderModal({ getNextOrderNo, onCreate, onClose }) {
         orderNo: orderNo.trim(),
         customer: customer.trim(),
         contact: contact.trim() || "—",
-        priority,
         source: "phone",
         willCall,
         dueDate: dueDate || null,
@@ -84,23 +82,6 @@ export function NewOrderModal({ getNextOrderNo, onCreate, onClose }) {
           </div>
 
           <div className="flex flex-wrap items-center gap-4 mb-4">
-            <div>
-              <div style={label}>Priority</div>
-              <div className="flex gap-1">
-                {PRIORITIES.map((p) => (
-                  <button
-                    key={p}
-                    onClick={() => setPriority(p)}
-                    className="px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wide"
-                    style={priority === p
-                      ? { background: C.ink, color: "#fff" }
-                      : { background: "#fff", color: C.inkSoft, border: `1px solid ${C.line}` }}
-                  >
-                    {PRI[p].label}
-                  </button>
-                ))}
-              </div>
-            </div>
             <div>
               <div style={label}>Due date</div>
               <input

@@ -30,7 +30,6 @@ export const WO_FORMS = {
       { key: "orderedOn", label: "Ordered on", type: "text", default: today },
       { key: "dueDate", label: "Due date", type: "text" },
       { key: "color", label: "Color", type: "text" },
-      { key: "priority", label: "Priority", type: "select", options: ["Normal", "High", "RUSH"], default: () => "Normal" },
       { key: "notes", label: "Notes", type: "textarea", full: true },
     ],
   },

@@ -50,6 +50,28 @@ export const dueSoon = (dueDate, now = Date.now()) => {
 export const effectivePriority = (order, now = Date.now()) =>
   dueSoon(order.dueDate, now) ? "RUSH" : (order.priority || "Normal");
 
+// Urgency now comes from the DUE DATE (the Standard/High/Urgent labels are
+// retired). overdue = past due (red), soon = due within 2 days (amber), else null.
+export const DUE = {
+  overdue: { c: C.rush, bg: C.rushBg, label: "Overdue" },
+  soon:    { c: C.high, bg: C.highBg, label: "Due soon" },
+};
+export const dueLevel = (order, now = Date.now()) => {
+  const d = order && order.dueDate;
+  if (!d) return null;
+  const end = new Date(`${d}T23:59:59`).getTime();
+  if (isNaN(end)) return null;
+  if (end < now) return "overdue";
+  if (end - now <= 2 * 24 * 60 * 60 * 1000) return "soon";
+  return null;
+};
+// Sort by due date: soonest first, orders with no due date last.
+export const byDue = (a, b) => {
+  const da = a.dueDate ? new Date(`${a.dueDate}T23:59:59`).getTime() : Infinity;
+  const db = b.dueDate ? new Date(`${b.dueDate}T23:59:59`).getTime() : Infinity;
+  return da - db;
+};
+
 export const STAGES = ["new", "picklist", "workorder", "awaiting", "done"];
 // Friendly names for each stage — used by the item history timeline.
 export const STAGE_LABELS = {

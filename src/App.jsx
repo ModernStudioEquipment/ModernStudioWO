@@ -9,7 +9,7 @@ import { useAuth } from "./hooks/useAuth.js";
 import { useOrders } from "./hooks/useOrders.js";
 import { useWorkOrders } from "./hooks/useWorkOrders.js";
 import {
-  Pill, Btn, Group, ItemLine, Empty, Tabwrap, DeptBadge, PriorityPill, MoveMenu, SittingBadge,
+  Pill, Btn, Group, ItemLine, Empty, Tabwrap, DeptBadge, DuePill, MoveMenu, SittingBadge,
 } from "./components/ui.jsx";
 import { Auth } from "./components/Auth.jsx";
 import { Logo } from "./components/Logo.jsx";
@@ -262,10 +262,8 @@ export default function App() {
     if (!b.dueDate) return -1;
     return a.dueDate < b.dueDate ? -1 : a.dueDate > b.dueDate ? 1 : 0;
   };
-  // Urgent → High → Standard; within a tier, soonest due date first, then oldest.
+  // Soonest due date first; orders with no due date last; then oldest first.
   const byUrgency = (a, b) => {
-    const ra = PRI_RANK[effectivePriority(a, now)], rb = PRI_RANK[effectivePriority(b, now)];
-    if (ra !== rb) return ra - rb;
     if (a.dueDate && b.dueDate && a.dueDate !== b.dueDate) return a.dueDate < b.dueDate ? -1 : 1;
     if (a.dueDate && !b.dueDate) return -1;
     if (!a.dueDate && b.dueDate) return 1;
@@ -624,7 +622,7 @@ export default function App() {
                 </div>
                 {!visibleOrders.length && <Empty>No orders in this view.</Empty>}
                 {visibleOrders.map((o) => {
-                  const st = orderStatus(o), p = PRI[o.priority];
+                  const st = orderStatus(o);
                   const done = o.items.filter((it) => it.stage === "done").length, total = o.items.length;
                   return (
                     <div
@@ -638,10 +636,9 @@ export default function App() {
                           <div className="font-bold" style={{ fontSize: 14 }}>{o.customer}</div>
                           <div style={{ fontSize: 12, color: C.gray }}>
                             Ordered by {o.contact} · {elapsed(now - o.receivedAt)} ago
-                            {o.dueDate && <> · <span style={{ color: C.high, fontWeight: 700 }}>Due {dueLabel(o.dueDate)}</span></>}
                           </div>
                         </div>
-                        <PriorityPill priority={o.priority} onChange={(pr) => board.setPriority(o.id, pr)} />
+                        <DuePill o={o} now={now} />
                         <div className="basis-full sm:basis-auto sm:ml-auto flex flex-wrap items-center gap-3">
                           <div className="flex flex-wrap items-center gap-1">
                             {o.items.map((it) => (
@@ -868,7 +865,6 @@ function FulfillmentBoard({ orders, now, onOpen, onMarkShipped, onPickedUp, vari
   return (
     <>
       {orders.map((o) => {
-        const p = PRI[o.priority];
         const shipped = variant === "shipping" && o.trackingNumber;
         const pickedUp = variant === "willcall" && o.pickedUpAt;
         const closed = shipped || pickedUp;
@@ -886,7 +882,7 @@ function FulfillmentBoard({ orders, now, onOpen, onMarkShipped, onPickedUp, vari
                 <div className="font-bold" style={{ fontSize: 14 }}>{o.customer}</div>
                 <div style={{ fontSize: 12, color: C.gray }}>Ordered by {o.contact} · {elapsed(now - o.receivedAt)} ago</div>
               </div>
-              <Pill c={p.c} bg={p.bg} Icon={Flag}>{priLabel(o.priority)}</Pill>
+              <DuePill o={o} now={now} />
               {variant === "shipping" && !shipped && stagedTooLong(o, now) && (
                 <span
                   onClick={(e) => e.stopPropagation()}
