@@ -78,7 +78,7 @@ export function useOrders(enabled) {
     receiveMaterial: act((materialId) => db.receiveMaterial(materialId)),
     setPriority: act((orderId, priority) => db.setPriority(orderId, priority)),
     fulfillOrder: act((orderId, method, location) => db.fulfillOrder(orderId, method, location)),
-    markShipped: act((orderId, trackingNumber) => db.markShipped(orderId, trackingNumber)),
+    markShipped: act((orderId, payload) => db.markShipped(orderId, payload)),
     deleteOrder: act((orderId) => db.deleteOrder(orderId)),
     cancelOrder: act((orderId, reason) => db.cancelOrder(orderId, reason)),
     unpickItem: act((itemId) => db.unpickItem(itemId)),

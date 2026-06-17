@@ -62,6 +62,8 @@ function mapOrder(row) {
     fulfilledAt: row.fulfilled_at || null,
     location: row.fulfillment_location,
     trackingNumber: row.tracking_number,
+    carrier: row.carrier || null,
+    shipNotes: row.ship_notes || null,
     pickedUpAt: row.picked_up_at || null,
     pickedUpBy: row.picked_up_by || null,
     cancelledAt: row.cancelled_at || null,
@@ -246,11 +248,16 @@ export const supabaseAdapter = {
     fail(error);
   },
 
-  async markShipped(orderId, trackingNumber) {
-    const { error } = await supabase
+  async markShipped(orderId, { tracking, carrier, notes } = {}) {
+    const shippedAt = new Date().toISOString();
+    let { error } = await supabase
       .from("orders")
-      .update({ tracking_number: trackingNumber, shipped_at: new Date().toISOString() })
+      .update({ tracking_number: tracking, carrier: carrier || null, ship_notes: notes || null, shipped_at: shippedAt })
       .eq("id", orderId);
+    if (error) {
+      // Fallback if the 0021 carrier/ship_notes columns aren't there yet.
+      ({ error } = await supabase.from("orders").update({ tracking_number: tracking, shipped_at: shippedAt }).eq("id", orderId));
+    }
     fail(error);
   },
 

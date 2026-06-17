@@ -317,10 +317,10 @@ export const localAdapter = {
   },
 
   // Shipping stage 2: record the carrier tracking number (it's out the door).
-  async markShipped(orderId, trackingNumber) {
+  async markShipped(orderId, { tracking, carrier, notes } = {}) {
     const orders = read();
     const o = orders.find((x) => x.id === orderId);
-    if (o) o.trackingNumber = trackingNumber;
+    if (o) { o.trackingNumber = tracking; o.carrier = carrier || null; o.shipNotes = notes || null; }
     write(orders);
   },
 

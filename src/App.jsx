@@ -193,8 +193,8 @@ export default function App() {
   };
 
   // Shipping stage 2: record tracking number from the Shipping tab.
-  const confirmTracking = async (trackingNumber) => {
-    await board.markShipped(trackTarget.id, trackingNumber);
+  const confirmTracking = async (payload) => {
+    await board.markShipped(trackTarget.id, payload);
     setTrackTarget(null);
     setTab("completed"); // order moves out of Shipping and into the Completed tab
   };
@@ -900,16 +900,20 @@ function FulfillmentBoard({ orders, now, onOpen, onMarkShipped, onPickedUp, vari
                 </span>
                 {variant === "shipping" && (
                   shipped ? (
-                    <a
-                      href={trackingUrl(o.trackingNumber)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      title="Track this shipment (opens the carrier's site in a new tab)"
-                      style={{ textDecoration: "none" }}
-                    >
-                      <Pill c={C.green} bg={C.greenBg} Icon={Package}>{o.trackingNumber}<ExternalLink size={11} style={{ marginLeft: 3 }} /></Pill>
-                    </a>
+                    <span className="flex items-center gap-2 flex-wrap">
+                      {o.carrier && <span style={{ fontSize: 12, fontWeight: 700, color: C.inkSoft }}>{o.carrier}</span>}
+                      <a
+                        href={trackingUrl(o.trackingNumber)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        title="Track this shipment (opens the carrier's site in a new tab)"
+                        style={{ textDecoration: "none" }}
+                      >
+                        <Pill c={C.green} bg={C.greenBg} Icon={Package}>{o.trackingNumber}<ExternalLink size={11} style={{ marginLeft: 3 }} /></Pill>
+                      </a>
+                      {o.shipNotes && <Bell size={14} color={C.gold} title={o.shipNotes} style={{ flexShrink: 0 }} />}
+                    </span>
                   ) : (
                     <Btn kind="dark" onClick={(e) => { e.stopPropagation(); onMarkShipped(o); }}>
                       <Truck size={13} />Shipped

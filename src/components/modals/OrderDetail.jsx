@@ -40,10 +40,11 @@ export function OrderDetail({ order, status, now, onPriority, onUpdateItem, onUn
             <div style={{ fontSize: 13, color: C.inkSoft, marginBottom: 8 }}>
               {order.fulfillment === "shipping" ? "Staged at" : "Will call at"}: <b>{order.location || "—"}</b>
               {order.fulfillment === "shipping" && order.trackingNumber && (
-                <> · Tracking:{" "}
+                <>{order.carrier ? ` · ${order.carrier}` : ""} · Tracking:{" "}
                   <a href={trackingUrl(order.trackingNumber)} target="_blank" rel="noopener noreferrer" title="Track this shipment (opens the carrier's site)" style={{ color: C.blue, fontWeight: 700, textDecoration: "none" }}>
                     {order.trackingNumber}<ExternalLink size={11} style={{ marginLeft: 3, verticalAlign: "-1px" }} />
                   </a>
+                  {order.shipNotes ? <> · Notes: <span style={{ color: C.inkSoft }}>{order.shipNotes}</span></> : null}
                 </>
               )}
             </div>

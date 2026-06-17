@@ -3,9 +3,12 @@ import { X, Truck, Package } from "lucide-react";
 import { C } from "../../theme.js";
 
 // Second stage of shipping: the order is staged (has a warehouse location) and
-// now actually goes out the door. Record the carrier tracking number.
+// now actually goes out the door. Record the carrier, tracking number, and any
+// shipping notes.
 export function TrackingModal({ order, onConfirm, onClose }) {
   const [tracking, setTracking] = useState(order.trackingNumber || "");
+  const [carrier, setCarrier] = useState(order.carrier || "");
+  const [notes, setNotes] = useState(order.shipNotes || "");
   const [saving, setSaving] = useState(false);
   const inputRef = useRef(null);
 
@@ -15,13 +18,14 @@ export function TrackingModal({ order, onConfirm, onClose }) {
     if (!tracking.trim() || saving) return;
     setSaving(true);
     try {
-      await onConfirm(tracking.trim());
+      await onConfirm({ tracking: tracking.trim(), carrier: carrier.trim() || null, notes: notes.trim() || null });
     } finally {
       setSaving(false);
     }
   };
 
   const inp = { border: `1px solid ${C.line}`, background: "#fff", fontSize: 14, borderRadius: 6 };
+  const label = { fontSize: 10, fontWeight: 700, color: C.gray, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 };
 
   return (
     <div style={overlay} onClick={onClose}>
@@ -35,20 +39,27 @@ export function TrackingModal({ order, onConfirm, onClose }) {
           <div style={{ fontSize: 13, color: C.gray, marginBottom: 12 }}>
             {order.customer}{order.location ? ` — staged at ${order.location}` : ""}.
           </div>
-          <div style={{ fontSize: 10, fontWeight: 700, color: C.gray, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>
-            Tracking number
+          <div className="mb-3">
+            <div style={label}>Carrier</div>
+            <input value={carrier} onChange={(e) => setCarrier(e.target.value)} placeholder="UPS, FedEx, USPS…" className="w-full px-2 py-2 outline-none" style={inp} />
           </div>
-          <div className="flex items-center gap-2 mb-4 px-2" style={inp}>
-            <Package size={16} color={C.gray} />
-            <input
-              ref={inputRef}
-              value={tracking}
-              onChange={(e) => setTracking(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") confirm(); }}
-              placeholder="Carrier tracking #…"
-              className="flex-1 py-2 outline-none"
-              style={{ background: "transparent", fontSize: 14, border: "none" }}
-            />
+          <div className="mb-3">
+            <div style={label}>Tracking number</div>
+            <div className="flex items-center gap-2 px-2" style={inp}>
+              <Package size={16} color={C.gray} />
+              <input
+                ref={inputRef}
+                value={tracking}
+                onChange={(e) => setTracking(e.target.value)}
+                placeholder="Carrier tracking #…"
+                className="flex-1 py-2 outline-none"
+                style={{ background: "transparent", fontSize: 14, border: "none" }}
+              />
+            </div>
+          </div>
+          <div className="mb-4">
+            <div style={label}>Notes</div>
+            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) confirm(); }} placeholder="Anything to note about this shipment (optional)" rows={2} className="w-full px-2 py-2 outline-none" style={{ ...inp, resize: "vertical" }} />
           </div>
           <button
             onClick={confirm}
