@@ -155,7 +155,11 @@ async function run({ commit }) {
 
   // --- 4. Which numbers are already on the board (any source)? ---
   const sb = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" };
-  const candidateNos = [...new Set([...sos, ...invs].map((m) => m.orderNo))];
+  const candidateNos = [...new Set([
+    ...sos.map((m) => m.orderNo),
+    ...invs.map((m) => m.orderNo),
+    ...invs.flatMap((m) => m.linkedSo), // so an invoice's linked SO already on the board is found
+  ])];
   const existing = {};
   if (candidateNos.length) {
     const inList = candidateNos.map((n) => `"${String(n).replace(/"/g, "")}"`).join(",");
@@ -187,13 +191,6 @@ async function run({ commit }) {
         wouldAdd: invsToAdd.length,
       },
       wouldAddTotal: toAdd.length,
-      // DEBUG: confirm invoices actually carry the sales-order link.
-      invoiceLinkDebug: {
-        linkTypesSeen: [...new Set(invList.flatMap((inv) => (inv.linkedTransactions || []).map((lt) => lt.transactionType || lt.txnType || lt.type)))],
-        salesOrderLinks: invList.flatMap((inv) => (inv.linkedTransactions || [])
-          .filter((lt) => /sales.?order/i.test(lt.transactionType || lt.txnType || lt.type || ""))
-          .map((lt) => ({ invoice: refNo(inv), soRef: lt.refNumber || lt.transactionNumber, type: lt.transactionType }))).slice(0, 12),
-      },
       sample: toAdd.slice(0, 8).map((m) => ({ kind: m.kind, orderNo: m.orderNo, date: m.receivedAt, customer: m.customer, linkedSo: m.linkedSo })),
       note: "Preview only — nothing inserted.",
     });
