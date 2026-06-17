@@ -188,11 +188,12 @@ async function run({ commit }) {
       },
       wouldAddTotal: toAdd.length,
       // DEBUG: confirm invoices actually carry the sales-order link.
-      invoiceLinkDebug: invList.slice(0, 4).map((inv) => ({
-        no: refNo(inv),
-        linkKeys: Object.keys(inv).filter((k) => /link/i.test(k)),
-        linkedTransactions: inv.linkedTransactions ?? inv.linked_transactions ?? "(none)",
-      })),
+      invoiceLinkDebug: {
+        linkTypesSeen: [...new Set(invList.flatMap((inv) => (inv.linkedTransactions || []).map((lt) => lt.transactionType || lt.txnType || lt.type)))],
+        salesOrderLinks: invList.flatMap((inv) => (inv.linkedTransactions || [])
+          .filter((lt) => /sales.?order/i.test(lt.transactionType || lt.txnType || lt.type || ""))
+          .map((lt) => ({ invoice: refNo(inv), soRef: lt.refNumber || lt.transactionNumber, type: lt.transactionType }))).slice(0, 12),
+      },
       sample: toAdd.slice(0, 8).map((m) => ({ kind: m.kind, orderNo: m.orderNo, date: m.receivedAt, customer: m.customer, linkedSo: m.linkedSo })),
       note: "Preview only — nothing inserted.",
     });
