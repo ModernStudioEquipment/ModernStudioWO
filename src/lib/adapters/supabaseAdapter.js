@@ -60,6 +60,7 @@ function mapOrder(row) {
     source: row.source,
     willCall: row.will_call,
     dueDate: row.due_date || null,
+    notes: row.notes || null,
     fulfillmentMethod: row.fulfillment_method || null, // chosen at intake; sticks to the order
     fulfillment: row.fulfillment, // null | 'willcall' | 'shipping'
     fulfilledAt: row.fulfilled_at || null,
@@ -248,6 +249,11 @@ export const supabaseAdapter = {
 
   async setFulfillmentMethod(orderId, method) {
     const { error } = await supabase.from("orders").update({ fulfillment_method: method || null }).eq("id", orderId);
+    fail(error);
+  },
+
+  async setOrderNotes(orderId, notes) {
+    const { error } = await supabase.from("orders").update({ notes: notes || null }).eq("id", orderId);
     fail(error);
   },
 

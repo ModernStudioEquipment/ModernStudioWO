@@ -79,6 +79,7 @@ export function useOrders(enabled) {
     setPriority: act((orderId, priority) => db.setPriority(orderId, priority)),
     setDueDate: act((orderId, dueDate) => db.setDueDate(orderId, dueDate)),
     setFulfillmentMethod: act((orderId, method) => db.setFulfillmentMethod(orderId, method)),
+    setOrderNotes: act((orderId, notes) => db.setOrderNotes(orderId, notes)),
     fulfillOrder: act((orderId, method, location) => db.fulfillOrder(orderId, method, location)),
     markShipped: act((orderId, payload) => db.markShipped(orderId, payload)),
     deleteOrder: act((orderId) => db.deleteOrder(orderId)),

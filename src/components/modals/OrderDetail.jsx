@@ -7,10 +7,12 @@ import { ItemTimeline } from "../ItemTimeline.jsx";
 // The office "where's my order?" view — full detail with a per-product
 // progress tracker. Items reconverge here even though they're triaged and
 // routed independently.
-export function OrderDetail({ order, status, now, onDueDate, onMethod, onUpdateItem, onUnpick, onCancel, onClose }) {
+export function OrderDetail({ order, status, now, onDueDate, onMethod, onSaveNotes, onUpdateItem, onUnpick, onCancel, onClose }) {
   const [confirming, setConfirming] = useState(false);
   const [reason, setReason] = useState("Customer cancelled");
   const [openTimeline, setOpenTimeline] = useState(null); // item id whose timeline is expanded
+  const [notes, setNotes] = useState(order.notes || "");
+  const [savedNotes, setSavedNotes] = useState(order.notes || "");
   const done = order.items.filter((i) => i.stage === "done").length;
   const total = order.items.length;
   const receivedOn = new Date(order.receivedAt).toLocaleDateString("en-US", {
@@ -47,6 +49,25 @@ export function OrderDetail({ order, status, now, onDueDate, onMethod, onUpdateI
                   </a>
                   {order.shipNotes ? <> · Notes: <span style={{ color: C.inkSoft }}>{order.shipNotes}</span></> : null}
                 </>
+              )}
+            </div>
+          )}
+          {onSaveNotes && (
+            <div className="mb-4">
+              <div style={{ fontSize: 11, fontWeight: 700, color: C.gray, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Order notes</div>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={2}
+                placeholder="Notes about this order…"
+                className="w-full px-2 py-2 outline-none"
+                style={{ border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 13, background: "#fff", resize: "vertical" }}
+              />
+              {notes !== savedNotes && (
+                <button onClick={async () => { await onSaveNotes(notes.trim() || null); setSavedNotes(notes); }}
+                  className="mt-2 px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wide" style={{ background: C.ink, color: "#fff" }}>
+                  Save note
+                </button>
               )}
             </div>
           )}

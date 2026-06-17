@@ -384,7 +384,7 @@ export default function App() {
               >
                 {!newOrders.length && <Empty>Nothing waiting. New orders land here the moment they come in.</Empty>}
                 {newOrders.map((o) => (
-                  <Group key={o.id} o={o} now={now} onDueDate={board.setDueDate} onMethod={board.setFulfillmentMethod} collapsible>
+                  <Group key={o.id} o={o} now={now} onDueDate={board.setDueDate} onMethod={board.setFulfillmentMethod} onOpen={() => setDetailId(o.id)} collapsible>
                     {o.items.filter((it) => it.stage === "new").map((it) => (
                       <div key={it.id} className="px-4 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
                         <div className="flex items-center gap-2 mb-2">
@@ -422,7 +422,7 @@ export default function App() {
                   <Empty>{pickNotesOnly ? "No items have notes right now." : "Empty. In-stock items show up here after triage."}</Empty>
                 )}
                 {[...(pickNotesOnly ? pickNoted : pickOrders)].sort(byUrgency).map((o) => (
-                  <Group key={o.id} o={o} now={now} onDueDate={board.setDueDate} onMethod={board.setFulfillmentMethod}>
+                  <Group key={o.id} o={o} now={now} onDueDate={board.setDueDate} onMethod={board.setFulfillmentMethod} onOpen={() => setDetailId(o.id)}>
                     {o.items.filter((it) => it.stage === "picklist").map((it) => (
                       <ItemLine
                         key={it.id} it={it} now={now}
@@ -510,7 +510,7 @@ export default function App() {
                     const woItems = o.items.filter((it) => it.stage === "workorder");
                     const depts = [...new Set(woItems.map((it) => it.dept))];
                     return (
-                      <Group key={o.id} o={o} now={now} onDueDate={board.setDueDate} onMethod={board.setFulfillmentMethod}>
+                      <Group key={o.id} o={o} now={now} onDueDate={board.setDueDate} onMethod={board.setFulfillmentMethod} onOpen={() => setDetailId(o.id)}>
                         {depts.map((dept) => {
                           const deptItems = woItems.filter((it) => it.dept === dept);
                           const multi = deptItems.length > 1;
@@ -733,6 +733,7 @@ export default function App() {
           now={now}
           onDueDate={(due) => board.setDueDate(detailOrder.id, due)}
           onMethod={(m) => board.setFulfillmentMethod(detailOrder.id, m)}
+          onSaveNotes={(notes) => board.setOrderNotes(detailOrder.id, notes)}
           onUpdateItem={(itemId, patch) => board.updateItem(itemId, patch)}
           onUnpick={(itemId) => board.unpickItem(itemId)}
           onCancel={(reason) => board.cancelOrder(detailOrder.id, reason)}

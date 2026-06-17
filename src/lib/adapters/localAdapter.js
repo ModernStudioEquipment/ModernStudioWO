@@ -325,6 +325,13 @@ export const localAdapter = {
     write(orders);
   },
 
+  async setOrderNotes(orderId, notes) {
+    const orders = read();
+    const o = orders.find((x) => x.id === orderId);
+    if (o) o.notes = notes || null;
+    write(orders);
+  },
+
   // Close out a completed order: method is 'willcall' or 'shipping', plus a
   // free-text location. Moves it into the matching top tab.
   async fulfillOrder(orderId, method, location) {

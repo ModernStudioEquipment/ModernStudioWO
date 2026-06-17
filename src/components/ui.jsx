@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Clock, Wrench, Scissors, Cpu, Hammer, Flag, Check, ChevronDown, Store, Truck } from "lucide-react";
+import { Clock, Wrench, Scissors, Cpu, Hammer, Flag, Check, ChevronDown, Store, Truck, Bell } from "lucide-react";
 import { C, PRI, PRIORITIES, DEPTS, elapsed, sittingLevel, stageDwellMs, STAGE_LABELS, dueLabel, dueLevel, DUE } from "../theme.js";
 
 const DEPT_ICONS = { Shop: Hammer, CNC: Cpu, Sewing: Scissors, Saw: Wrench };
@@ -220,6 +220,7 @@ export function OrderHeader({ o, now, onDueDate, onMethod, onOpen, collapsible, 
       <div style={{ minWidth: 0 }}>
         <div className="font-bold flex items-center gap-2 flex-wrap" style={{ fontSize: 14 }}>
           {o.customer}
+          {o.notes && <Bell size={14} color={C.high} fill={C.high} title={`Note: ${o.notes}`} style={{ flexShrink: 0 }} />}
           <MethodBadge m={o.fulfillmentMethod} onChange={onMethod ? (m) => onMethod(o.id, m) : undefined} />
           <DuePill o={o} now={now} onChange={onDueDate ? (due) => onDueDate(o.id, due) : undefined} />
         </div>
