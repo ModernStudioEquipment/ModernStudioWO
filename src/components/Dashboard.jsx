@@ -20,6 +20,25 @@ export function Dashboard({ orders = [], workOrders = [], now, onNavigate, onOpe
   const fulfillingCount = orders.filter((o) => o.fulfillment === "willcall" || o.fulfillment === "shipping").length;
   const openOrders = orders.filter((o) => !fulfilled(o)).length;
 
+  // ---- materials due to arrive (expected date reached, still not received) ----
+  const todayStr = new Date(ts).toLocaleDateString("en-CA");
+  const arrivingMats = orders.flatMap((o) =>
+    o.items.flatMap((it) => (it.materials || [])
+      .filter((m) => m.ordered && !m.received && m.expectedAt && todayStr >= m.expectedAt)
+      .map((m) => ({ overdue: todayStr > m.expectedAt }))));
+  const arrivingCount = arrivingMats.length;
+  const overdueCount = arrivingMats.filter((m) => m.overdue).length;
+  // Earliest overdue expected-date for an order (drives the "late" sort + clock).
+  const matLateSince = (o) => {
+    let oldest = Infinity;
+    o.items.forEach((it) => (it.materials || []).forEach((m) => {
+      if (m.ordered && !m.received && m.expectedAt && todayStr > m.expectedAt) {
+        oldest = Math.min(oldest, new Date(`${m.expectedAt}T00:00:00`).getTime());
+      }
+    }));
+    return oldest;
+  };
+
   // ---- pipeline (mirrors the tab badges) ----
   const pNew = orders.filter((o) => o.items.some((it) => it.stage === "new")).length;
   const pPick = items.filter((it) => it.stage === "picklist").length;
@@ -48,6 +67,7 @@ export function Dashboard({ orders = [], workOrders = [], now, onNavigate, onOpe
   };
   const hasLevel = (o, lvl) => orderActive(o) && o.items.some((it) => active(it) && sittingLevel(it, ts) === lvl);
   orders.filter((o) => effectivePriority(o, ts) === "RUSH" && orderActive(o)).sort((a, b) => a.receivedAt - b.receivedAt).forEach((o) => add(o, "URGENT", "rush"));
+  orders.filter((o) => matLateSince(o) !== Infinity).sort((a, b) => matLateSince(a) - matLateSince(b)).forEach((o) => add(o, "MATERIAL LATE", "stale", matLateSince(o)));
   orders.filter((o) => hasLevel(o, "stale")).sort((a, b) => idleSince(a) - idleSince(b)).forEach((o) => add(o, "STALE", "stale", idleSince(o)));
   orders.filter((o) => stagedTooLong(o, ts)).sort((a, b) => new Date(a.fulfilledAt) - new Date(b.fulfilledAt)).forEach((o) => add(o, "TO SHIP", "ship", new Date(o.fulfilledAt).getTime()));
   orders.forEach((o) => {
@@ -121,6 +141,7 @@ export function Dashboard({ orders = [], workOrders = [], now, onNavigate, onOpe
         <Kpi label="Urgent orders" value={rushCount} accent={C.rush} sub={rushCount ? "need attention now" : "none right now"} hot to="orders" />
         <Kpi label="In progress" value={pWork} accent={C.blue} sub={`across ${inProgOrders} order${inProgOrders === 1 ? "" : "s"}`} to="work" />
         <Kpi label="Awaiting material" value={awaitingCount} accent={C.high} sub={awaitingCount ? "in purchasing" : "nothing waiting"} hot to="buy" />
+        <Kpi label="Materials arriving" value={arrivingCount} accent={overdueCount ? C.rush : C.gold} sub={overdueCount ? `${overdueCount} overdue` : arrivingCount ? "expected today" : "none due"} hot to="buy" />
         <Kpi label="Ready to ship" value={readyCount} accent={C.green} sub={readyCount ? "ready to fulfill" : "none yet"} hot to="orders" />
         <Kpi label="Out for fulfillment" value={fulfillingCount} accent={C.gold} sub="will call + shipping" to="shipping" />
         <Kpi label="Open orders" value={openOrders} accent={C.ink} sub={`${shopify} from Shopify`} to="orders" />
