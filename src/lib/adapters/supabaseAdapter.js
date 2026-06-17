@@ -150,6 +150,14 @@ export const supabaseAdapter = {
     fail(error);
   },
 
+  async createPurchase({ orderNo, dept, materials }) {
+    const { error } = await supabase.rpc("create_purchase", {
+      p_order: { order_no: orderNo, dept: dept || "Shop" },
+      p_materials: (materials || []).map((m) => ({ name: m.name, amount: m.amount || null })),
+    });
+    fail(error);
+  },
+
   async triageItem(itemId, decision) {
     const { error } = await supabase
       .from("items")

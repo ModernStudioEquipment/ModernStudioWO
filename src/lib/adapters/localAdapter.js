@@ -163,6 +163,54 @@ export const localAdapter = {
     write(orders);
   },
 
+  async createPurchase({ orderNo, dept, materials }) {
+    const orders = read();
+    orders.push({
+      id: uid(),
+      orderNo,
+      customer: "Shop purchase",
+      contact: "—",
+      receivedAt: Date.now(),
+      priority: "Normal",
+      source: "purchase",
+      willCall: false,
+      dueDate: null,
+      fulfillment: null,
+      fulfilledAt: null,
+      location: null,
+      trackingNumber: null,
+      pickedUpAt: null,
+      pickedUpBy: null,
+      cancelledAt: null,
+      cancelReason: null,
+      items: [{
+        id: uid(),
+        name: "Shop purchase",
+        qty: "1",
+        dept: dept || "Shop",
+        color: null,
+        imageUrl: null,
+        note: null,
+        stage: "awaiting",
+        needsMaterial: true,
+        materials: (materials || []).map((m) => ({
+          id: uid(),
+          name: m.name,
+          amount: m.amount || null,
+          ordered: false,
+          received: false,
+          orderedBy: null,
+          vendor: null,
+          poNumber: null,
+          orderedAt: null,
+          expectedAt: null,
+        })),
+        events: [{ id: uid(), kind: "created", from: null, to: "awaiting", at: new Date().toISOString() }],
+      }],
+    });
+    write(orders);
+  },
+
   async triageItem(itemId, decision) {
     mutateItem(itemId, (it) => {
       it.stage = decision === "instock" ? "picklist" : "workorder";

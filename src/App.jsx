@@ -20,6 +20,7 @@ import { OrderDetail } from "./components/modals/OrderDetail.jsx";
 import { PickPhoto } from "./components/modals/PickPhoto.jsx";
 import { WorkOrderDoc } from "./components/modals/WorkOrderDoc.jsx";
 import { NewOrderModal } from "./components/modals/NewOrderModal.jsx";
+import { NewPurchaseModal } from "./components/modals/NewPurchaseModal.jsx";
 import { FulfillModal } from "./components/modals/FulfillModal.jsx";
 import { TrackingModal } from "./components/modals/TrackingModal.jsx";
 import { PickedUpModal } from "./components/modals/PickedUpModal.jsx";
@@ -48,6 +49,7 @@ export default function App() {
   const [pickItem, setPickItem] = useState(null); // { o, it }
   const [orderView, setOrderView] = useState("all");
   const [showNew, setShowNew] = useState(false);
+  const [showNewPurchase, setShowNewPurchase] = useState(false);
   const [fulfillTarget, setFulfillTarget] = useState(null); // { order, method }
   const [trackTarget, setTrackTarget] = useState(null); // order being marked shipped
   const [pickupTarget, setPickupTarget] = useState(null); // will-call order being marked picked up
@@ -222,6 +224,9 @@ export default function App() {
   const workOrders = orders.filter((o) => o.items.some((it) => it.stage === "workorder"));
   const qbActive = wo.workOrders.filter((w) => !w.done); // QuickBooks work orders not yet done
   const buyOrders = orders.filter((o) => o.items.some((it) => it.needsMaterial && it.materials.some((m) => !m.received)));
+  // Standalone purchases (source='purchase') live only in Purchasing — keep them
+  // out of the Orders list, its counts, and the dashboard.
+  const customerOrders = orders.filter((o) => o.source !== "purchase");
   const count = (os, pred) => os.reduce((n, o) => n + o.items.filter(pred).length, 0);
   const detailOrder = allOrders.find((o) => o.id === detailId);
 
@@ -241,7 +246,7 @@ export default function App() {
   const completedOrders = [...shippedOrders, ...pickedUpOrders];
   // The Orders tab is the active worklist: drop orders that have shipped or been
   // picked up (they still live on in the Shipped / Will Call tabs).
-  const ordersForList = orders.filter((o) => !o.trackingNumber && !o.pickedUpAt);
+  const ordersForList = customerOrders.filter((o) => !o.trackingNumber && !o.pickedUpAt);
   const OFILTERS = [
     { k: "all", label: "All", n: ordersForList.length },
     { k: "triage", label: "In triage", n: ordersForList.filter(oInTriage).length },
@@ -361,7 +366,7 @@ export default function App() {
           <>
             {tab === "dash" && (
               <Dashboard
-                orders={orders}
+                orders={customerOrders}
                 workOrders={wo.workOrders}
                 now={now}
                 onNavigate={setTab}
@@ -550,7 +555,7 @@ export default function App() {
             )}
 
             {tab === "buy" && (
-              <Tabwrap title="PURCHASING" sub="Grouped by order. Hit “have it” and the item moves to Work Order.">
+              <Tabwrap title="PURCHASING" action={<Btn kind="dark" onClick={() => setShowNewPurchase(true)}><Plus size={13} />New purchase</Btn>}>
                 {!buyOrders.length && <Empty>Nothing to buy. Materials land here when an item is triaged “need material.”</Empty>}
                 {buyOrders.map((o) => (
                   <Group key={o.id} o={o} now={now} onPriority={board.setPriority} onOpen={() => setDetailId(o.id)}>
@@ -567,7 +572,7 @@ export default function App() {
                           <div className="min-w-0">
                             {/* Click the product to open the order pop-up and edit its details. */}
                             <button onClick={() => setOrderTarget(m)} title="Click to edit order details" className="font-bold text-left hover:underline" style={{ fontSize: 14, background: "none", border: "none", padding: 0, cursor: "pointer", color: "inherit" }}>{m.name}</button>
-                            <div style={{ fontSize: 12, color: C.gray }}>for {it.name}</div>
+                            {o.source !== "purchase" && <div style={{ fontSize: 12, color: C.gray }}>for {it.name}</div>}
                           </div>
                           <span style={{ fontFamily: "ui-monospace,monospace", fontWeight: 700 }}>{m.amount}</span>
                           <span className="basis-full sm:basis-auto sm:ml-auto flex flex-wrap items-center gap-2">
@@ -707,6 +712,13 @@ export default function App() {
           getNextOrderNo={board.nextOrderNo}
           onCreate={board.createOrder}
           onClose={() => setShowNew(false)}
+        />
+      )}
+      {showNewPurchase && (
+        <NewPurchaseModal
+          getNextOrderNo={board.nextOrderNo}
+          onCreate={board.createPurchase}
+          onClose={() => setShowNewPurchase(false)}
         />
       )}
       {matTarget && <MaterialModal onClose={() => setMatTarget(null)} onCommit={commitMaterials} />}

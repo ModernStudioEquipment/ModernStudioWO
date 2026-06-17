@@ -68,6 +68,7 @@ export function useOrders(enabled) {
     refetch,
     nextOrderNo: () => db.nextOrderNo(),
     createOrder: act((payload) => db.createOrder(payload)),
+    createPurchase: act((payload) => db.createPurchase(payload)),
     triageItem: act((itemId, decision) => db.triageItem(itemId, decision)),
     addMaterials: act((itemId, rows) => db.addMaterials(itemId, rows)),
     finishItem: act((itemId) => db.finishItem(itemId)),
