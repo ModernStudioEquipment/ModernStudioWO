@@ -73,6 +73,7 @@ export function useOrders(enabled) {
     addMaterials: act((itemId, rows) => db.addMaterials(itemId, rows)),
     finishItem: act((itemId) => db.finishItem(itemId)),
     updateItem: act((itemId, patch) => db.updateItem(itemId, patch)),
+    uploadItemPhoto: act((itemId, file) => db.uploadItemPhoto(itemId, file)),
     markOrdered: act((materialId, details) => db.markOrdered(materialId, details)),
     unmarkOrdered: act((materialId) => db.unmarkOrdered(materialId)),
     setForInventory: act((materialId, forInventory) => db.setForInventory(materialId, forInventory)),

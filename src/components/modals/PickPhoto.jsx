@@ -16,13 +16,21 @@ function History({ item }) {
 
 // Picker confirmation view. Shows the item's product photo (auto-pulled from
 // Shopify when available, or pasted manually here) and the "Item picked" action.
-export function PickPhoto({ order, item, onPicked, onSetImage, onSetNote, onClose, qtyLabel = "Pick qty", actionLabel = "Item picked" }) {
+export function PickPhoto({ order, item, onPicked, onSetImage, onUploadImage, onSetNote, onClose, qtyLabel = "Pick qty", actionLabel = "Item picked" }) {
   const [saving, setSaving] = React.useState(false);
   const [url, setUrl] = React.useState(item.imageUrl || "");
   const [savingImg, setSavingImg] = React.useState(false);
   const [broken, setBroken] = React.useState(false);
   const [note, setNote] = React.useState(item.note || "");
   const [savingNote, setSavingNote] = React.useState(false);
+  const [uploading, setUploading] = React.useState(false);
+  const [dragOver, setDragOver] = React.useState(false);
+  const fileRef = React.useRef(null);
+  const handleFile = async (file) => {
+    if (!file || !onUploadImage || uploading) return;
+    setUploading(true);
+    try { const u = await onUploadImage(file); if (u) { setUrl(u); setBroken(false); } } finally { setUploading(false); }
+  };
 
   const pick = async () => {
     if (saving) return;
@@ -51,17 +59,27 @@ export function PickPhoto({ order, item, onPicked, onSetImage, onSetNote, onClos
           <button onClick={onClose} className="ml-auto" style={{ color: "#fff" }}><X size={18} /></button>
         </div>
         <div className="p-4">
-          <div className="flex items-center justify-center" style={{ minHeight: 300, border: `1px ${hasImg ? "solid" : "dashed"} ${C.line}`, borderRadius: 6, background: "#fff", overflow: "hidden", color: C.gray }}>
-            {hasImg ? (
+          <div
+            onDragOver={onUploadImage ? (e) => { e.preventDefault(); setDragOver(true); } : undefined}
+            onDragLeave={onUploadImage ? () => setDragOver(false) : undefined}
+            onDrop={onUploadImage ? (e) => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files && e.dataTransfer.files[0]); } : undefined}
+            onClick={onUploadImage && !hasImg ? () => fileRef.current && fileRef.current.click() : undefined}
+            className="flex items-center justify-center"
+            style={{ minHeight: 300, border: `${dragOver ? 2 : 1}px ${hasImg && !dragOver ? "solid" : "dashed"} ${dragOver ? C.blue : C.line}`, borderRadius: 6, background: dragOver ? C.blueBg : "#fff", overflow: "hidden", color: C.gray, cursor: onUploadImage && !hasImg ? "pointer" : "default" }}
+          >
+            {uploading ? (
+              <div style={{ fontSize: 14, fontWeight: 700, color: C.ink }}>Uploading…</div>
+            ) : hasImg ? (
               <img src={url} alt={item.name} onError={() => setBroken(true)} style={{ maxWidth: "100%", maxHeight: 300, objectFit: "contain" }} />
             ) : (
               <div className="flex items-center justify-center" style={{ flexDirection: "column", gap: 8, padding: 16, textAlign: "center" }}>
                 <Camera size={44} />
                 <div style={{ fontSize: 14, fontWeight: 700, color: C.ink }}>Photo of {item.name}</div>
-                <div style={{ fontSize: 12 }}>{broken ? "Couldn't load that image URL." : "No photo yet — paste one below, or it auto-loads from Shopify for new orders."}</div>
+                <div style={{ fontSize: 12 }}>{broken ? "Couldn't load that image." : onUploadImage ? "Drag a photo here or click to upload — or paste a URL below." : "No photo yet — paste one below."}</div>
               </div>
             )}
           </div>
+          {onUploadImage && <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => handleFile(e.target.files && e.target.files[0])} />}
 
           {onSetImage && (
             <div className="flex items-center gap-2 mt-3">

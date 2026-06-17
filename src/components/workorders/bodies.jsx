@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useRef } from "react";
 import { Camera, Plus } from "lucide-react";
 import { C, priLabel } from "../../theme.js";
 import { Wordmark } from "../Logo.jsx";
@@ -51,19 +51,32 @@ function ONo({ value }) {
   return <span className="font-bold" style={{ fontFamily: "ui-monospace,monospace", fontSize: 14 }}>{value || "—"}</span>;
 }
 
-function PhotoBox({ minHeight = 220, imageUrl }) {
+function PhotoBox({ minHeight = 220, imageUrl, onUpload }) {
+  const [dragOver, setDragOver] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef(null);
+  const handle = async (file) => { if (!file || !onUpload || uploading) return; setUploading(true); try { await onUpload(file); } finally { setUploading(false); } };
+  const drop = onUpload ? {
+    onDragOver: (e) => { e.preventDefault(); setDragOver(true); },
+    onDragLeave: () => setDragOver(false),
+    onDrop: (e) => { e.preventDefault(); setDragOver(false); handle(e.dataTransfer.files && e.dataTransfer.files[0]); },
+  } : {};
+  const hiddenInput = onUpload && <input ref={fileRef} type="file" accept="image/*" className="no-print" style={{ display: "none" }} onChange={(e) => handle(e.target.files && e.target.files[0])} />;
   if (imageUrl) {
     return (
-      <div className="flex items-center justify-center" style={{ margin: "20px 0", minHeight, border: `1px solid ${C.line}`, borderRadius: 4, background: "#fff", overflow: "hidden" }}>
+      <div {...drop} className="flex items-center justify-center" style={{ position: "relative", margin: "20px 0", minHeight, border: `${dragOver ? 2 : 1}px ${dragOver ? "dashed" : "solid"} ${dragOver ? C.blue : C.line}`, borderRadius: 4, background: "#fff", overflow: "hidden" }}>
         <img src={imageUrl} alt="Product" style={{ maxWidth: "100%", maxHeight: minHeight + 60, objectFit: "contain" }} />
+        {onUpload && <button type="button" className="no-print" onClick={() => fileRef.current && fileRef.current.click()} style={{ position: "absolute", top: 6, right: 6, fontSize: 11, fontWeight: 700, background: "rgba(255,255,255,0.92)", border: `1px solid ${C.line}`, borderRadius: 6, padding: "3px 8px", cursor: "pointer" }}>{uploading ? "…" : "Replace"}</button>}
+        {hiddenInput}
       </div>
     );
   }
   return (
-    <div className="flex items-center justify-center" style={{ margin: "20px 0", minHeight, border: `1px dashed ${C.line}`, borderRadius: 4, background: "#FAFBFC", flexDirection: "column", gap: 8, color: C.gray }}>
+    <div {...drop} onClick={onUpload ? () => fileRef.current && fileRef.current.click() : undefined} className="flex items-center justify-center" style={{ margin: "20px 0", minHeight, border: `${dragOver ? 2 : 1}px dashed ${dragOver ? C.blue : C.line}`, borderRadius: 4, background: dragOver ? C.blueBg : "#FAFBFC", flexDirection: "column", gap: 8, color: C.gray, cursor: onUpload ? "pointer" : "default" }}>
       <Camera size={40} />
       <div style={{ fontSize: 13, fontWeight: 700 }}>Product photo</div>
-      <div style={{ fontSize: 12 }}>No photo yet</div>
+      <div style={{ fontSize: 12 }}>{uploading ? "Uploading…" : onUpload ? "Drag a photo here or click to upload" : "No photo yet"}</div>
+      {hiddenInput}
     </div>
   );
 }
@@ -89,7 +102,7 @@ function AddRow({ onClick }) {
 const tag = { fontSize: 11, fontWeight: 700, color: C.inkSoft, background: C.grayBg, padding: "2px 6px", letterSpacing: 0.5 };
 
 // ---- Shop (basic) ----
-export function BasicBody({ fields, set, orderNo, numLabel = "WO #", imageUrl, items }) {
+export function BasicBody({ fields, set, orderNo, numLabel = "WO #", imageUrl, items, onUploadPhoto }) {
   const multi = items && items.length > 1;
   return (
     <>
@@ -134,14 +147,14 @@ export function BasicBody({ fields, set, orderNo, numLabel = "WO #", imageUrl, i
         <FieldEdit label="Notes"><EI value={fields.notes} onChange={(v) => set("notes", v)} size={15} full /></FieldEdit>
       </div>
 
-      <PhotoBox imageUrl={imageUrl} />
+      <PhotoBox imageUrl={imageUrl} onUpload={onUploadPhoto} />
       <CompletedBy value={fields.completedBy} onChange={(v) => set("completedBy", v)} />
     </>
   );
 }
 
 // ---- CNC: MODERN sheet + part # + 6 step lines ----
-export function CncBody({ fields, set, orderNo, numLabel = "WO #", imageUrl }) {
+export function CncBody({ fields, set, orderNo, numLabel = "WO #", imageUrl, onUploadPhoto }) {
   const steps = ["step1", "step2", "step3", "step4", "step5", "step6"];
   return (
     <>
@@ -175,7 +188,7 @@ export function CncBody({ fields, set, orderNo, numLabel = "WO #", imageUrl }) {
         ))}
       </div>
 
-      <PhotoBox minHeight={180} imageUrl={imageUrl} />
+      <PhotoBox minHeight={180} imageUrl={imageUrl} onUpload={onUploadPhoto} />
       <CompletedBy value={fields.completedBy} onChange={(v) => set("completedBy", v)} />
     </>
   );

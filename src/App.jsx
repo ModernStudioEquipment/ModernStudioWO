@@ -764,11 +764,12 @@ export default function App() {
           actionLabel={pickItem.wo ? "Mark done" : "Item picked"}
           onPicked={async () => { await board.finishItem(pickItem.it.id); setPickItem(null); }}
           onSetImage={(url) => board.updateItem(pickItem.it.id, { imageUrl: url })}
+          onUploadImage={(file) => board.uploadItemPhoto(pickItem.it.id, file)}
           onSetNote={(n) => board.updateItem(pickItem.it.id, { note: n })}
           onClose={() => setPickItem(null)}
         />
       )}
-      {doc && <WorkOrderDoc order={doc.o} items={doc.items} onSave={(patch) => Promise.all((doc.saveTargets || doc.items).map((it) => board.updateItem(it.id, patch)))} onClose={() => setDoc(null)} />}
+      {doc && <WorkOrderDoc order={doc.o} items={doc.items} onSave={(patch) => Promise.all((doc.saveTargets || doc.items).map((it) => board.updateItem(it.id, patch)))} onUploadPhoto={(file) => board.uploadItemPhoto((doc.saveTargets || doc.items)[0].id, file)} onClose={() => setDoc(null)} />}
       {fulfillTarget && (
         <FulfillModal
           order={fulfillTarget.order}

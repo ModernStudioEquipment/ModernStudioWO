@@ -205,6 +205,18 @@ export const supabaseAdapter = {
     fail(error);
   },
 
+  // Upload a dropped/selected photo file to Storage and save its URL on the item.
+  async uploadItemPhoto(itemId, file) {
+    const ext = (file.name && file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+    const path = `${itemId}/${Date.now()}.${ext}`;
+    const { error: upErr } = await supabase.storage.from("item-photos").upload(path, file, { upsert: true, contentType: file.type || undefined });
+    fail(upErr);
+    const url = supabase.storage.from("item-photos").getPublicUrl(path).data.publicUrl;
+    const { error } = await supabase.from("items").update({ image_url: url }).eq("id", itemId);
+    fail(error);
+    return url;
+  },
+
   // Undo a pick: send a finished item back to the pick list.
   async unpickItem(itemId) {
     const { error } = await supabase.from("items").update({ stage: "picklist" }).eq("id", itemId);

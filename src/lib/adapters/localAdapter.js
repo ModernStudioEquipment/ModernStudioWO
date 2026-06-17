@@ -265,6 +265,13 @@ export const localAdapter = {
     });
   },
 
+  // Demo mode: no Storage — read the dropped file as a data URL and stash it.
+  async uploadItemPhoto(itemId, file) {
+    const url = await new Promise((res) => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(file); });
+    mutateItem(itemId, (it) => { it.imageUrl = url; });
+    return url;
+  },
+
   // Undo a pick: send a finished item back to the pick list.
   async unpickItem(itemId) {
     mutateItem(itemId, (it) => { it.stage = "picklist"; });
