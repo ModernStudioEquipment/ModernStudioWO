@@ -56,13 +56,13 @@ async function run({ commit }) {
   ].filter(Boolean);
   if (missing.length) return json(500, { error: "Not configured", missing });
 
-  // --- 1. Pull recent invoices from QuickBooks (through Conductor) ---
+  // --- 1. Pull recent open sales orders from QuickBooks (through Conductor) ---
   // Only recent ones: keeps the QuickBooks query fast (no scanning years of
-  // history) and avoids dumping old invoices onto the board.
+  // history) and avoids dumping old orders onto the board.
   const since = new Date(Date.now() - 16 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   let qbRes, qbText;
   try {
-    qbRes = await fetch(`${CONDUCTOR_BASE}/invoices?limit=150&transactionDateFrom=${since}`, {
+    qbRes = await fetch(`${CONDUCTOR_BASE}/sales-orders?limit=150&transactionDateFrom=${since}`, {
       headers: {
         Authorization: `Bearer ${conductorKey}`,
         "Conductor-End-User-Id": endUserId,
@@ -90,7 +90,7 @@ async function run({ commit }) {
     const customer =
       (so.customer && (so.customer.fullName || so.customer.name)) ||
       so.customerFullName || so.customerName || "QuickBooks customer";
-    const lines = so.lines || so.invoiceLines || so.lineItems || [];
+    const lines = so.lines || so.salesOrderLines || so.lineItems || [];
     const items = lines
       // Real product lines have an item; skip note/annotation/blank lines, and
       // skip shipping/freight charge lines (not something to pick or make).
@@ -118,18 +118,22 @@ async function run({ commit }) {
           position: i,
         };
       });
-    // Invoices tagged with an online sales channel/store (e.g. Shopify) already
-    // come in through their own webhook — skip them here to avoid duplicates.
+    // Sales orders tagged with an online sales channel/store (e.g. Shopify)
+    // already come in through their own webhook — skip them to avoid duplicates.
     const fromOnlineStore = !!(so.salesStoreName || so.salesChannelName || so.salesStoreType);
-    // The invoice's real date — used as the order's received_at so the board
-    // shows when the order actually came in, not when we synced it.
+    // Only OPEN sales orders belong on the board. Once one is fully invoiced or
+    // manually closed it's done — and billed work flows through the invoice path.
+    const isOpen = !(so.isFullyInvoiced ?? so.is_fully_invoiced ?? false) &&
+                   !(so.isManuallyClosed ?? so.is_manually_closed ?? false);
+    // The order's real date — used as received_at so the board shows when it
+    // actually came in, not when we synced it.
     const receivedAt = String(so.transactionDate || so.txnDate || so.date || "").slice(0, 10) || null;
-    return { orderNo, customer, items, fromOnlineStore, receivedAt };
+    return { orderNo, customer, items, fromOnlineStore, isOpen, receivedAt };
   }).filter((o) =>
     o.orderNo &&
-    o.orderNo.startsWith("4") && // real invoices start with 4; 3xxxx are sales/Shopify orders
-    o.items.length &&
-    !o.fromOnlineStore
+    o.isOpen &&            // only open sales orders (not fully invoiced / closed)
+    o.items.length &&      // has at least one real product line
+    !o.fromOnlineStore     // Shopify orders arrive via their own webhook
   );
 
   // --- Dedup: which invoice numbers are already on the board (ANY source)? ---
@@ -156,10 +160,12 @@ async function run({ commit }) {
     return json(200, {
       mode: "preview",
       pulledFromQuickBooks: list.length,
-      eligibleInvoices: mapped.length,
+      eligibleOrders: mapped.length,
       alreadyOnBoard: mapped.length - toAdd.length,
       existingSources: [...new Set(Object.values(existingSource))],
       wouldAdd: toAdd.length,
+      // One-time check we're reading open/closed status from the right field.
+      rawStatusFields: { isFullyInvoiced: list[0]?.isFullyInvoiced, isManuallyClosed: list[0]?.isManuallyClosed },
       sample: toAdd.slice(0, 6).map((m) => ({
         orderNo: m.orderNo,
         date: m.receivedAt,
@@ -192,7 +198,7 @@ async function run({ commit }) {
     if (ins.ok) inserted++;
     else { failed++; if (!firstError) firstError = { status: ins.status, detail: (await ins.text()).slice(0, 400) }; }
   }
-  return json(200, { mode: "commit", pulledFromQuickBooks: list.length, eligible: mapped.length, alreadyOnBoard: mapped.length - toAdd.length, inserted, failed, firstError });
+  return json(200, { mode: "commit", pulledFromQuickBooks: list.length, eligible: mapped.length, alreadyOnBoard: mapped.length - toAdd.length, skippedDuplicate: mapped.length - toAdd.length, inserted, failed, firstError });
 }
 
 function json(status, b) {
