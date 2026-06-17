@@ -7,7 +7,7 @@ import { ItemTimeline } from "../ItemTimeline.jsx";
 // The office "where's my order?" view — full detail with a per-product
 // progress tracker. Items reconverge here even though they're triaged and
 // routed independently.
-export function OrderDetail({ order, status, now, onDueDate, onUpdateItem, onUnpick, onCancel, onClose }) {
+export function OrderDetail({ order, status, now, onDueDate, onMethod, onUpdateItem, onUnpick, onCancel, onClose }) {
   const [confirming, setConfirming] = useState(false);
   const [reason, setReason] = useState("Customer cancelled");
   const [openTimeline, setOpenTimeline] = useState(null); // item id whose timeline is expanded
@@ -22,7 +22,7 @@ export function OrderDetail({ order, status, now, onDueDate, onUpdateItem, onUnp
         <div className="flex items-center gap-3 px-4 py-3" style={{ background: C.ink, color: "#fff" }}>
           <span className="font-bold" style={{ fontFamily: "ui-monospace,monospace", fontSize: 16 }}>#{order.orderNo}</span>
           <span className="font-bold" style={{ fontSize: 15 }}>{order.customer}</span>
-          <MethodBadge m={order.fulfillmentMethod} />
+          <MethodBadge m={order.fulfillmentMethod} onChange={onMethod} />
           <DuePill o={order} now={now} onChange={onDueDate} />
           <button onClick={onClose} className="ml-auto" style={{ color: "#fff" }}><X size={18} /></button>
         </div>

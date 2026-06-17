@@ -144,11 +144,35 @@ export function DuePill({ o, now = Date.now(), onChange }) {
 }
 
 // The fulfillment method chosen at intake (Will Call vs Shipping). Sticks to the
-// order and shows next to the customer name everywhere it travels.
-export function MethodBadge({ m }) {
-  if (m === "willcall") return <Pill c={C.gold} bg={C.goldBg} Icon={Store}>Will Call</Pill>;
-  if (m === "shipping") return <Pill c={C.blue} bg={C.blueBg} Icon={Truck}>Shipping</Pill>;
-  return null;
+// order and shows next to the customer name everywhere it travels. Read-only by
+// default; pass `onChange` to make it a pair of click-to-set toggles (so orders
+// that come in from Shopify/QuickBooks without a method can be set on the card).
+export function MethodBadge({ m, onChange }) {
+  if (!onChange) {
+    if (m === "willcall") return <Pill c={C.gold} bg={C.goldBg} Icon={Store}>Will Call</Pill>;
+    if (m === "shipping") return <Pill c={C.blue} bg={C.blueBg} Icon={Truck}>Shipping</Pill>;
+    return null;
+  }
+  const opt = (val, lbl, Icon, c, bg) => {
+    const on = m === val;
+    return (
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); onChange(on ? null : val); }}
+        title={on ? `${lbl} — click to clear` : `Set ${lbl}`}
+        className="inline-flex items-center gap-1 rounded text-xs font-bold uppercase tracking-wide"
+        style={{ padding: "2px 7px", cursor: "pointer", color: on ? c : C.gray, background: on ? bg : "transparent", border: on ? "none" : `1px solid ${C.line}` }}
+      >
+        <Icon size={12} />{on ? lbl : null}
+      </button>
+    );
+  };
+  return (
+    <span className="inline-flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+      {opt("willcall", "Will Call", Store, C.gold, C.goldBg)}
+      {opt("shipping", "Shipping", Truck, C.blue, C.blueBg)}
+    </span>
+  );
 }
 
 const MOVE_TARGETS = [
@@ -173,7 +197,7 @@ export function MoveMenu({ stage, onMove }) {
   );
 }
 
-export function OrderHeader({ o, now, onDueDate, onOpen, collapsible, open, onToggle }) {
+export function OrderHeader({ o, now, onDueDate, onMethod, onOpen, collapsible, open, onToggle }) {
   return (
     <div
       onClick={onOpen}
@@ -194,23 +218,26 @@ export function OrderHeader({ o, now, onDueDate, onOpen, collapsible, open, onTo
         #{o.orderNo}
       </span>
       <div style={{ minWidth: 0 }}>
-        <div className="font-bold flex items-center gap-2 flex-wrap" style={{ fontSize: 14 }}>{o.customer}<MethodBadge m={o.fulfillmentMethod} /></div>
+        <div className="font-bold flex items-center gap-2 flex-wrap" style={{ fontSize: 14 }}>
+          {o.customer}
+          <MethodBadge m={o.fulfillmentMethod} onChange={onMethod ? (m) => onMethod(o.id, m) : undefined} />
+          <DuePill o={o} now={now} onChange={onDueDate ? (due) => onDueDate(o.id, due) : undefined} />
+        </div>
         <div style={{ fontSize: 12, color: C.gray }}>Ordered by {o.contact}</div>
       </div>
       <span className="basis-full sm:basis-auto sm:ml-auto flex items-center gap-2">
         <Pill c={C.inkSoft} bg={C.grayBg} Icon={Clock}>{elapsed(now - o.receivedAt)} ago</Pill>
-        <DuePill o={o} now={now} onChange={onDueDate ? (due) => onDueDate(o.id, due) : undefined} />
       </span>
     </div>
   );
 }
 
-export function Group({ o, now, children, onDueDate, onOpen, collapsible }) {
+export function Group({ o, now, children, onDueDate, onMethod, onOpen, collapsible }) {
   const lvl = dueLevel(o, now);
   const [open, setOpen] = useState(true);
   return (
     <div id={`order-${o.id}`} className="rounded mb-3" style={{ background: "#fff", border: `1px solid ${C.line}`, borderLeft: `4px solid ${lvl ? DUE[lvl].c : C.line}` }}>
-      <OrderHeader o={o} now={now} onDueDate={onDueDate} onOpen={onOpen}
+      <OrderHeader o={o} now={now} onDueDate={onDueDate} onMethod={onMethod} onOpen={onOpen}
         collapsible={collapsible} open={open} onToggle={() => setOpen((v) => !v)} />
       {(!collapsible || open) && children}
     </div>

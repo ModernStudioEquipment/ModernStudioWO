@@ -384,7 +384,7 @@ export default function App() {
               >
                 {!newOrders.length && <Empty>Nothing waiting. New orders land here the moment they come in.</Empty>}
                 {newOrders.map((o) => (
-                  <Group key={o.id} o={o} now={now} onDueDate={board.setDueDate} collapsible>
+                  <Group key={o.id} o={o} now={now} onDueDate={board.setDueDate} onMethod={board.setFulfillmentMethod} collapsible>
                     {o.items.filter((it) => it.stage === "new").map((it) => (
                       <div key={it.id} className="px-4 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
                         <div className="flex items-center gap-2 mb-2">
@@ -422,7 +422,7 @@ export default function App() {
                   <Empty>{pickNotesOnly ? "No items have notes right now." : "Empty. In-stock items show up here after triage."}</Empty>
                 )}
                 {[...(pickNotesOnly ? pickNoted : pickOrders)].sort(byUrgency).map((o) => (
-                  <Group key={o.id} o={o} now={now} onDueDate={board.setDueDate}>
+                  <Group key={o.id} o={o} now={now} onDueDate={board.setDueDate} onMethod={board.setFulfillmentMethod}>
                     {o.items.filter((it) => it.stage === "picklist").map((it) => (
                       <ItemLine
                         key={it.id} it={it} now={now}
@@ -510,7 +510,7 @@ export default function App() {
                     const woItems = o.items.filter((it) => it.stage === "workorder");
                     const depts = [...new Set(woItems.map((it) => it.dept))];
                     return (
-                      <Group key={o.id} o={o} now={now} onDueDate={board.setDueDate}>
+                      <Group key={o.id} o={o} now={now} onDueDate={board.setDueDate} onMethod={board.setFulfillmentMethod}>
                         {depts.map((dept) => {
                           const deptItems = woItems.filter((it) => it.dept === dept);
                           const multi = deptItems.length > 1;
@@ -556,7 +556,7 @@ export default function App() {
               <Tabwrap title="PURCHASING" action={<Btn kind="dark" onClick={() => setShowNewPurchase(true)}><Plus size={13} />New purchase</Btn>}>
                 {!buyOrders.length && <Empty>Nothing to buy. Materials land here when an item is triaged “need material.”</Empty>}
                 {buyOrders.map((o) => (
-                  <Group key={o.id} o={o} now={now} onDueDate={board.setDueDate} onOpen={() => setDetailId(o.id)}>
+                  <Group key={o.id} o={o} now={now} onDueDate={board.setDueDate} onMethod={board.setFulfillmentMethod} onOpen={() => setDetailId(o.id)}>
                     {o.items.filter((it) => it.needsMaterial).map((it) =>
                       it.materials.filter((m) => !m.received).map((m) => {
                         // Once the expected date is reached, flag the row so the
@@ -633,7 +633,7 @@ export default function App() {
                       <div className="flex items-center gap-x-3 gap-y-2 px-4 py-3 flex-wrap">
                         <span className="font-bold" style={{ fontFamily: "ui-monospace,monospace", fontSize: 15 }}>#{o.orderNo}</span>
                         <div className="min-w-0">
-                          <div className="font-bold flex items-center gap-2 flex-wrap" style={{ fontSize: 14 }}>{o.customer}<MethodBadge m={o.fulfillmentMethod} /></div>
+                          <div className="font-bold flex items-center gap-2 flex-wrap" style={{ fontSize: 14 }}>{o.customer}<MethodBadge m={o.fulfillmentMethod} onChange={(m) => board.setFulfillmentMethod(o.id, m)} /></div>
                           <div style={{ fontSize: 12, color: C.gray }}>
                             Ordered by {o.contact} · {elapsed(now - o.receivedAt)} ago
                           </div>
@@ -732,6 +732,7 @@ export default function App() {
           status={orderStatus(detailOrder)}
           now={now}
           onDueDate={(due) => board.setDueDate(detailOrder.id, due)}
+          onMethod={(m) => board.setFulfillmentMethod(detailOrder.id, m)}
           onUpdateItem={(itemId, patch) => board.updateItem(itemId, patch)}
           onUnpick={(itemId) => board.unpickItem(itemId)}
           onCancel={(reason) => board.cancelOrder(detailOrder.id, reason)}

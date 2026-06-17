@@ -246,6 +246,11 @@ export const supabaseAdapter = {
     fail(error);
   },
 
+  async setFulfillmentMethod(orderId, method) {
+    const { error } = await supabase.from("orders").update({ fulfillment_method: method || null }).eq("id", orderId);
+    fail(error);
+  },
+
   async fulfillOrder(orderId, method, location) {
     const { error } = await supabase
       .from("orders")
