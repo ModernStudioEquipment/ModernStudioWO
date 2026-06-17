@@ -52,6 +52,7 @@ export default function App() {
   const [orderView, setOrderView] = useState("all");
   const [showNew, setShowNew] = useState(false);
   const [showNewPurchase, setShowNewPurchase] = useState(false);
+  const [newSort, setNewSort] = useState("newest"); // New Orders sort: newest first, or by due date
   const [fulfillTarget, setFulfillTarget] = useState(null); // { order, method }
   const [trackTarget, setTrackTarget] = useState(null); // order being marked shipped
   const [pickupTarget, setPickupTarget] = useState(null); // will-call order being marked picked up
@@ -390,13 +391,19 @@ export default function App() {
                 title="NEW ORDERS"
                 action={
                   <div className="flex items-center gap-2 flex-wrap justify-end">
+                    <div className="flex items-center gap-1">
+                      {[["newest", "Newest"], ["due", "Due date"]].map(([v, lbl]) => (
+                        <button key={v} onClick={() => setNewSort(v)} className="px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wide"
+                          style={newSort === v ? { background: C.ink, color: "#fff" } : { background: "#fff", color: C.inkSoft, border: `1px solid ${C.line}` }}>{lbl}</button>
+                      ))}
+                    </div>
                     <Btn onClick={syncQuickBooks} disabled={syncing}><RefreshCw size={13} />{syncing ? "Syncing QuickBooks…" : "Sync QuickBooks"}</Btn>
                     <Btn kind="dark" onClick={() => setShowNew(true)}><Plus size={13} />New order</Btn>
                   </div>
                 }
               >
                 {!newOrders.length && <Empty>Nothing waiting. New orders land here the moment they come in.</Empty>}
-                {[...newOrders].sort(byUrgency).map((o) => (
+                {[...newOrders].sort(newSort === "due" ? byUrgency : (a, b) => b.receivedAt - a.receivedAt).map((o) => (
                   <Group key={o.id} o={o} now={now} onDueDate={board.setDueDate} onMethod={board.setFulfillmentMethod} onOpen={() => setDetailId(o.id)} collapsible>
                     {o.items.filter((it) => it.stage === "new").map((it) => (
                       <div key={it.id} className="px-4 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
