@@ -387,7 +387,7 @@ export default function App() {
                 }
               >
                 {!newOrders.length && <Empty>Nothing waiting. New orders land here the moment they come in.</Empty>}
-                {newOrders.map((o) => (
+                {[...newOrders].sort(byUrgency).map((o) => (
                   <Group key={o.id} o={o} now={now} onDueDate={board.setDueDate} onMethod={board.setFulfillmentMethod} onOpen={() => setDetailId(o.id)} collapsible>
                     {o.items.filter((it) => it.stage === "new").map((it) => (
                       <div key={it.id} className="px-4 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
@@ -580,6 +580,12 @@ export default function App() {
                             {o.source !== "purchase" && <div style={{ fontSize: 12, color: C.gray }}>for {it.name}</div>}
                           </div>
                           <span style={{ fontFamily: "ui-monospace,monospace", fontWeight: 700 }}>{m.amount}</span>
+                          <button onClick={() => board.setForInventory(m.id, !m.forInventory)} title="For an order = more urgent. Click to switch between For order / Inventory."
+                            className="rounded uppercase"
+                            style={{ fontSize: 11, fontWeight: 800, letterSpacing: 0.5, padding: "4px 9px", cursor: "pointer", border: "none",
+                              color: m.forInventory ? C.gray : C.gold, background: m.forInventory ? C.grayBg : C.goldBg }}>
+                            {m.forInventory ? "Inventory" : "For order"}
+                          </button>
                           <span className="basis-full sm:basis-auto sm:ml-auto flex flex-wrap items-center gap-2">
                             {expReached && (
                               <Pill c={overdue ? C.rush : C.high} bg={overdue ? C.rushBg : C.highBg} Icon={Truck}>

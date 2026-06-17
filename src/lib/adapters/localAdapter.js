@@ -208,6 +208,7 @@ export const localAdapter = {
           orderedAt: null,
           expectedAt: null,
           note: m.note || null,
+          forInventory: !!m.forInventory,
         })),
         events: [{ id: uid(), kind: "created", from: null, to: "awaiting", at: new Date().toISOString() }],
       }],
@@ -240,6 +241,7 @@ export const localAdapter = {
         orderedAt: null,
         expectedAt: null,
         note: null,
+        forInventory: false,
       }));
     });
   },
@@ -285,6 +287,10 @@ export const localAdapter = {
       m.expectedAt = details.expectedAt || null;
       m.note = details.note || null;
     });
+  },
+
+  async setForInventory(materialId, forInventory) {
+    mutateMaterial(materialId, (m) => { m.forInventory = !!forInventory; });
   },
 
   async unmarkOrdered(materialId) {

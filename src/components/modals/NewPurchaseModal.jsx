@@ -12,6 +12,7 @@ export function NewPurchaseModal({ getNextOrderNo, onCreate, onClose }) {
   const [orderNo, setOrderNo] = useState("");
   const [dept, setDept] = useState("Shop");
   const [mats, setMats] = useState([blankMat()]);
+  const [forInventory, setForInventory] = useState(true); // standalone purchases default to restock
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -37,7 +38,7 @@ export function NewPurchaseModal({ getNextOrderNo, onCreate, onClose }) {
       await onCreate({
         orderNo: orderNo.trim() || String(Date.now()),
         dept,
-        materials: validMats.map((m) => ({ name: m.name.trim(), amount: m.amount.trim() || null, note: note.trim() || null })),
+        materials: validMats.map((m) => ({ name: m.name.trim(), amount: m.amount.trim() || null, note: note.trim() || null, forInventory })),
       });
       onClose();
     } catch (e) {
@@ -64,6 +65,18 @@ export function NewPurchaseModal({ getNextOrderNo, onCreate, onClose }) {
                 <button key={d} onClick={() => setDept(d)} title={d} className="flex items-center gap-1.5 px-3 py-2"
                   style={dept === d ? { background: C.ink, color: "#fff" } : { background: "#fff", color: C.inkSoft }}>
                   <DeptIcon d={d} size={14} /><span style={{ fontSize: 12, fontWeight: 700 }}>{d}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="mb-4">
+            <div style={label}>This purchase is for</div>
+            <div className="flex" style={{ border: `1px solid ${C.line}`, borderRadius: 6, overflow: "hidden", width: "fit-content" }}>
+              {[[false, "An order"], [true, "Inventory"]].map(([val, lbl]) => (
+                <button key={String(val)} type="button" onClick={() => setForInventory(val)} className="px-4 py-2 text-sm font-bold"
+                  style={forInventory === val ? { background: C.ink, color: "#fff" } : { background: "#fff", color: C.inkSoft }}>
+                  {lbl}
                 </button>
               ))}
             </div>

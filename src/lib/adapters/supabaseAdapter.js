@@ -50,6 +50,7 @@ function mapOrder(row) {
           note: m.note || null,
           receivedQty: m.received_qty || null,
           receivedNote: m.received_note || null,
+          forInventory: !!m.for_inventory,
         })),
     }));
   return {
@@ -164,7 +165,7 @@ export const supabaseAdapter = {
   async createPurchase({ orderNo, dept, materials }) {
     const { error } = await supabase.rpc("create_purchase", {
       p_order: { order_no: orderNo, dept: dept || "Shop" },
-      p_materials: (materials || []).map((m) => ({ name: m.name, amount: m.amount || null, note: m.note || null })),
+      p_materials: (materials || []).map((m) => ({ name: m.name, amount: m.amount || null, note: m.note || null, for_inventory: !!m.forInventory })),
     });
     fail(error);
   },
@@ -226,6 +227,11 @@ export const supabaseAdapter = {
     if (error) ({ error } = await supabase.from("materials").update(withDates).eq("id", materialId));
     if (error) ({ error } = await supabase.from("materials").update(base).eq("id", materialId));
     if (error) ({ error } = await supabase.from("materials").update({ ordered: true }).eq("id", materialId));
+    fail(error);
+  },
+
+  async setForInventory(materialId, forInventory) {
+    const { error } = await supabase.from("materials").update({ for_inventory: !!forInventory }).eq("id", materialId);
     fail(error);
   },
 

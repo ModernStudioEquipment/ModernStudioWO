@@ -75,6 +75,7 @@ export function useOrders(enabled) {
     updateItem: act((itemId, patch) => db.updateItem(itemId, patch)),
     markOrdered: act((materialId, details) => db.markOrdered(materialId, details)),
     unmarkOrdered: act((materialId) => db.unmarkOrdered(materialId)),
+    setForInventory: act((materialId, forInventory) => db.setForInventory(materialId, forInventory)),
     receiveMaterial: act((materialId, opts) => db.receiveMaterial(materialId, opts)),
     setPriority: act((orderId, priority) => db.setPriority(orderId, priority)),
     setDueDate: act((orderId, dueDate, dueTime) => db.setDueDate(orderId, dueDate, dueTime)),
