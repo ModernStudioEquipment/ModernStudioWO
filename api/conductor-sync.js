@@ -87,8 +87,8 @@ function linkedSalesOrders(inv) {
     .filter(Boolean);
 }
 
-async function fetchTxns(path, conductorKey, endUserId, since) {
-  const res = await fetch(`${CONDUCTOR_BASE}/${path}?limit=150&transactionDateFrom=${since}`, {
+async function fetchTxns(path, conductorKey, endUserId, since, extra = "") {
+  const res = await fetch(`${CONDUCTOR_BASE}/${path}?limit=150&transactionDateFrom=${since}${extra}`, {
     headers: { Authorization: `Bearer ${conductorKey}`, "Conductor-End-User-Id": endUserId },
     signal: AbortSignal.timeout(50000),
   });
@@ -118,7 +118,9 @@ async function run({ commit }) {
   try {
     [soList, invList] = await Promise.all([
       fetchTxns("sales-orders", conductorKey, endUserId, since),
-      fetchTxns("invoices", conductorKey, endUserId, since),
+      // linkedTransactions isn't returned by default — ask for it so we can tell
+      // which invoices came from a sales order already on the board.
+      fetchTxns("invoices", conductorKey, endUserId, since, "&includeLinkedTransactions=true"),
     ]);
   } catch (e) {
     if (e.status) return json(502, { error: "Conductor request failed", status: e.status, detail: e.detail });
