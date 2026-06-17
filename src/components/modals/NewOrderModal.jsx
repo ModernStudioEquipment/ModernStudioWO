@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { X, Plus, Trash2 } from "lucide-react";
+import { X, Plus, Trash2, Store, Truck } from "lucide-react";
 import { C, DEPTS } from "../../theme.js";
 import { DeptIcon } from "../ui.jsx";
 
@@ -13,7 +13,7 @@ export function NewOrderModal({ getNextOrderNo, onCreate, onClose }) {
   const [customer, setCustomer] = useState("");
   const [contact, setContact] = useState("");
   const [dueDate, setDueDate] = useState("");
-  const [willCall, setWillCall] = useState(false);
+  const [method, setMethod] = useState(""); // "" | "willcall" | "shipping" — chosen at intake
   const [items, setItems] = useState([blankItem()]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -39,7 +39,8 @@ export function NewOrderModal({ getNextOrderNo, onCreate, onClose }) {
         customer: customer.trim(),
         contact: contact.trim() || "—",
         source: "phone",
-        willCall,
+        willCall: method === "willcall",
+        fulfillmentMethod: method || null,
         dueDate: dueDate || null,
         items: validItems.map((it) => ({
           name: it.name.trim(),
@@ -81,7 +82,7 @@ export function NewOrderModal({ getNextOrderNo, onCreate, onClose }) {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-4 mb-4">
+          <div className="flex flex-wrap items-end gap-4 mb-4">
             <div>
               <div style={label}>Due date</div>
               <input
@@ -92,10 +93,17 @@ export function NewOrderModal({ getNextOrderNo, onCreate, onClose }) {
                 style={{ ...inp, color: dueDate ? C.ink : C.gray }}
               />
             </div>
-            <label className="flex items-center gap-2 mt-4" style={{ fontSize: 13, cursor: "pointer" }}>
-              <input type="checkbox" checked={willCall} onChange={(e) => setWillCall(e.target.checked)} />
-              Will call (customer picks up)
-            </label>
+            <div>
+              <div style={label}>Fulfillment</div>
+              <div className="flex" style={{ border: `1px solid ${C.line}`, borderRadius: 6, overflow: "hidden", width: "fit-content" }}>
+                {[["willcall", "Will Call", Store], ["shipping", "Shipping", Truck]].map(([val, lbl, Icon]) => (
+                  <button key={val} type="button" onClick={() => setMethod(method === val ? "" : val)} className="flex items-center gap-1.5 px-3 py-2"
+                    style={method === val ? { background: C.ink, color: "#fff" } : { background: "#fff", color: C.inkSoft }}>
+                    <Icon size={14} /><span style={{ fontSize: 12, fontWeight: 700 }}>{lbl}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
           <div style={{ ...label, marginBottom: 8 }}>Products</div>

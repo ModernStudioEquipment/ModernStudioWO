@@ -60,6 +60,7 @@ function mapOrder(row) {
     source: row.source,
     willCall: row.will_call,
     dueDate: row.due_date || null,
+    fulfillmentMethod: row.fulfillment_method || null, // chosen at intake; sticks to the order
     fulfillment: row.fulfillment, // null | 'willcall' | 'shipping'
     fulfilledAt: row.fulfilled_at || null,
     location: row.fulfillment_location,
@@ -131,7 +132,7 @@ export const supabaseAdapter = {
     return String(nums.length ? Math.max(...nums) + 1 : 100000);
   },
 
-  async createOrder({ orderNo, customer, contact, priority, source, willCall, dueDate, items }) {
+  async createOrder({ orderNo, customer, contact, priority, source, willCall, fulfillmentMethod, dueDate, items }) {
     const { error } = await supabase.rpc("create_order", {
       p_order: {
         order_no: orderNo,
@@ -140,6 +141,7 @@ export const supabaseAdapter = {
         priority: priority || "Normal",
         source: source || "phone",
         will_call: Boolean(willCall),
+        fulfillment_method: fulfillmentMethod || null,
         due_date: dueDate || null,
       },
       p_items: items.map((it, i) => ({

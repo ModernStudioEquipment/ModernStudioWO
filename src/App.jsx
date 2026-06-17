@@ -9,7 +9,7 @@ import { useAuth } from "./hooks/useAuth.js";
 import { useOrders } from "./hooks/useOrders.js";
 import { useWorkOrders } from "./hooks/useWorkOrders.js";
 import {
-  Pill, Btn, Group, ItemLine, Empty, Tabwrap, DeptBadge, DuePill, MoveMenu, SittingBadge,
+  Pill, Btn, Group, ItemLine, Empty, Tabwrap, DeptBadge, DuePill, MethodBadge, MoveMenu, SittingBadge,
 } from "./components/ui.jsx";
 import { Auth } from "./components/Auth.jsx";
 import { Logo } from "./components/Logo.jsx";
@@ -633,7 +633,7 @@ export default function App() {
                       <div className="flex items-center gap-x-3 gap-y-2 px-4 py-3 flex-wrap">
                         <span className="font-bold" style={{ fontFamily: "ui-monospace,monospace", fontSize: 15 }}>#{o.orderNo}</span>
                         <div className="min-w-0">
-                          <div className="font-bold" style={{ fontSize: 14 }}>{o.customer}</div>
+                          <div className="font-bold flex items-center gap-2 flex-wrap" style={{ fontSize: 14 }}>{o.customer}<MethodBadge m={o.fulfillmentMethod} /></div>
                           <div style={{ fontSize: 12, color: C.gray }}>
                             Ordered by {o.contact} · {elapsed(now - o.receivedAt)} ago
                           </div>
@@ -649,12 +649,16 @@ export default function App() {
                           <Pill c={st.c} bg={st.bg} Icon={st.Icon}>{st.label}</Pill>
                           {st.key === "ready" ? (
                             <>
-                              <Btn kind="gold" onClick={(e) => { e.stopPropagation(); openFulfill(o, "willcall"); }}>
-                                <Store size={13} />Will call
-                              </Btn>
-                              <Btn kind="brass" onClick={(e) => { e.stopPropagation(); openFulfill(o, "shipping"); }}>
-                                <Truck size={13} />Ship
-                              </Btn>
+                              {o.fulfillmentMethod !== "shipping" && (
+                                <Btn kind="gold" onClick={(e) => { e.stopPropagation(); openFulfill(o, "willcall"); }}>
+                                  <Store size={13} />Will call
+                                </Btn>
+                              )}
+                              {o.fulfillmentMethod !== "willcall" && (
+                                <Btn kind="brass" onClick={(e) => { e.stopPropagation(); openFulfill(o, "shipping"); }}>
+                                  <Truck size={13} />Ship
+                                </Btn>
+                              )}
                             </>
                           ) : st.key === "willcall" || st.key === "shipping" || st.key === "shipped" ? (
                             <span className="flex items-center gap-1" style={{ fontSize: 12, color: C.gray }}>

@@ -126,7 +126,7 @@ export const localAdapter = {
     return String(nextWoNoFrom(readWO()));
   },
 
-  async createOrder({ orderNo, customer, contact, priority, source, willCall, dueDate, items }) {
+  async createOrder({ orderNo, customer, contact, priority, source, willCall, fulfillmentMethod, dueDate, items }) {
     const orders = read();
     orders.push({
       id: uid(),
@@ -137,6 +137,7 @@ export const localAdapter = {
       priority: priority || "Normal",
       source: source || "phone",
       willCall: Boolean(willCall),
+      fulfillmentMethod: fulfillmentMethod || null,
       dueDate: dueDate || null,
       fulfillment: null,
       fulfilledAt: null,

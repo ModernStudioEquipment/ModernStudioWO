@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Clock, Wrench, Scissors, Cpu, Hammer, Flag, Check, ChevronDown } from "lucide-react";
+import { Clock, Wrench, Scissors, Cpu, Hammer, Flag, Check, ChevronDown, Store, Truck } from "lucide-react";
 import { C, PRI, PRIORITIES, DEPTS, elapsed, sittingLevel, stageDwellMs, STAGE_LABELS, dueLabel, dueLevel, DUE } from "../theme.js";
 
 const DEPT_ICONS = { Shop: Hammer, CNC: Cpu, Sewing: Scissors, Saw: Wrench };
@@ -143,6 +143,14 @@ export function DuePill({ o, now = Date.now(), onChange }) {
   );
 }
 
+// The fulfillment method chosen at intake (Will Call vs Shipping). Sticks to the
+// order and shows next to the customer name everywhere it travels.
+export function MethodBadge({ m }) {
+  if (m === "willcall") return <Pill c={C.gold} bg={C.goldBg} Icon={Store}>Will Call</Pill>;
+  if (m === "shipping") return <Pill c={C.blue} bg={C.blueBg} Icon={Truck}>Shipping</Pill>;
+  return null;
+}
+
 const MOVE_TARGETS = [
   { stage: "new", label: "New Orders" },
   { stage: "picklist", label: "Pick List" },
@@ -186,7 +194,7 @@ export function OrderHeader({ o, now, onDueDate, onOpen, collapsible, open, onTo
         #{o.orderNo}
       </span>
       <div style={{ minWidth: 0 }}>
-        <div className="font-bold" style={{ fontSize: 14 }}>{o.customer}</div>
+        <div className="font-bold flex items-center gap-2 flex-wrap" style={{ fontSize: 14 }}>{o.customer}<MethodBadge m={o.fulfillmentMethod} /></div>
         <div style={{ fontSize: 12, color: C.gray }}>Ordered by {o.contact}</div>
       </div>
       <span className="basis-full sm:basis-auto sm:ml-auto flex items-center gap-2">
