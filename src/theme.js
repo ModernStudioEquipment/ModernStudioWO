@@ -56,21 +56,23 @@ export const DUE = {
   overdue: { c: C.rush, bg: C.rushBg, label: "Overdue" },
   soon:    { c: C.high, bg: C.highBg, label: "Due soon" },
 };
-export const dueLevel = (order, now = Date.now()) => {
+// The deadline moment: the due time if one's set, else end of the due day.
+// Plain local strings — no timezone conversion.
+export const dueDeadline = (order) => {
   const d = order && order.dueDate;
   if (!d) return null;
-  const end = new Date(`${d}T23:59:59`).getTime();
-  if (isNaN(end)) return null;
+  const t = new Date(`${d}T${order.dueTime ? `${order.dueTime}:00` : "23:59:59"}`).getTime();
+  return isNaN(t) ? null : t;
+};
+export const dueLevel = (order, now = Date.now()) => {
+  const end = dueDeadline(order);
+  if (end == null) return null;
   if (end < now) return "overdue";
   if (end - now <= 2 * 24 * 60 * 60 * 1000) return "soon";
   return null;
 };
-// Sort by due date: soonest first, orders with no due date last.
-export const byDue = (a, b) => {
-  const da = a.dueDate ? new Date(`${a.dueDate}T23:59:59`).getTime() : Infinity;
-  const db = b.dueDate ? new Date(`${b.dueDate}T23:59:59`).getTime() : Infinity;
-  return da - db;
-};
+// Sort by deadline: soonest first, orders with no due date last.
+export const byDue = (a, b) => (dueDeadline(a) ?? Infinity) - (dueDeadline(b) ?? Infinity);
 
 export const STAGES = ["new", "picklist", "workorder", "awaiting", "done"];
 // Friendly names for each stage — used by the item history timeline.
@@ -157,12 +159,20 @@ export const elapsed = (ms) => {
   return `${d}d ${h % 24}h`;
 };
 
-// Format a "YYYY-MM-DD" due date as e.g. "Jun 20". Parsed at local midnight so
-// it doesn't shift a day in negative-offset timezones.
-export const dueLabel = (d) => {
+// Format a "YYYY-MM-DD" due date as e.g. "Jun 20" (parsed at local midnight so
+// it doesn't shift a day). With an optional "HH:MM" time -> "Jun 20, 3:00 PM".
+export const fmtTime = (t) => {
+  if (!t) return "";
+  const [h, m] = String(t).split(":").map(Number);
+  if (isNaN(h)) return "";
+  const ap = h < 12 ? "AM" : "PM";
+  return `${h % 12 || 12}:${String(m || 0).padStart(2, "0")} ${ap}`;
+};
+export const dueLabel = (d, time) => {
   if (!d) return "";
   const dt = new Date(`${d}T00:00:00`);
-  return isNaN(dt) ? d : dt.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const datePart = isNaN(dt) ? d : dt.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return time ? `${datePart}, ${fmtTime(time)}` : datePart;
 };
 
 // An item is blocked while any of its materials hasn't been received.

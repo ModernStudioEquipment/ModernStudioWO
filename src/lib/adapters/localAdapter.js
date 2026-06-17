@@ -126,7 +126,7 @@ export const localAdapter = {
     return String(nextWoNoFrom(readWO()));
   },
 
-  async createOrder({ orderNo, customer, contact, priority, source, willCall, fulfillmentMethod, dueDate, items }) {
+  async createOrder({ orderNo, customer, contact, priority, source, willCall, fulfillmentMethod, dueDate, dueTime, items }) {
     const orders = read();
     orders.push({
       id: uid(),
@@ -139,6 +139,7 @@ export const localAdapter = {
       willCall: Boolean(willCall),
       fulfillmentMethod: fulfillmentMethod || null,
       dueDate: dueDate || null,
+      dueTime: dueTime || null,
       fulfillment: null,
       fulfilledAt: null,
       location: null,
@@ -311,10 +312,10 @@ export const localAdapter = {
     write(orders);
   },
 
-  async setDueDate(orderId, dueDate) {
+  async setDueDate(orderId, dueDate, dueTime) {
     const orders = read();
     const o = orders.find((x) => x.id === orderId);
-    if (o) o.dueDate = dueDate || null;
+    if (o) { o.dueDate = dueDate || null; o.dueTime = dueTime || null; }
     write(orders);
   },
 

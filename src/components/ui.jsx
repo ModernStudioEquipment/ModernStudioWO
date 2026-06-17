@@ -122,21 +122,30 @@ export function PriorityPill({ priority, onChange }) {
 export function DuePill({ o, now = Date.now(), onChange }) {
   const lvl = o.dueDate ? dueLevel(o, now) : null;
   const s = !o.dueDate ? { c: C.gray, bg: C.grayBg } : (lvl ? DUE[lvl] : { c: C.inkSoft, bg: C.grayBg });
-  const text = !o.dueDate ? "No due date" : (lvl === "overdue" ? `Overdue · ${dueLabel(o.dueDate)}` : `Due ${dueLabel(o.dueDate)}`);
+  const label = dueLabel(o.dueDate, o.dueTime);
+  const text = !o.dueDate ? "No due date" : (lvl === "overdue" ? `Overdue · ${label}` : `Due ${label}`);
   const pill = (
     <Pill c={s.c} bg={s.bg} Icon={Flag}>
       {text}{onChange && <ChevronDown size={11} style={{ opacity: 0.6 }} />}
     </Pill>
   );
   if (!onChange) return pill;
+  // Date + optional time. Midnight (00:00) means "no specific time" — shown as a
+  // plain date; any other time shows alongside it.
   return (
-    <span style={{ position: "relative", display: "inline-flex", cursor: "pointer" }} title="Set due date">
+    <span style={{ position: "relative", display: "inline-flex", cursor: "pointer" }} title="Set due date (and optional time)">
       {pill}
       <input
-        type="date"
-        value={o.dueDate || ""}
+        type="datetime-local"
+        value={o.dueDate ? `${o.dueDate}T${o.dueTime || "00:00"}` : ""}
         onClick={(e) => e.stopPropagation()}
-        onChange={(e) => onChange(e.target.value || null)}
+        onChange={(e) => {
+          const v = e.target.value;
+          if (!v) return onChange(null, null);
+          const date = v.slice(0, 10);
+          const time = v.slice(11, 16);
+          onChange(date, time && time !== "00:00" ? time : null);
+        }}
         style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer", border: "none" }}
       />
     </span>
@@ -222,7 +231,7 @@ export function OrderHeader({ o, now, onDueDate, onMethod, onOpen, collapsible, 
           {o.customer}
           {o.notes && <Bell size={14} color={C.high} fill={C.high} title={`Note: ${o.notes}`} style={{ flexShrink: 0 }} />}
           <MethodBadge m={o.fulfillmentMethod} onChange={onMethod ? (m) => onMethod(o.id, m) : undefined} />
-          <DuePill o={o} now={now} onChange={onDueDate ? (due) => onDueDate(o.id, due) : undefined} />
+          <DuePill o={o} now={now} onChange={onDueDate ? (date, time) => onDueDate(o.id, date, time) : undefined} />
         </div>
         <div style={{ fontSize: 12, color: C.gray }}>Ordered by {o.contact}</div>
       </div>

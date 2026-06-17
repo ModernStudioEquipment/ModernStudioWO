@@ -638,7 +638,7 @@ export default function App() {
                             Ordered by {o.contact} · {elapsed(now - o.receivedAt)} ago
                           </div>
                         </div>
-                        <DuePill o={o} now={now} onChange={(due) => board.setDueDate(o.id, due)} />
+                        <DuePill o={o} now={now} onChange={(date, time) => board.setDueDate(o.id, date, time)} />
                         <div className="basis-full sm:basis-auto sm:ml-auto flex flex-wrap items-center gap-3">
                           <div className="flex flex-wrap items-center gap-1">
                             {o.items.map((it) => (
@@ -731,7 +731,7 @@ export default function App() {
           order={detailOrder}
           status={orderStatus(detailOrder)}
           now={now}
-          onDueDate={(due) => board.setDueDate(detailOrder.id, due)}
+          onDueDate={(date, time) => board.setDueDate(detailOrder.id, date, time)}
           onMethod={(m) => board.setFulfillmentMethod(detailOrder.id, m)}
           onSaveNotes={(notes) => board.setOrderNotes(detailOrder.id, notes)}
           onUpdateItem={(itemId, patch) => board.updateItem(itemId, patch)}

@@ -60,6 +60,7 @@ function mapOrder(row) {
     source: row.source,
     willCall: row.will_call,
     dueDate: row.due_date || null,
+    dueTime: row.due_time || null,
     notes: row.notes || null,
     fulfillmentMethod: row.fulfillment_method || null, // chosen at intake; sticks to the order
     fulfillment: row.fulfillment, // null | 'willcall' | 'shipping'
@@ -133,7 +134,7 @@ export const supabaseAdapter = {
     return String(nums.length ? Math.max(...nums) + 1 : 100000);
   },
 
-  async createOrder({ orderNo, customer, contact, priority, source, willCall, fulfillmentMethod, dueDate, items }) {
+  async createOrder({ orderNo, customer, contact, priority, source, willCall, fulfillmentMethod, dueDate, dueTime, items }) {
     const { error } = await supabase.rpc("create_order", {
       p_order: {
         order_no: orderNo,
@@ -144,6 +145,7 @@ export const supabaseAdapter = {
         will_call: Boolean(willCall),
         fulfillment_method: fulfillmentMethod || null,
         due_date: dueDate || null,
+        due_time: dueTime || null,
       },
       p_items: items.map((it, i) => ({
         name: it.name,
@@ -242,8 +244,10 @@ export const supabaseAdapter = {
     fail(error);
   },
 
-  async setDueDate(orderId, dueDate) {
-    const { error } = await supabase.from("orders").update({ due_date: dueDate || null }).eq("id", orderId);
+  async setDueDate(orderId, dueDate, dueTime) {
+    let { error } = await supabase.from("orders").update({ due_date: dueDate || null, due_time: dueTime || null }).eq("id", orderId);
+    // Fallback if the 0025 due_time column isn't there yet: still set the date.
+    if (error) ({ error } = await supabase.from("orders").update({ due_date: dueDate || null }).eq("id", orderId));
     fail(error);
   },
 
