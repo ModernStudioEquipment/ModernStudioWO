@@ -12,7 +12,7 @@ const fail = (error) => {
 let channelSeq = 0; // unique realtime channel names — one channel per subscriber
 
 // DB row (snake_case) -> the normalized in-memory shape the UI consumes.
-function mapOrder(row, productPhotos = {}) {
+function mapOrder(row, productPhotos = {}, fulfillmentsByOrder = {}) {
   const items = (row.items || [])
     .slice()
     .sort((a, b) => (a.position ?? 0) - (b.position ?? 0) || a.created_at.localeCompare(b.created_at))
@@ -24,6 +24,7 @@ function mapOrder(row, productPhotos = {}) {
       color: it.color,
       stage: it.stage,
       needsMaterial: it.needs_material,
+      fulfilledQty: it.fulfilled_qty || 0,
       completedBy: it.completed_by,
       imageUrl: it.image_url || productPhotos[it.name] || null,
       note: it.note || null,
@@ -76,6 +77,7 @@ function mapOrder(row, productPhotos = {}) {
     pickedUpBy: row.picked_up_by || null,
     cancelledAt: row.cancelled_at || null,
     cancelReason: row.cancel_reason || null,
+    fulfillments: fulfillmentsByOrder[row.id] || [], // partial pickup/shipment log
     items,
   };
 }
@@ -103,7 +105,26 @@ export const supabaseAdapter = {
     const productPhotos = {};
     const { data: pp } = await supabase.from("product_photos").select("name,image_url");
     if (Array.isArray(pp)) pp.forEach((r) => { productPhotos[r.name] = r.image_url; });
-    return (data || []).map((row) => mapOrder(row, productPhotos));
+    // Partial pickup/shipment log, grouped by order (tolerate the table missing).
+    const fulfillmentsByOrder = {};
+    const { data: ff } = await supabase.from("fulfillments").select("*").order("created_at", { ascending: true });
+    if (Array.isArray(ff)) ff.forEach((f) => {
+      (fulfillmentsByOrder[f.order_id] = fulfillmentsByOrder[f.order_id] || []).push({
+        id: f.id, kind: f.kind, person: f.person || null, carrier: f.carrier || null,
+        trackingNumber: f.tracking_number || null, note: f.note || null, lines: f.lines || [], at: f.created_at,
+      });
+    });
+    return (data || []).map((row) => mapOrder(row, productPhotos, fulfillmentsByOrder));
+  },
+
+  // Record one partial pickup/shipment (atomic SQL fn: log it, add the quantities
+  // to each item, and complete the order if everything's now out).
+  async recordFulfillment(orderId, { kind, person, carrier, tracking, note, lines }) {
+    const { error } = await supabase.rpc("record_fulfillment", {
+      p_order_id: orderId, p_kind: kind, p_person: person || null, p_carrier: carrier || null,
+      p_tracking: tracking || null, p_note: note || null, p_lines: lines || [],
+    });
+    fail(error);
   },
 
   subscribe(cb) {

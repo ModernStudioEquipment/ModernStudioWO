@@ -24,6 +24,7 @@ import { NewPurchaseModal } from "./components/modals/NewPurchaseModal.jsx";
 import { FulfillModal } from "./components/modals/FulfillModal.jsx";
 import { TrackingModal } from "./components/modals/TrackingModal.jsx";
 import { PickedUpModal } from "./components/modals/PickedUpModal.jsx";
+import { PartialModal } from "./components/modals/PartialModal.jsx";
 import { OrderedModal } from "./components/modals/OrderedModal.jsx";
 import { ReceiveModal } from "./components/modals/ReceiveModal.jsx";
 import { CustomWorkOrderDoc } from "./components/modals/CustomWorkOrderDoc.jsx";
@@ -54,6 +55,7 @@ export default function App() {
   const [fulfillTarget, setFulfillTarget] = useState(null); // { order, method }
   const [trackTarget, setTrackTarget] = useState(null); // order being marked shipped
   const [pickupTarget, setPickupTarget] = useState(null); // will-call order being marked picked up
+  const [partialTarget, setPartialTarget] = useState(null); // { order, kind } partial pickup/shipment
   const [orderTarget, setOrderTarget] = useState(null); // purchasing material being marked ordered (asks who/vendor/PO)
   const [receiveTarget, setReceiveTarget] = useState(null); // { it, m } material being received (asks dest tab/qty/note)
   const [syncing, setSyncing] = useState(false); // QuickBooks sync in progress
@@ -201,6 +203,13 @@ export default function App() {
     await board.markShipped(trackTarget.id, payload);
     setTrackTarget(null);
     setTab("completed"); // order moves out of Shipping and into the Completed tab
+  };
+
+  // Partial pickup/shipment: record it; the order auto-completes (and leaves the
+  // board) only once everything's out, otherwise it stays live with progress.
+  const confirmPartial = async (payload) => {
+    await board.recordFulfillment(partialTarget.order.id, payload);
+    setPartialTarget(null);
   };
 
   // Will Call: mark an order picked up (records who collected it). It then
@@ -692,13 +701,13 @@ export default function App() {
 
             {tab === "willcall" && (
               <Tabwrap title="Will Call">
-                <FulfillmentBoard variant="willcall" orders={willCallOrders} now={now} onOpen={setDetailId} onPickedUp={setPickupTarget} emptyText="Nothing on will-call yet. Completed orders land here when you mark them Will Call." />
+                <FulfillmentBoard variant="willcall" orders={willCallOrders} now={now} onOpen={setDetailId} onPickedUp={(o) => setPartialTarget({ order: o, kind: "pickup" })} emptyText="Nothing on will-call yet. Completed orders land here when you mark them Will Call." />
               </Tabwrap>
             )}
 
             {tab === "shipping" && (
               <Tabwrap title="Shipping">
-                <FulfillmentBoard variant="shipping" orders={shippingOrders} now={now} onOpen={setDetailId} onMarkShipped={setTrackTarget} emptyText="Nothing shipping yet. Completed orders land here when you mark them Ship." />
+                <FulfillmentBoard variant="shipping" orders={shippingOrders} now={now} onOpen={setDetailId} onMarkShipped={(o) => setPartialTarget({ order: o, kind: "shipment" })} emptyText="Nothing shipping yet. Completed orders land here when you mark them Ship." />
               </Tabwrap>
             )}
 
@@ -783,6 +792,14 @@ export default function App() {
           order={pickupTarget}
           onConfirm={confirmPickup}
           onClose={() => setPickupTarget(null)}
+        />
+      )}
+      {partialTarget && (
+        <PartialModal
+          order={partialTarget.order}
+          kind={partialTarget.kind}
+          onConfirm={confirmPartial}
+          onClose={() => setPartialTarget(null)}
         />
       )}
       {orderTarget && (
@@ -892,6 +909,9 @@ function FulfillmentBoard({ orders, now, onOpen, onMarkShipped, onPickedUp, vari
         const shipped = variant === "shipping" && o.trackingNumber;
         const pickedUp = variant === "willcall" && o.pickedUpAt;
         const closed = shipped || pickedUp;
+        const totalOrdered = o.items.reduce((n, it) => n + Math.max(parseInt(it.qty, 10) || 1, 1), 0);
+        const totalOut = o.items.reduce((n, it) => n + (it.fulfilledQty || 0), 0);
+        const partial = !closed && totalOut > 0 && totalOut < totalOrdered;
         return (
           <div
             key={o.id}
@@ -907,6 +927,7 @@ function FulfillmentBoard({ orders, now, onOpen, onMarkShipped, onPickedUp, vari
                 <div style={{ fontSize: 12, color: C.gray }}>Ordered by {o.contact} · {elapsed(now - o.receivedAt)} ago</div>
               </div>
               <DuePill o={o} now={now} />
+              {partial && <Pill c={C.high} bg={C.highBg} Icon={Package}>Partial · {totalOut}/{totalOrdered} {variant === "willcall" ? "picked up" : "shipped"}</Pill>}
               {variant === "shipping" && !shipped && stagedTooLong(o, now) && (
                 <span
                   onClick={(e) => e.stopPropagation()}

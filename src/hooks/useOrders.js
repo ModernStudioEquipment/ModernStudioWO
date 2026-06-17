@@ -84,6 +84,7 @@ export function useOrders(enabled) {
     setOrderNotes: act((orderId, notes) => db.setOrderNotes(orderId, notes)),
     fulfillOrder: act((orderId, method, location) => db.fulfillOrder(orderId, method, location)),
     markShipped: act((orderId, payload) => db.markShipped(orderId, payload)),
+    recordFulfillment: act((orderId, payload) => db.recordFulfillment(orderId, payload)),
     deleteOrder: act((orderId) => db.deleteOrder(orderId)),
     cancelOrder: act((orderId, reason) => db.cancelOrder(orderId, reason)),
     unpickItem: act((itemId) => db.unpickItem(itemId)),

@@ -388,6 +388,21 @@ export const localAdapter = {
     write(orders);
   },
 
+  async recordFulfillment(orderId, { kind, person, carrier, tracking, note, lines }) {
+    const orders = read();
+    const o = orders.find((x) => x.id === orderId);
+    if (!o) return;
+    o.fulfillments = o.fulfillments || [];
+    o.fulfillments.push({ id: uid(), kind, person: person || null, carrier: carrier || null, trackingNumber: tracking || null, note: note || null, lines: lines || [], at: new Date().toISOString() });
+    (lines || []).forEach((ln) => { const it = o.items.find((i) => i.id === ln.itemId); if (it) it.fulfilledQty = (it.fulfilledQty || 0) + (parseInt(ln.qty, 10) || 0); });
+    const allOut = o.items.every((it) => (it.fulfilledQty || 0) >= Math.max(parseInt(it.qty, 10) || 1, 1));
+    if (allOut) {
+      if (kind === "pickup") { o.pickedUpAt = new Date().toISOString(); o.pickedUpBy = person || null; }
+      else { o.trackingNumber = tracking || o.trackingNumber || "shipped"; o.shippedAt = new Date().toISOString(); }
+    }
+    write(orders);
+  },
+
   // Will Call pickup: record who collected it and when.
   async markPickedUp(orderId, by) {
     const orders = read();
