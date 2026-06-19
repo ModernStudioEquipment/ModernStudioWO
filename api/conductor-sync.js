@@ -87,15 +87,32 @@ function linkedSalesOrders(inv) {
     .filter(Boolean);
 }
 
+// Conductor caps each page at limit=150. With 150+ invoices in the window we'd
+// silently lose everything past the first page (QuickBooks returns them roughly
+// oldest-first, so the *newest* get dropped). Follow nextCursor until hasMore is
+// false so we pull the whole window — for sales orders and invoices alike.
 async function fetchTxns(path, conductorKey, endUserId, since, extra = "") {
-  const res = await fetch(`${CONDUCTOR_BASE}/${path}?limit=150&transactionDateFrom=${since}${extra}`, {
-    headers: { Authorization: `Bearer ${conductorKey}`, "Conductor-End-User-Id": endUserId },
-    signal: AbortSignal.timeout(50000),
-  });
-  const text = await res.text();
-  if (!res.ok) { const e = new Error("Conductor request failed"); e.status = res.status; e.detail = text.slice(0, 500); throw e; }
-  const body = JSON.parse(text);
-  return Array.isArray(body) ? body : (body.data || body.objects || []);
+  const headers = { Authorization: `Bearer ${conductorKey}`, "Conductor-End-User-Id": endUserId };
+  const deadline = Date.now() + 50000; // one budget shared across all pages, keeps us under maxDuration
+  const out = [];
+  let cursor = null;
+  for (let page = 0; page < 20; page++) { // hard stop at 20 pages (≈3000 records) as a safety valve
+    const qs = `limit=150&transactionDateFrom=${since}${extra}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
+    const res = await fetch(`${CONDUCTOR_BASE}/${path}?${qs}`, {
+      headers,
+      signal: AbortSignal.timeout(Math.max(2000, deadline - Date.now())),
+    });
+    const text = await res.text();
+    if (!res.ok) { const e = new Error("Conductor request failed"); e.status = res.status; e.detail = text.slice(0, 500); throw e; }
+    const body = JSON.parse(text);
+    if (Array.isArray(body)) return body; // no envelope -> no cursor to follow, behave as before
+    const rows = body.data || body.objects || [];
+    out.push(...rows);
+    cursor = body.nextCursor || body.next_cursor || null;
+    const hasMore = body.hasMore ?? body.has_more ?? false;
+    if (!hasMore || !cursor || !rows.length) break;
+  }
+  return out;
 }
 
 async function run({ commit }) {
