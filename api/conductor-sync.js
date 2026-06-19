@@ -131,13 +131,20 @@ async function run({ commit }) {
 
   // --- 1. Pull recent sales orders AND invoices (16-day window keeps QB fast) ---
   const since = new Date(Date.now() - 16 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  // One-time backlog guard: when full pagination went live there was a batch of
+  // older invoices already sitting in the window that we deliberately don't want
+  // backfilled onto the board — only invoices from the switch-over date forward
+  // should sync. Floor the invoice window here. max(since, floor) means it quietly
+  // reverts to the normal rolling 16-day window once `since` passes the floor.
+  const INVOICE_FLOOR = "2026-06-19";
+  const invoiceSince = since > INVOICE_FLOOR ? since : INVOICE_FLOOR;
   let soList, invList;
   try {
     [soList, invList] = await Promise.all([
       fetchTxns("sales-orders", conductorKey, endUserId, since),
       // linkedTransactions isn't returned by default — ask for it so we can tell
       // which invoices came from a sales order already on the board.
-      fetchTxns("invoices", conductorKey, endUserId, since, "&includeLinkedTransactions=true"),
+      fetchTxns("invoices", conductorKey, endUserId, invoiceSince, "&includeLinkedTransactions=true"),
     ]);
   } catch (e) {
     if (e.status) return json(502, { error: "Conductor request failed", status: e.status, detail: e.detail });
