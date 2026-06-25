@@ -3,7 +3,7 @@ import {
   Clock, Printer, Plus, Truck, CheckCircle2, AlertTriangle, Hammer,
   Flag, Check, ArrowRight, ShoppingCart, LogOut, Store, MapPin, Package, X, Bell, ExternalLink, RefreshCw, Pencil,
 } from "lucide-react";
-import { C, PRI, PRI_CYCLE, PRI_RANK, elapsed, blocked, pct, dueLabel, priLabel, effectivePriority, trackingUrl, stagedTooLong, stagedDwellMs } from "./theme.js";
+import { C, PRI, PRI_CYCLE, PRI_RANK, elapsed, blocked, pct, dueLabel, priLabel, effectivePriority, trackingUrl, stagedTooLong, stagedDwellMs, STAGE_LABELS } from "./theme.js";
 import { backendMode } from "./lib/db.js";
 import { useAuth } from "./hooks/useAuth.js";
 import { useOrders } from "./hooks/useOrders.js";
@@ -329,14 +329,22 @@ export default function App() {
   const renderOrderCard = (o) => {
     const st = orderStatus(o);
     const done = o.items.filter((it) => it.stage === "done").length, total = o.items.length;
+    // Urgent (manually Urgent or due within ~2 days) → a loud red card so it
+    // can't be missed: red outline, red-tinted background, red URGENT badge.
+    const urgent = effectivePriority(o, now) === "RUSH";
     return (
       <div
         key={o.id} id={`order-${o.id}`} onClick={() => setDetailId(o.id)}
         className="rounded mb-2"
-        style={{ background: "#fff", border: `1px solid ${C.line}`, borderLeft: `4px solid ${st.c}`, opacity: o.fulfillment ? 0.6 : 1, cursor: "pointer" }}
+        style={{ background: urgent ? C.rushBg : "#fff", border: `1px solid ${urgent ? C.rush : C.line}`, borderLeft: `4px solid ${urgent ? C.rush : st.c}`, opacity: o.fulfillment ? 0.6 : 1, cursor: "pointer" }}
       >
         <div className="flex items-center gap-x-3 gap-y-2 px-4 py-3 flex-wrap">
-          <span className="font-bold" style={{ fontFamily: "ui-monospace,monospace", fontSize: 15 }}>#{o.orderNo}</span>
+          <span className="font-bold" style={{ fontFamily: "ui-monospace,monospace", fontSize: 15, color: urgent ? C.rush : C.ink }}>#{o.orderNo}</span>
+          {urgent && (
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-bold uppercase tracking-wide" style={{ background: C.rush, color: "#fff" }}>
+              <Flag size={12} />Urgent
+            </span>
+          )}
           <div className="min-w-0">
             <div className="font-bold flex items-center gap-2 flex-wrap" style={{ fontSize: 14 }}>{o.customer}{o.notes && <Bell size={14} color={C.high} fill={C.high} title={`Note: ${o.notes}`} style={{ flexShrink: 0 }} />}<MethodBadge m={o.fulfillmentMethod} onChange={(m) => board.setFulfillmentMethod(o.id, m)} /></div>
             <div style={{ fontSize: 12, color: C.gray }}>
@@ -481,7 +489,11 @@ export default function App() {
                 {!newOrdersShown.length && <Empty>{newSource === "all" ? "Nothing waiting. New orders land here the moment they come in." : `No ${newSource} orders waiting.`}</Empty>}
                 {newOrdersShown.map((o) => (
                   <Group key={o.id} o={o} now={now} onDueDate={board.setDueDate} onMethod={board.setFulfillmentMethod} onOpen={() => setDetailId(o.id)} collapsible>
-                    {o.items.filter((it) => it.stage === "new").map((it) => (
+                    {/* Show every item. Untriaged ones keep their buttons; ones
+                        you've already routed stay visible — crossed out, greyed,
+                        and labelled with where they went — so nothing silently
+                        vanishes. The order leaves this tab only once all are done. */}
+                    {o.items.map((it) => it.stage === "new" ? (
                       <div key={it.id} className="px-4 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
                         <div className="flex items-center gap-2 mb-2">
                           <DeptBadge d={it.dept} onChange={(dep) => board.updateItem(it.id, { dept: dep })} />
@@ -494,6 +506,15 @@ export default function App() {
                           <button onClick={() => triage(it.id, "have")} className="flex-1 py-2 rounded font-bold uppercase tracking-wide text-xs" style={{ background: C.highBg, color: C.high, border: `1px solid ${C.high}` }}>Create WO</button>
                           <button onClick={() => triage(it.id, "need")} className="flex-1 py-2 rounded font-bold uppercase tracking-wide text-xs" style={{ background: C.rushBg, color: C.rush, border: `1px solid ${C.rush}` }}>Material</button>
                         </div>
+                      </div>
+                    ) : (
+                      <div key={it.id} className="flex flex-wrap items-center gap-2 px-4 py-2.5" style={{ borderBottom: `1px solid ${C.line}`, background: C.concrete }}>
+                        <span className="font-bold" style={{ fontSize: 13, color: C.gray, textDecoration: "line-through" }}>{it.name}</span>
+                        <span style={{ fontFamily: "ui-monospace,monospace", color: C.gray, textDecoration: "line-through", fontSize: 13 }}>×{it.qty}</span>
+                        <span className="ml-auto inline-flex items-center gap-1" style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5, color: C.green }}>
+                          {it.stage === "done" ? <Check size={12} /> : <ArrowRight size={12} />}
+                          {it.stage === "done" ? "Done" : `Sent to ${STAGE_LABELS[it.stage] || it.stage}`}
+                        </span>
                       </div>
                     ))}
                   </Group>
