@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import {
   Clock, Printer, Plus, Truck, CheckCircle2, AlertTriangle, Hammer,
-  Flag, Check, ArrowRight, ShoppingCart, LogOut, Store, MapPin, Package, X, Bell, ExternalLink, RefreshCw,
+  Flag, Check, ArrowRight, ShoppingCart, LogOut, Store, MapPin, Package, X, Bell, ExternalLink, RefreshCw, Pencil,
 } from "lucide-react";
 import { C, PRI, PRI_CYCLE, PRI_RANK, elapsed, blocked, pct, dueLabel, priLabel, effectivePriority, trackingUrl, stagedTooLong, stagedDwellMs } from "./theme.js";
 import { backendMode } from "./lib/db.js";
@@ -53,6 +53,7 @@ export default function App() {
   const [showNew, setShowNew] = useState(false);
   const [showNewPurchase, setShowNewPurchase] = useState(false);
   const [newSort, setNewSort] = useState("newest"); // New Orders sort: newest first, or by due date
+  const [newSource, setNewSource] = useState("all"); // New Orders filter: all / QuickBooks / Shopify
   const [fulfillTarget, setFulfillTarget] = useState(null); // { order, method }
   const [trackTarget, setTrackTarget] = useState(null); // order being marked shipped
   const [pickupTarget, setPickupTarget] = useState(null); // will-call order being marked picked up
@@ -291,6 +292,16 @@ export default function App() {
     : orderView === "due" ? [...ordersForList].sort(byDue)
     : [...ordersForList].sort((a, b) => b.receivedAt - a.receivedAt);
 
+  // New Orders, filtered by source (All / QuickBooks / Shopify), then sorted.
+  const newOrdersShown = [...newOrders]
+    .filter((o) => newSource === "all" || o.source === newSource)
+    .sort(newSort === "due" ? byUrgency : (a, b) => b.receivedAt - a.receivedAt);
+  // Urgent tab: active orders that are manually Urgent or due within ~2 days
+  // (effectivePriority bumps due-soon orders to RUSH), soonest first.
+  const urgentOrders = [...ordersForList]
+    .filter((o) => effectivePriority(o, now) === "RUSH")
+    .sort(byUrgency);
+
   // Search is scoped to whatever tab you're in — it only finds orders shown in
   // that tab. (Orders tab and Dashboard search across everything.)
   const searchScope =
@@ -314,6 +325,64 @@ export default function App() {
     return { key: "prog", label: "In progress", c: C.blue, bg: C.blueBg, Icon: Hammer };
   };
 
+  // One order row for the Orders + Urgent tabs (same card so they stay in sync).
+  const renderOrderCard = (o) => {
+    const st = orderStatus(o);
+    const done = o.items.filter((it) => it.stage === "done").length, total = o.items.length;
+    return (
+      <div
+        key={o.id} id={`order-${o.id}`} onClick={() => setDetailId(o.id)}
+        className="rounded mb-2"
+        style={{ background: "#fff", border: `1px solid ${C.line}`, borderLeft: `4px solid ${st.c}`, opacity: o.fulfillment ? 0.6 : 1, cursor: "pointer" }}
+      >
+        <div className="flex items-center gap-x-3 gap-y-2 px-4 py-3 flex-wrap">
+          <span className="font-bold" style={{ fontFamily: "ui-monospace,monospace", fontSize: 15 }}>#{o.orderNo}</span>
+          <div className="min-w-0">
+            <div className="font-bold flex items-center gap-2 flex-wrap" style={{ fontSize: 14 }}>{o.customer}{o.notes && <Bell size={14} color={C.high} fill={C.high} title={`Note: ${o.notes}`} style={{ flexShrink: 0 }} />}<MethodBadge m={o.fulfillmentMethod} onChange={(m) => board.setFulfillmentMethod(o.id, m)} /></div>
+            <div style={{ fontSize: 12, color: C.gray }}>
+              Ordered by {o.contact} · {elapsed(now - o.receivedAt)} ago
+            </div>
+          </div>
+          <DuePill o={o} now={now} onChange={(date, time) => board.setDueDate(o.id, date, time)} />
+          <div className="basis-full sm:basis-auto sm:ml-auto flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center gap-1">
+              {o.items.map((it) => (
+                <span key={it.id} title={it.name} style={{ width: 22, height: 8, borderRadius: 2, background: it.stage === "done" ? C.green : blocked(it) ? C.high : C.line }} />
+              ))}
+              <span style={{ fontSize: 12, color: C.gray, marginLeft: 4 }}>{done}/{total} done</span>
+            </div>
+            <Pill c={st.c} bg={st.bg} Icon={st.Icon}>{st.label}</Pill>
+            {st.key === "ready" ? (
+              <>
+                {o.fulfillmentMethod !== "shipping" && (
+                  <Btn kind="gold" onClick={(e) => { e.stopPropagation(); openFulfill(o, "willcall"); }}>
+                    <Store size={13} />Will call
+                  </Btn>
+                )}
+                {o.fulfillmentMethod !== "willcall" && (
+                  <Btn kind="brass" onClick={(e) => { e.stopPropagation(); openFulfill(o, "shipping"); }}>
+                    <Truck size={13} />Ship
+                  </Btn>
+                )}
+              </>
+            ) : st.key === "willcall" || st.key === "shipping" || st.key === "shipped" ? (
+              <span className="flex items-center gap-1" style={{ fontSize: 12, color: C.gray }}>
+                <MapPin size={12} />{o.location}
+                {o.trackingNumber && (
+                  <a href={trackingUrl(o.trackingNumber)} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} title="Track this shipment (opens the carrier's site)" style={{ fontFamily: "ui-monospace,monospace", marginLeft: 6, color: C.blue, textDecoration: "none" }}>· {o.trackingNumber}<ExternalLink size={10} style={{ marginLeft: 2, verticalAlign: "-1px" }} /></a>
+                )}
+              </span>
+            ) : (
+              <Btn onClick={(e) => { e.stopPropagation(); setDoc({ o, items: [o.items.find((i) => i.stage === "workorder" || i.stage === "done") || o.items[0]] }); }}>
+                <Printer size={13} />Work order
+              </Btn>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const TABS = [
     { k: "dash", label: "Dashboard" },
     { k: "new", label: "New Orders", dot: newOrders.length },
@@ -321,6 +390,7 @@ export default function App() {
     { k: "work", label: "Work Order", n: count(workOrders, (it) => it.stage === "workorder") },
     { k: "buy", label: "Purchasing", n: buyOrders.reduce((n, o) => n + o.items.reduce((s, it) => s + (it.needsMaterial ? it.materials.filter((m) => !m.received).length : 0), 0), 0) },
     { k: "orders", label: "Orders" },
+    { k: "urgent", label: "Urgent", dot: urgentOrders.length },
     { k: "willcall", label: "Will Call", n: willCallOrders.length },
     { k: "shipping", label: "Shipping", n: shippingOrders.length },
     { k: "completed", label: "Completed", n: completedOrders.length },
@@ -392,6 +462,12 @@ export default function App() {
                 action={
                   <div className="flex items-center gap-2 flex-wrap justify-end">
                     <div className="flex items-center gap-1">
+                      {[["all", "All"], ["QuickBooks", "QB"], ["Shopify", "Shopify"]].map(([v, lbl]) => (
+                        <button key={v} onClick={() => setNewSource(v)} className="px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wide"
+                          style={newSource === v ? { background: C.ink, color: "#fff" } : { background: "#fff", color: C.inkSoft, border: `1px solid ${C.line}` }}>{lbl}</button>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-1">
                       {[["newest", "Newest"], ["due", "Due date"]].map(([v, lbl]) => (
                         <button key={v} onClick={() => setNewSort(v)} className="px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wide"
                           style={newSort === v ? { background: C.ink, color: "#fff" } : { background: "#fff", color: C.inkSoft, border: `1px solid ${C.line}` }}>{lbl}</button>
@@ -402,8 +478,8 @@ export default function App() {
                   </div>
                 }
               >
-                {!newOrders.length && <Empty>Nothing waiting. New orders land here the moment they come in.</Empty>}
-                {[...newOrders].sort(newSort === "due" ? byUrgency : (a, b) => b.receivedAt - a.receivedAt).map((o) => (
+                {!newOrdersShown.length && <Empty>{newSource === "all" ? "Nothing waiting. New orders land here the moment they come in." : `No ${newSource} orders waiting.`}</Empty>}
+                {newOrdersShown.map((o) => (
                   <Group key={o.id} o={o} now={now} onDueDate={board.setDueDate} onMethod={board.setFulfillmentMethod} onOpen={() => setDetailId(o.id)} collapsible>
                     {o.items.filter((it) => it.stage === "new").map((it) => (
                       <div key={it.id} className="px-4 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
@@ -647,74 +723,26 @@ export default function App() {
                   ))}
                 </div>
                 {!visibleOrders.length && <Empty>No orders in this view.</Empty>}
-                {visibleOrders.map((o) => {
-                  const st = orderStatus(o);
-                  const done = o.items.filter((it) => it.stage === "done").length, total = o.items.length;
-                  return (
-                    <div
-                      key={o.id} id={`order-${o.id}`} onClick={() => setDetailId(o.id)}
-                      className="rounded mb-2"
-                      style={{ background: "#fff", border: `1px solid ${C.line}`, borderLeft: `4px solid ${st.c}`, opacity: o.fulfillment ? 0.6 : 1, cursor: "pointer" }}
-                    >
-                      <div className="flex items-center gap-x-3 gap-y-2 px-4 py-3 flex-wrap">
-                        <span className="font-bold" style={{ fontFamily: "ui-monospace,monospace", fontSize: 15 }}>#{o.orderNo}</span>
-                        <div className="min-w-0">
-                          <div className="font-bold flex items-center gap-2 flex-wrap" style={{ fontSize: 14 }}>{o.customer}<MethodBadge m={o.fulfillmentMethod} onChange={(m) => board.setFulfillmentMethod(o.id, m)} /></div>
-                          <div style={{ fontSize: 12, color: C.gray }}>
-                            Ordered by {o.contact} · {elapsed(now - o.receivedAt)} ago
-                          </div>
-                        </div>
-                        <DuePill o={o} now={now} onChange={(date, time) => board.setDueDate(o.id, date, time)} />
-                        <div className="basis-full sm:basis-auto sm:ml-auto flex flex-wrap items-center gap-3">
-                          <div className="flex flex-wrap items-center gap-1">
-                            {o.items.map((it) => (
-                              <span key={it.id} title={it.name} style={{ width: 22, height: 8, borderRadius: 2, background: it.stage === "done" ? C.green : blocked(it) ? C.high : C.line }} />
-                            ))}
-                            <span style={{ fontSize: 12, color: C.gray, marginLeft: 4 }}>{done}/{total} done</span>
-                          </div>
-                          <Pill c={st.c} bg={st.bg} Icon={st.Icon}>{st.label}</Pill>
-                          {st.key === "ready" ? (
-                            <>
-                              {o.fulfillmentMethod !== "shipping" && (
-                                <Btn kind="gold" onClick={(e) => { e.stopPropagation(); openFulfill(o, "willcall"); }}>
-                                  <Store size={13} />Will call
-                                </Btn>
-                              )}
-                              {o.fulfillmentMethod !== "willcall" && (
-                                <Btn kind="brass" onClick={(e) => { e.stopPropagation(); openFulfill(o, "shipping"); }}>
-                                  <Truck size={13} />Ship
-                                </Btn>
-                              )}
-                            </>
-                          ) : st.key === "willcall" || st.key === "shipping" || st.key === "shipped" ? (
-                            <span className="flex items-center gap-1" style={{ fontSize: 12, color: C.gray }}>
-                              <MapPin size={12} />{o.location}
-                              {o.trackingNumber && (
-                                <a href={trackingUrl(o.trackingNumber)} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} title="Track this shipment (opens the carrier's site)" style={{ fontFamily: "ui-monospace,monospace", marginLeft: 6, color: C.blue, textDecoration: "none" }}>· {o.trackingNumber}<ExternalLink size={10} style={{ marginLeft: 2, verticalAlign: "-1px" }} /></a>
-                              )}
-                            </span>
-                          ) : (
-                            <Btn onClick={(e) => { e.stopPropagation(); setDoc({ o, items: [o.items.find((i) => i.stage === "workorder" || i.stage === "done") || o.items[0]] }); }}>
-                              <Printer size={13} />Work order
-                            </Btn>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+                {visibleOrders.map((o) => renderOrderCard(o))}
+              </Tabwrap>
+            )}
+
+            {tab === "urgent" && (
+              <Tabwrap title="Urgent">
+                {!urgentOrders.length && <Empty>Nothing urgent right now. Orders show here when they're marked Urgent or due within 2 days.</Empty>}
+                {urgentOrders.map((o) => renderOrderCard(o))}
               </Tabwrap>
             )}
 
             {tab === "willcall" && (
               <Tabwrap title="Will Call">
-                <FulfillmentBoard variant="willcall" orders={willCallOrders} now={now} onOpen={setDetailId} onPickedUp={(o) => setPartialTarget({ order: o, kind: "pickup" })} emptyText="Nothing on will-call yet. Completed orders land here when you mark them Will Call." />
+                <FulfillmentBoard variant="willcall" orders={willCallOrders} now={now} onOpen={setDetailId} onPickedUp={(o) => setPartialTarget({ order: o, kind: "pickup" })} onSetLocation={board.setLocation} emptyText="Nothing on will-call yet. Completed orders land here when you mark them Will Call." />
               </Tabwrap>
             )}
 
             {tab === "shipping" && (
               <Tabwrap title="Shipping">
-                <FulfillmentBoard variant="shipping" orders={shippingOrders} now={now} onOpen={setDetailId} onMarkShipped={(o) => setPartialTarget({ order: o, kind: "shipment" })} emptyText="Nothing shipping yet. Completed orders land here when you mark them Ship." />
+                <FulfillmentBoard variant="shipping" orders={shippingOrders} now={now} onOpen={setDetailId} onMarkShipped={(o) => setPartialTarget({ order: o, kind: "shipment" })} onSetLocation={board.setLocation} emptyText="Nothing shipping yet. Completed orders land here when you mark them Ship." />
               </Tabwrap>
             )}
 
@@ -908,7 +936,45 @@ function CombinedItems({ orders, stage, onMake, onDept }) {
 // List for the Will Call / Shipping tabs: completed orders with their staged
 // warehouse location. Shipping orders also get a "Shipped" action that logs a
 // tracking number; once logged, the tracking number shows in its place.
-function FulfillmentBoard({ orders, now, onOpen, onMarkShipped, onPickedUp, variant, emptyText }) {
+// The staged warehouse spot shown on a Will Call / Shipping card. Read-only text
+// until you click it (only when onSave is given) — then an inline input to edit
+// where the order is staged, without disturbing its fulfillment state.
+function LocationCell({ value, onSave }) {
+  const [editing, setEditing] = useState(false);
+  const [v, setV] = useState(value || "");
+  useEffect(() => { setV(value || ""); }, [value]);
+  const save = () => { onSave(v.trim() || null); setEditing(false); };
+  if (editing) {
+    return (
+      <span className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+        <MapPin size={15} color={C.gray} />
+        <input
+          autoFocus value={v}
+          onChange={(e) => setV(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") { setV(value || ""); setEditing(false); } }}
+          placeholder="Location"
+          className="px-2 py-1 outline-none"
+          style={{ border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 13, width: 130 }}
+        />
+        <button onClick={save} title="Save location" className="inline-flex" style={{ color: C.green, background: "none", border: "none", cursor: "pointer", padding: 2 }}><Check size={16} /></button>
+      </span>
+    );
+  }
+  return (
+    <span
+      className="flex items-center gap-1"
+      onClick={onSave ? (e) => { e.stopPropagation(); setEditing(true); } : undefined}
+      title={onSave ? "Click to edit the staged location" : undefined}
+      style={{ cursor: onSave ? "pointer" : "default" }}
+    >
+      <MapPin size={15} color={C.gray} />
+      <span className="font-bold">{value || "—"}</span>
+      {onSave && <Pencil size={12} color={C.gray} style={{ flexShrink: 0 }} />}
+    </span>
+  );
+}
+
+function FulfillmentBoard({ orders, now, onOpen, onMarkShipped, onPickedUp, onSetLocation, variant, emptyText }) {
   if (!orders.length) return <Empty>{emptyText}</Empty>;
   return (
     <>
@@ -930,7 +996,7 @@ function FulfillmentBoard({ orders, now, onOpen, onMarkShipped, onPickedUp, vari
             <div className="flex items-center gap-x-3 gap-y-2 px-4 py-3 flex-wrap">
               <span className="font-bold" style={{ fontFamily: "ui-monospace,monospace", fontSize: 15 }}>#{o.orderNo}</span>
               <div className="min-w-0">
-                <div className="font-bold" style={{ fontSize: 14 }}>{o.customer}</div>
+                <div className="font-bold flex items-center gap-2" style={{ fontSize: 14 }}>{o.customer}{o.notes && <Bell size={14} color={C.high} fill={C.high} title={`Note: ${o.notes}`} style={{ flexShrink: 0 }} />}</div>
                 <div style={{ fontSize: 12, color: C.gray }}>Ordered by {o.contact} · {elapsed(now - o.receivedAt)} ago</div>
               </div>
               <DuePill o={o} now={now} />
@@ -945,10 +1011,7 @@ function FulfillmentBoard({ orders, now, onOpen, onMarkShipped, onPickedUp, vari
                 </span>
               )}
               <div className="basis-full sm:basis-auto sm:ml-auto flex flex-wrap items-center gap-3" style={{ fontSize: 13 }}>
-                <span className="flex items-center gap-1">
-                  <MapPin size={15} color={C.gray} />
-                  <span className="font-bold">{o.location || "—"}</span>
-                </span>
+                <LocationCell value={o.location} onSave={onSetLocation ? (loc) => onSetLocation(o.id, loc) : undefined} />
                 {variant === "shipping" && (
                   shipped ? (
                     <span className="flex items-center gap-2 flex-wrap">

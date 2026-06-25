@@ -329,6 +329,13 @@ export const supabaseAdapter = {
     fail(error);
   },
 
+  // Edit the staged shipping/will-call location after fulfillment (the spot in
+  // the warehouse it's staged at). Doesn't touch the fulfillment state itself.
+  async setLocation(orderId, location) {
+    const { error } = await supabase.from("orders").update({ fulfillment_location: location || null }).eq("id", orderId);
+    fail(error);
+  },
+
   async fulfillOrder(orderId, method, location) {
     const { error } = await supabase
       .from("orders")

@@ -10,6 +10,7 @@ export function GlobalSearch({ orders, onOpen }) {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
+  const inputRef = useRef(null);
 
   useEffect(() => {
     const onDoc = (e) => {
@@ -17,6 +18,20 @@ export function GlobalSearch({ orders, onOpen }) {
     };
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
+
+  // Ctrl/Cmd+F jumps straight to this search (find an order by #, customer, or
+  // product) instead of the browser's page-find, which the crew asked for.
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === "f" || e.key === "F")) {
+        e.preventDefault();
+        inputRef.current?.focus();
+        inputRef.current?.select();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, []);
 
   const query = q.trim().toLowerCase();
@@ -42,13 +57,14 @@ export function GlobalSearch({ orders, onOpen }) {
       <div className="flex items-center gap-2 px-3 rounded" style={{ background: "rgba(255,255,255,0.12)", height: 34 }}>
         <Search size={15} color="rgba(255,255,255,0.7)" />
         <input
+          ref={inputRef}
           value={q}
           onChange={(e) => {
             setQ(e.target.value);
             setOpen(true);
           }}
           onFocus={() => q && setOpen(true)}
-          placeholder="Search order #, customer, product…"
+          placeholder="Search order #, customer, product… (Ctrl+F)"
           style={{ background: "transparent", border: "none", outline: "none", color: "#fff", fontSize: 13, width: "clamp(104px, 32vw, 210px)" }}
         />
         {q && (

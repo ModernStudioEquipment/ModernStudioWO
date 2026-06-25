@@ -82,6 +82,7 @@ export function useOrders(enabled) {
     setDueDate: act((orderId, dueDate, dueTime) => db.setDueDate(orderId, dueDate, dueTime)),
     setFulfillmentMethod: act((orderId, method) => db.setFulfillmentMethod(orderId, method)),
     setOrderNotes: act((orderId, notes) => db.setOrderNotes(orderId, notes)),
+    setLocation: act((orderId, location) => db.setLocation(orderId, location)),
     fulfillOrder: act((orderId, method, location) => db.fulfillOrder(orderId, method, location)),
     markShipped: act((orderId, payload) => db.markShipped(orderId, payload)),
     recordFulfillment: act((orderId, payload) => db.recordFulfillment(orderId, payload)),
