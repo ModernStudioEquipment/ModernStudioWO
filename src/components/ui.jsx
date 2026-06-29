@@ -419,12 +419,13 @@ export function Empty({ children }) {
   );
 }
 
-export function Tabwrap({ title, action, children }) {
+export function Tabwrap({ title, titleAside, action, children }) {
   return (
     <div>
       <div className="mb-3 flex items-start gap-3">
-        <div>
+        <div className="flex items-center gap-2">
           <div className="font-bold" style={{ fontSize: 16, textTransform: "uppercase", letterSpacing: 0.5 }}>{title}</div>
+          {titleAside}
         </div>
         {action && <div className="ml-auto">{action}</div>}
       </div>

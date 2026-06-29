@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import {
   Clock, Printer, Plus, Truck, CheckCircle2, AlertTriangle, Hammer,
-  Flag, Check, ArrowRight, ShoppingCart, LogOut, Store, MapPin, Package, X, Bell, ExternalLink, RefreshCw, Pencil, RotateCcw,
+  Flag, Check, ArrowRight, ShoppingCart, LogOut, Store, MapPin, Package, X, Bell, ExternalLink, RefreshCw, Pencil, RotateCcw, ChevronsDownUp, ChevronsUpDown,
 } from "lucide-react";
 import { C, PRI, PRI_CYCLE, PRI_RANK, elapsed, blocked, pct, dueLabel, priLabel, effectivePriority, trackingUrl, stagedTooLong, stagedDwellMs, STAGE_LABELS } from "./theme.js";
 import { backendMode } from "./lib/db.js";
@@ -510,13 +510,11 @@ export default function App() {
             {tab === "new" && (
               <Tabwrap
                 title="NEW ORDERS"
+                titleAside={<ExpandToggle scope="new" ids={newOrdersShown.map((o) => o.id)} isExpanded={isExpanded} setAllExpanded={setAllExpanded} />}
                 action={
                   <div className="flex items-center gap-2 flex-wrap justify-end">
                     <SegGroup value={newSource} onChange={setNewSource} options={[["all", "All"], ["QuickBooks", "QB"], ["Shopify", "Shopify"]]} />
                     <SegGroup value={newSort} onChange={setNewSort} options={[["newest", "Newest"], ["due", "Due date"]]} />
-                    <Btn onClick={() => setAllExpanded("new", newOrdersShown.map((o) => o.id), !newOrdersShown.some((o) => isExpanded("new", o.id)))}>
-                      {newOrdersShown.some((o) => isExpanded("new", o.id)) ? "Collapse all" : "Open all"}
-                    </Btn>
                     <Btn onClick={syncQuickBooks} disabled={syncing}><RefreshCw size={13} />{syncing ? "Syncing QuickBooks…" : "Sync QuickBooks"}</Btn>
                     <Btn kind="dark" onClick={() => setShowNew(true)}><Plus size={13} />New order</Btn>
                   </div>
@@ -562,17 +560,13 @@ export default function App() {
               <Tabwrap
                 title="PICK LIST"
                 sub="Click an item to see its image, then grab it and check it off."
+                titleAside={<ExpandToggle scope="pick" ids={(pickNotesOnly ? pickNoted : pickOrders).map((o) => o.id)} isExpanded={isExpanded} setAllExpanded={setAllExpanded} />}
                 action={
-                  <div className="flex items-center gap-2 flex-wrap justify-end">
-                    <div className="flex items-center gap-1">
-                      <button onClick={() => setPickNotesOnly(false)} className="px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wide" style={!pickNotesOnly ? { background: C.ink, color: "#fff" } : { background: "#fff", color: C.inkSoft, border: `1px solid ${C.line}` }}>All</button>
-                      <button onClick={() => setPickNotesOnly(true)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wide" style={pickNotesOnly ? { background: C.ink, color: "#fff" } : { background: "#fff", color: C.inkSoft, border: `1px solid ${C.line}` }}>
-                        <Bell size={12} />With notes{pickNoted.length ? ` · ${pickNoted.length}` : ""}
-                      </button>
-                    </div>
-                    <Btn onClick={() => { const shown = pickNotesOnly ? pickNoted : pickOrders; setAllExpanded("pick", shown.map((o) => o.id), !shown.some((o) => isExpanded("pick", o.id))); }}>
-                      {(pickNotesOnly ? pickNoted : pickOrders).some((o) => isExpanded("pick", o.id)) ? "Collapse all" : "Open all"}
-                    </Btn>
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => setPickNotesOnly(false)} className="px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wide" style={!pickNotesOnly ? { background: C.ink, color: "#fff" } : { background: "#fff", color: C.inkSoft, border: `1px solid ${C.line}` }}>All</button>
+                    <button onClick={() => setPickNotesOnly(true)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wide" style={pickNotesOnly ? { background: C.ink, color: "#fff" } : { background: "#fff", color: C.inkSoft, border: `1px solid ${C.line}` }}>
+                      <Bell size={12} />With notes{pickNoted.length ? ` · ${pickNoted.length}` : ""}
+                    </button>
                   </div>
                 }
               >
@@ -1155,6 +1149,22 @@ function FulfillmentBoard({ orders, now, onOpen, onMarkShipped, onPickedUp, onSe
 // sinks to the bottom.
 function itemRank(it) {
   return it.stage === "new" ? 0 : it.stage === "done" ? 2 : 1;
+}
+
+// Small expand/collapse-all toggle that sits next to a tab title (keeps it out
+// of the action bar). The double-chevron shows whether a click opens or folds.
+function ExpandToggle({ scope, ids, isExpanded, setAllExpanded }) {
+  const anyOpen = ids.some((id) => isExpanded(scope, id));
+  return (
+    <button
+      onClick={() => setAllExpanded(scope, ids, !anyOpen)}
+      title={anyOpen ? "Collapse all" : "Expand all"}
+      className="inline-flex items-center justify-center"
+      style={{ width: 28, height: 28, borderRadius: 6, border: `1px solid ${C.line}`, background: "#fff", color: C.inkSoft, cursor: "pointer" }}
+    >
+      {anyOpen ? <ChevronsDownUp size={15} /> : <ChevronsUpDown size={15} />}
+    </button>
+  );
 }
 
 // A segmented control with an Apple-style SLIDING pill: the dark indicator
