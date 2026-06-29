@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Clock, Wrench, Scissors, Cpu, Hammer, Flag, Check, ChevronDown, Store, Truck, Bell } from "lucide-react";
+import { Clock, Wrench, Scissors, Cpu, Hammer, Flag, Check, ChevronDown, Store, Truck, Bell, CalendarCheck } from "lucide-react";
 import { C, PRI, PRIORITIES, DEPTS, elapsed, sittingLevel, stageDwellMs, STAGE_LABELS, dueLabel, dueLevel, DUE } from "../theme.js";
 
 const DEPT_ICONS = { Shop: Hammer, CNC: Cpu, Sewing: Scissors, Saw: Wrench };
@@ -163,6 +163,44 @@ export function DuePill({ o, now = Date.now(), onChange }) {
   );
 }
 
+// Estimated "ready by" date popover — date only, no urgency.
+function CompletionEditor({ initialDate, onChange, onClose }) {
+  const [date, setDate] = useState(initialDate || "");
+  const inp = { border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 13, background: "#fff" };
+  const lbl = { fontSize: 10, fontWeight: 700, color: C.gray, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3 };
+  return (
+    <>
+      <div onClick={(e) => { e.stopPropagation(); onClose(); }} style={{ position: "fixed", inset: 0, zIndex: 49 }} />
+      <div onClick={(e) => e.stopPropagation()} style={{ position: "absolute", top: "100%", left: 0, marginTop: 4, zIndex: 50, background: "#fff", border: `1px solid ${C.line}`, borderRadius: 8, padding: 10, boxShadow: "0 8px 24px rgba(20,28,38,0.16)", width: 196 }}>
+        <div style={lbl}>Estimated ready by</div>
+        <input type="date" value={date} onChange={(e) => { setDate(e.target.value); onChange(e.target.value || null); }} className="w-full px-2 py-1.5 outline-none" style={inp} />
+        {date && <button onClick={() => { onChange(null); onClose(); }} style={{ marginTop: 8, fontSize: 12, color: C.rush, fontWeight: 700, background: "none", border: "none", padding: 0, cursor: "pointer" }}>Clear ready-by date</button>}
+      </div>
+    </>
+  );
+}
+
+// The shop's estimated "ready by" date — its own completion estimate. Kept
+// NEUTRAL on purpose (blue/informational, calendar icon) so it never reads as
+// urgency the way the red/amber DuePill does. Click to set when onChange is given.
+export function CompletionPill({ o, onChange }) {
+  const [editing, setEditing] = useState(false);
+  const date = o.completionDate;
+  if (!date && !onChange) return null; // read-only + unset → show nothing
+  const pill = (
+    <Pill c={date ? C.blue : C.gray} bg={date ? C.blueBg : C.grayBg} Icon={CalendarCheck}>
+      {date ? `Ready ${dueLabel(date)}` : "Ready-by"}{onChange && <ChevronDown size={11} style={{ opacity: 0.6 }} />}
+    </Pill>
+  );
+  if (!onChange) return pill;
+  return (
+    <span style={{ position: "relative", display: "inline-flex" }} onClick={(e) => e.stopPropagation()} title="Estimated ready-by date (the shop's completion estimate)">
+      <span style={{ cursor: "pointer" }} onClick={() => setEditing((v) => !v)}>{pill}</span>
+      {editing && <CompletionEditor initialDate={date} onChange={onChange} onClose={() => setEditing(false)} />}
+    </span>
+  );
+}
+
 // The fulfillment method chosen at intake (Will Call vs Shipping). Sticks to the
 // order and shows next to the customer name everywhere it travels. Read-only by
 // default; pass `onChange` to make it a pair of click-to-set toggles (so orders
@@ -217,7 +255,7 @@ export function MoveMenu({ stage, onMove }) {
   );
 }
 
-export function OrderHeader({ o, now, onDueDate, onMethod, onOpen, collapsible, open, onToggle }) {
+export function OrderHeader({ o, now, onDueDate, onCompletion, onMethod, onOpen, collapsible, open, onToggle }) {
   return (
     <div
       onClick={onOpen}
@@ -243,6 +281,7 @@ export function OrderHeader({ o, now, onDueDate, onMethod, onOpen, collapsible, 
           {o.notes && <Bell size={15} color={C.rush} fill={C.rush} title={`Note: ${o.notes}`} style={{ flexShrink: 0 }} />}
           <MethodBadge m={o.fulfillmentMethod} onChange={onMethod ? (m) => onMethod(o.id, m) : undefined} />
           <DuePill o={o} now={now} onChange={onDueDate ? (date, time) => onDueDate(o.id, date, time) : undefined} />
+          <CompletionPill o={o} onChange={onCompletion ? (date) => onCompletion(o.id, date) : undefined} />
         </div>
         <div style={{ fontSize: 12, color: C.gray }}>Ordered by {o.contact}</div>
       </div>
@@ -253,7 +292,7 @@ export function OrderHeader({ o, now, onDueDate, onMethod, onOpen, collapsible, 
   );
 }
 
-export function Group({ o, now, children, onDueDate, onMethod, onOpen, collapsible, noteRail, open: openProp, onToggle: onToggleProp }) {
+export function Group({ o, now, children, onDueDate, onCompletion, onMethod, onOpen, collapsible, noteRail, open: openProp, onToggle: onToggleProp }) {
   const lvl = dueLevel(o, now);
   // Controlled collapse when open/onToggle are supplied (so the board can persist
   // it per-computer); otherwise fall back to local state (default expanded).
@@ -262,7 +301,7 @@ export function Group({ o, now, children, onDueDate, onMethod, onOpen, collapsib
   const toggle = onToggleProp || (() => setOpenState((v) => !v));
   const [noteOpen, setNoteOpen] = useState(false);
   const header = (
-    <OrderHeader o={o} now={now} onDueDate={onDueDate} onMethod={onMethod} onOpen={onOpen}
+    <OrderHeader o={o} now={now} onDueDate={onDueDate} onCompletion={onCompletion} onMethod={onMethod} onOpen={onOpen}
       collapsible={collapsible} open={open} onToggle={toggle} />
   );
   const body = (!collapsible || open) && children;

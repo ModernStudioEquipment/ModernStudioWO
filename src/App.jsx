@@ -9,7 +9,7 @@ import { useAuth } from "./hooks/useAuth.js";
 import { useOrders } from "./hooks/useOrders.js";
 import { useWorkOrders } from "./hooks/useWorkOrders.js";
 import {
-  Pill, Btn, Group, ItemLine, Empty, Tabwrap, DeptBadge, DuePill, MethodBadge, MoveMenu, SittingBadge, InlineMenu,
+  Pill, Btn, Group, ItemLine, Empty, Tabwrap, DeptBadge, DuePill, CompletionPill, MethodBadge, MoveMenu, SittingBadge, InlineMenu,
 } from "./components/ui.jsx";
 import { Auth } from "./components/Auth.jsx";
 import { Logo } from "./components/Logo.jsx";
@@ -383,6 +383,7 @@ export default function App() {
             </div>
           </div>
           <DuePill o={o} now={now} onChange={(date, time) => board.setDueDate(o.id, date, time)} />
+          <CompletionPill o={o} onChange={(date) => board.setCompletionDate(o.id, date)} />
           <div className="basis-full sm:basis-auto sm:ml-auto flex flex-wrap items-center gap-3">
             <div className="flex flex-wrap items-center gap-1">
               {o.items.map((it) => (
@@ -512,7 +513,7 @@ export default function App() {
               >
                 {!newOrdersShown.length && <Empty>{newSource === "all" ? "Nothing waiting. New orders land here the moment they come in." : `No ${newSource} orders waiting.`}</Empty>}
                 {newOrdersShown.map((o) => (
-                  <Group key={o.id} o={o} now={now} onDueDate={board.setDueDate} onMethod={board.setFulfillmentMethod} onOpen={() => setDetailId(o.id)} collapsible noteRail open={isExpanded("new", o.id)} onToggle={() => toggleExpanded("new", o.id)}>
+                  <Group key={o.id} o={o} now={now} onDueDate={board.setDueDate} onCompletion={board.setCompletionDate} onMethod={board.setFulfillmentMethod} onOpen={() => setDetailId(o.id)} collapsible noteRail open={isExpanded("new", o.id)} onToggle={() => toggleExpanded("new", o.id)}>
                     {/* Show every item, active (still-'new') ones first and the
                         already-routed (greyed/crossed-out) ones sunk to the bottom,
                         so nothing silently vanishes and the to-do items stay on top.
@@ -568,7 +569,7 @@ export default function App() {
                   <Empty>{pickNotesOnly ? "No items have notes right now." : "Empty. In-stock items show up here after triage."}</Empty>
                 )}
                 {[...(pickNotesOnly ? pickNoted : pickOrders)].sort(byUrgency).map((o) => (
-                  <Group key={o.id} o={o} now={now} onDueDate={board.setDueDate} onMethod={board.setFulfillmentMethod} onOpen={() => setDetailId(o.id)} collapsible open={isExpanded("pick", o.id)} onToggle={() => toggleExpanded("pick", o.id)}>
+                  <Group key={o.id} o={o} now={now} onDueDate={board.setDueDate} onCompletion={board.setCompletionDate} onMethod={board.setFulfillmentMethod} onOpen={() => setDetailId(o.id)} collapsible open={isExpanded("pick", o.id)} onToggle={() => toggleExpanded("pick", o.id)}>
                     {o.items.filter((it) => it.stage === "picklist").map((it) => (
                       <ItemLine
                         key={it.id} it={it} now={now}
@@ -656,7 +657,7 @@ export default function App() {
                     const woItems = o.items.filter((it) => it.stage === "workorder");
                     const depts = [...new Set(woItems.map((it) => it.dept))];
                     return (
-                      <Group key={o.id} o={o} now={now} onDueDate={board.setDueDate} onMethod={board.setFulfillmentMethod} onOpen={() => setDetailId(o.id)}>
+                      <Group key={o.id} o={o} now={now} onDueDate={board.setDueDate} onCompletion={board.setCompletionDate} onMethod={board.setFulfillmentMethod} onOpen={() => setDetailId(o.id)}>
                         {depts.map((dept) => {
                           const deptItems = woItems.filter((it) => it.dept === dept);
                           const multi = deptItems.length > 1;
@@ -702,7 +703,7 @@ export default function App() {
               <Tabwrap title="PURCHASING" action={<Btn kind="dark" onClick={() => setShowNewPurchase(true)}><Plus size={13} />New purchase</Btn>}>
                 {!buyOrders.length && <Empty>Nothing to buy. Materials land here when an item is triaged “need material.”</Empty>}
                 {buyOrders.map((o) => (
-                  <Group key={o.id} o={o} now={now} onDueDate={board.setDueDate} onMethod={board.setFulfillmentMethod} onOpen={() => setDetailId(o.id)}>
+                  <Group key={o.id} o={o} now={now} onDueDate={board.setDueDate} onCompletion={board.setCompletionDate} onMethod={board.setFulfillmentMethod} onOpen={() => setDetailId(o.id)}>
                     {o.items.filter((it) => it.needsMaterial).map((it) =>
                       it.materials.filter((m) => !m.received).map((m) => {
                         // Once the expected date is reached, flag the row so the
@@ -843,6 +844,7 @@ export default function App() {
           status={orderStatus(detailOrder)}
           now={now}
           onDueDate={(date, time) => board.setDueDate(detailOrder.id, date, time)}
+          onCompletion={(date) => board.setCompletionDate(detailOrder.id, date)}
           onMethod={(m) => board.setFulfillmentMethod(detailOrder.id, m)}
           onSaveNotes={(notes) => board.setOrderNotes(detailOrder.id, notes)}
           onUpdateItem={(itemId, patch) => board.updateItem(itemId, patch)}

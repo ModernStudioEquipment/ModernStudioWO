@@ -65,6 +65,7 @@ function mapOrder(row, productPhotos = {}, fulfillmentsByOrder = {}) {
     willCall: row.will_call,
     dueDate: row.due_date || null,
     dueTime: row.due_time || null,
+    completionDate: row.completion_date || null, // shop's estimated ready-by date
     notes: row.notes || null,
     fulfillmentMethod: row.fulfillment_method || null, // chosen at intake; sticks to the order
     fulfillment: row.fulfillment, // null | 'willcall' | 'shipping'
@@ -317,6 +318,13 @@ export const supabaseAdapter = {
     // Fallback if the 0025 due_time column isn't there yet: still set the date.
     if (error) ({ error } = await supabase.from("orders").update({ due_date: dueDate || null }).eq("id", orderId));
     fail(error);
+  },
+
+  // The shop's estimated ready-by date (separate from due_date — informational,
+  // no urgency). Needs migration 0030; tolerate it not being run yet.
+  async setCompletionDate(orderId, completionDate) {
+    const { error } = await supabase.from("orders").update({ completion_date: completionDate || null }).eq("id", orderId);
+    if (error && !/completion_date/.test(error.message || "")) fail(error);
   },
 
   async setFulfillmentMethod(orderId, method) {

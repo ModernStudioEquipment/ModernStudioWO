@@ -154,6 +154,7 @@ export const localAdapter = {
       fulfillmentMethod: fulfillmentMethod || null,
       dueDate: dueDate || null,
       dueTime: dueTime || null,
+      completionDate: null,
       fulfillment: null,
       fulfilledAt: null,
       location: null,
@@ -350,6 +351,13 @@ export const localAdapter = {
     const orders = read();
     const o = orders.find((x) => x.id === orderId);
     if (o) { o.dueDate = dueDate || null; o.dueTime = dueTime || null; }
+    write(orders);
+  },
+
+  async setCompletionDate(orderId, completionDate) {
+    const orders = read();
+    const o = orders.find((x) => x.id === orderId);
+    if (o) o.completionDate = completionDate || null;
     write(orders);
   },
 
