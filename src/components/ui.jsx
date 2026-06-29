@@ -183,10 +183,12 @@ function CompletionEditor({ initialDate, onChange, onClose }) {
 // The shop's estimated "ready by" date — its own completion estimate. Kept
 // NEUTRAL on purpose (blue/informational, calendar icon) so it never reads as
 // urgency the way the red/amber DuePill does. Click to set when onChange is given.
-export function CompletionPill({ o, onChange }) {
+export function CompletionPill({ o, onChange, showEmpty }) {
   const [editing, setEditing] = useState(false);
   const date = o.completionDate;
-  if (!date && !onChange) return null; // read-only + unset → show nothing
+  // On cards we only show it once a date is set (keeps cards uncluttered); the
+  // order-detail passes showEmpty so you can still set it there.
+  if (!date && !showEmpty) return null;
   const pill = (
     <Pill c={date ? C.blue : C.gray} bg={date ? C.blueBg : C.grayBg} Icon={CalendarCheck}>
       {date ? `Ready ${dueLabel(date)}` : "Ready-by"}{onChange && <ChevronDown size={11} style={{ opacity: 0.6 }} />}
@@ -275,7 +277,7 @@ export function MoveMenu({ stage, onMove }) {
   );
 }
 
-export function OrderHeader({ o, now, onDueDate, onCompletion, onMethod, onInvoice, onOpen, collapsible, open, onToggle }) {
+export function OrderHeader({ o, now, onDueDate, onCompletion, onMethod, onInvoice, onOpen, collapsible, open, onToggle, noteRail }) {
   return (
     <div
       onClick={onOpen}
@@ -298,7 +300,7 @@ export function OrderHeader({ o, now, onDueDate, onCompletion, onMethod, onInvoi
       <div style={{ minWidth: 0 }}>
         <div className="font-bold flex items-center gap-2 flex-wrap" style={{ fontSize: 14 }}>
           {o.customer}
-          {o.notes && <Bell size={15} color={C.rush} fill={C.rush} title={`Note: ${o.notes}`} style={{ flexShrink: 0 }} />}
+          {o.notes && !noteRail && <Bell size={15} color={C.rush} fill={C.rush} title={`Note: ${o.notes}`} style={{ flexShrink: 0 }} />}
           <MethodBadge m={o.fulfillmentMethod} onChange={onMethod ? (m) => onMethod(o.id, m) : undefined} />
           <DuePill o={o} now={now} onChange={onDueDate ? (date, time) => onDueDate(o.id, date, time) : undefined} />
           <CompletionPill o={o} onChange={onCompletion ? (date) => onCompletion(o.id, date) : undefined} />
@@ -324,7 +326,7 @@ export function Group({ o, now, children, onDueDate, onCompletion, onMethod, onI
   const [noteOpen, setNoteOpen] = useState(false);
   const header = (
     <OrderHeader o={o} now={now} onDueDate={onDueDate} onCompletion={onCompletion} onMethod={onMethod} onInvoice={onInvoice} onOpen={onOpen}
-      collapsible={collapsible} open={open} onToggle={toggle} />
+      collapsible={collapsible} open={open} onToggle={toggle} noteRail={noteRail} />
   );
   const body = (!collapsible || open) && children;
   // An order with a note gets a clear amber ring around the whole card so it

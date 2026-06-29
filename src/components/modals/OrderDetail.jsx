@@ -25,14 +25,18 @@ export function OrderDetail({ order, status, now, onDueDate, onCompletion, onInv
   return (
     <div style={overlay} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: 580, maxWidth: "96vw", background: C.concrete, borderRadius: 8, overflow: "hidden" }}>
-        <div className="flex items-center gap-3 px-4 py-3" style={{ background: C.ink, color: "#fff" }}>
-          <span className="font-bold" style={{ fontFamily: "ui-monospace,monospace", fontSize: 16 }}>#{order.orderNo}</span>
-          <span className="font-bold" style={{ fontSize: 15 }}>{order.customer}</span>
-          <MethodBadge m={order.fulfillmentMethod} onChange={onMethod} />
-          <DuePill o={order} now={now} onChange={onDueDate} />
-          <CompletionPill o={order} onChange={onCompletion} />
-          <InvoicedBadge o={order} onClick={onInvoice} />
-          <button onClick={onClose} className="ml-auto" style={{ color: "#fff" }}><X size={18} /></button>
+        <div className="px-4 py-3" style={{ background: C.ink, color: "#fff" }}>
+          <div className="flex items-start gap-3">
+            <span className="font-bold" style={{ fontFamily: "ui-monospace,monospace", fontSize: 16, flexShrink: 0 }}>#{order.orderNo}</span>
+            <span className="font-bold flex-1 min-w-0" style={{ fontSize: 15 }}>{order.customer}</span>
+            <button onClick={onClose} style={{ color: "#fff", flexShrink: 0 }}><X size={18} /></button>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap mt-2">
+            <MethodBadge m={order.fulfillmentMethod} onChange={onMethod} />
+            <DuePill o={order} now={now} onChange={onDueDate} />
+            <CompletionPill o={order} onChange={onCompletion} showEmpty />
+            <InvoicedBadge o={order} onClick={onInvoice} />
+          </div>
         </div>
         <div className="p-4">
           <div className="grid mb-4 grid-cols-2 sm:grid-cols-3" style={{ gap: 10 }}>
