@@ -65,7 +65,7 @@ function PhotoBox({ minHeight = 220, imageUrl, onUpload }) {
   if (imageUrl) {
     return (
       <div {...drop} className="flex items-center justify-center" style={{ position: "relative", margin: "20px 0", minHeight, border: `${dragOver ? 2 : 1}px ${dragOver ? "dashed" : "solid"} ${dragOver ? C.blue : C.line}`, borderRadius: 4, background: "#fff", overflow: "hidden" }}>
-        <img src={imageUrl} alt="Product" style={{ maxWidth: "100%", maxHeight: minHeight + 60, objectFit: "contain" }} />
+        <img src={imageUrl} alt="Product" style={{ maxWidth: "100%", maxHeight: minHeight + 80, objectFit: "contain" }} />
         {onUpload && <button type="button" className="no-print" onClick={() => fileRef.current && fileRef.current.click()} style={{ position: "absolute", top: 6, right: 6, fontSize: 11, fontWeight: 700, background: "rgba(255,255,255,0.92)", border: `1px solid ${C.line}`, borderRadius: 6, padding: "3px 8px", cursor: "pointer" }}>{uploading ? "…" : "Replace"}</button>}
         {hiddenInput}
       </div>
@@ -147,7 +147,7 @@ export function BasicBody({ fields, set, orderNo, numLabel = "WO #", imageUrl, i
         <FieldEdit label="Notes"><EI value={fields.notes} onChange={(v) => set("notes", v)} size={15} full /></FieldEdit>
       </div>
 
-      <PhotoBox imageUrl={imageUrl} onUpload={onUploadPhoto} />
+      <PhotoBox minHeight={440} imageUrl={imageUrl} onUpload={onUploadPhoto} />
       <CompletedBy value={fields.completedBy} onChange={(v) => set("completedBy", v)} />
     </>
   );
@@ -188,7 +188,7 @@ export function CncBody({ fields, set, orderNo, numLabel = "WO #", imageUrl, onU
         ))}
       </div>
 
-      <PhotoBox minHeight={180} imageUrl={imageUrl} onUpload={onUploadPhoto} />
+      <PhotoBox minHeight={320} imageUrl={imageUrl} onUpload={onUploadPhoto} />
       <CompletedBy value={fields.completedBy} onChange={(v) => set("completedBy", v)} />
     </>
   );

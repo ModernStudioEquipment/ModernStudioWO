@@ -9,10 +9,19 @@ const fail = (error) => {
   if (error) throw new Error(error.message || String(error));
 };
 
+// An item's SKU: the explicit column if it's set, otherwise parsed from the
+// "Item #:" note the QuickBooks sync writes (e.g. "Item #: 013-2410-BZ").
+// Reading it from the note means item photos resolve with no per-item write.
+function itemSku(it) {
+  if (it.sku) return String(it.sku).trim();
+  const m = (it.note || "").match(/Item #:\s*(\S+)/);
+  return m ? m[1] : null;
+}
+
 let channelSeq = 0; // unique realtime channel names — one channel per subscriber
 
 // DB row (snake_case) -> the normalized in-memory shape the UI consumes.
-function mapOrder(row, productPhotos = {}, fulfillmentsByOrder = {}) {
+function mapOrder(row, productPhotos = {}, fulfillmentsByOrder = {}, photoBySku = {}) {
   const items = (row.items || [])
     .slice()
     .sort((a, b) => (a.position ?? 0) - (b.position ?? 0) || a.created_at.localeCompare(b.created_at))
@@ -26,7 +35,8 @@ function mapOrder(row, productPhotos = {}, fulfillmentsByOrder = {}) {
       needsMaterial: it.needs_material,
       fulfilledQty: it.fulfilled_qty || 0,
       completedBy: it.completed_by,
-      imageUrl: it.image_url || productPhotos[it.name] || null,
+      sku: itemSku(it),
+      imageUrl: it.image_url || photoBySku[(itemSku(it) || "").toLowerCase()] || productPhotos[it.name] || null,
       note: it.note || null,
       inProgress: it.in_progress || false,
       events: (it.item_events || [])
@@ -109,6 +119,11 @@ export const supabaseAdapter = {
     const productPhotos = {};
     const { data: pp } = await supabase.from("product_photos").select("name,image_url");
     if (Array.isArray(pp)) pp.forEach((r) => { productPhotos[r.name] = r.image_url; });
+    // SKU-keyed photo library (0034): how QuickBooks items get their photo, matched
+    // by the SKU in their "Item #:" note. Tolerate the table not existing yet.
+    const photoBySku = {};
+    const { data: ip } = await supabase.from("item_photos").select("sku,image_url");
+    if (Array.isArray(ip)) ip.forEach((r) => { if (r.sku) photoBySku[String(r.sku).toLowerCase()] = r.image_url; });
     // Partial pickup/shipment log, grouped by order (tolerate the table missing).
     const fulfillmentsByOrder = {};
     const { data: ff } = await supabase.from("fulfillments").select("*").order("created_at", { ascending: true });
@@ -118,7 +133,7 @@ export const supabaseAdapter = {
         trackingNumber: f.tracking_number || null, note: f.note || null, lines: f.lines || [], at: f.created_at,
       });
     });
-    return (data || []).map((row) => mapOrder(row, productPhotos, fulfillmentsByOrder));
+    return (data || []).map((row) => mapOrder(row, productPhotos, fulfillmentsByOrder, photoBySku));
   },
 
   // Record one partial pickup/shipment (atomic SQL fn: log it, add the quantities
