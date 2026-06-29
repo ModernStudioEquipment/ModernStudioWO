@@ -266,19 +266,40 @@ async function run({ commit, shipToBackfillDays }) {
     });
     if (ins.ok) {
       inserted++;
-      // Stamp the drop-ship recipient on the order we just created (tolerate the
-      // ship_to column not existing yet — migration 0031).
-      if (m.shipTo) await fetch(`${url}/rest/v1/orders?order_no=eq.${encodeURIComponent(m.orderNo)}&source=eq.QuickBooks`, {
-        method: "PATCH", headers: sb, body: JSON.stringify({ ship_to: m.shipTo }),
+      // Stamp ship-to + invoiced status on the order we just created. An order
+      // that came in as an invoice is already invoiced (its number IS the invoice
+      // number); a sales order starts un-invoiced. Tolerate the 0031/0032 columns
+      // not existing yet.
+      const patch = {};
+      if (m.shipTo) patch.ship_to = m.shipTo;
+      if (m.kind === "invoice") { patch.invoiced = true; patch.invoice_number = m.orderNo; }
+      if (Object.keys(patch).length) await fetch(`${url}/rest/v1/orders?order_no=eq.${encodeURIComponent(m.orderNo)}&source=eq.QuickBooks`, {
+        method: "PATCH", headers: sb, body: JSON.stringify(patch),
       }).catch(() => {});
     }
     else { failed++; if (!firstError) firstError = { status: ins.status, detail: (await ins.text()).slice(0, 400) }; }
   }
+  // Auto-mark sales orders as invoiced: an invoice's linkedTransactions point
+  // back to its originating SO. If that SO is on the board and not yet invoiced,
+  // stamp it invoiced with this invoice's number — so the crew never has to.
+  // (Tolerates the 0032 columns not existing yet — a 400 just returns no rows.)
+  let salesOrdersInvoiced = 0;
+  const links = invs.flatMap((inv) => inv.linkedSo.map((soNo) => ({ soNo, invNo: inv.orderNo })));
+  for (const { soNo, invNo } of links) {
+    if (!soNumbersOnBoard.has(soNo)) continue;
+    const r = await fetch(`${url}/rest/v1/orders?order_no=eq.${encodeURIComponent(soNo)}&source=eq.QuickBooks&invoiced=is.false`, {
+      method: "PATCH", headers: { ...sb, Prefer: "return=representation" },
+      body: JSON.stringify({ invoiced: true, invoice_number: invNo }),
+    }).then((x) => (x.ok ? x.json().catch(() => []) : [])).catch(() => []);
+    if (Array.isArray(r) && r.length) salesOrdersInvoiced += r.length;
+  }
+
   return json(200, {
     mode: "commit",
     salesOrdersAdded: sosToAdd.length,
     invoicesAdded: invsToAdd.length,
     invoicesSkippedAsSalesOrderDup: invLinkedDup.length,
+    salesOrdersInvoiced,
     inserted, failed, firstError,
   });
 }

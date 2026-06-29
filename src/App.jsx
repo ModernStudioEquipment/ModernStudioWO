@@ -9,7 +9,7 @@ import { useAuth } from "./hooks/useAuth.js";
 import { useOrders } from "./hooks/useOrders.js";
 import { useWorkOrders } from "./hooks/useWorkOrders.js";
 import {
-  Pill, Btn, Group, ItemLine, Empty, Tabwrap, DeptBadge, DuePill, CompletionPill, MethodBadge, MoveMenu, SittingBadge, InlineMenu,
+  Pill, Btn, Group, ItemLine, Empty, Tabwrap, DeptBadge, DuePill, CompletionPill, MethodBadge, InvoicedBadge, MoveMenu, SittingBadge, InlineMenu,
 } from "./components/ui.jsx";
 import { Auth } from "./components/Auth.jsx";
 import { Logo } from "./components/Logo.jsx";
@@ -25,6 +25,7 @@ import { FulfillModal } from "./components/modals/FulfillModal.jsx";
 import { TrackingModal } from "./components/modals/TrackingModal.jsx";
 import { PickedUpModal } from "./components/modals/PickedUpModal.jsx";
 import { PartialModal } from "./components/modals/PartialModal.jsx";
+import { InvoiceModal } from "./components/modals/InvoiceModal.jsx";
 import { OrderedModal } from "./components/modals/OrderedModal.jsx";
 import { ReceiveModal } from "./components/modals/ReceiveModal.jsx";
 import { CustomWorkOrderDoc } from "./components/modals/CustomWorkOrderDoc.jsx";
@@ -67,6 +68,7 @@ export default function App() {
   const [trackTarget, setTrackTarget] = useState(null); // order being marked shipped
   const [pickupTarget, setPickupTarget] = useState(null); // will-call order being marked picked up
   const [partialTarget, setPartialTarget] = useState(null); // { order, kind } partial pickup/shipment
+  const [invoiceTarget, setInvoiceTarget] = useState(null); // QB order whose invoice number is being entered
   const [orderTarget, setOrderTarget] = useState(null); // purchasing material being marked ordered (asks who/vendor/PO)
   const [receiveTarget, setReceiveTarget] = useState(null); // { it, m } material being received (asks dest tab/qty/note)
   const [syncing, setSyncing] = useState(false); // QuickBooks sync in progress
@@ -142,6 +144,13 @@ export default function App() {
     setMatTarget(null);
   };
   const cyclePri = (orderId, cur) => board.setPriority(orderId, PRI_CYCLE[cur]);
+
+  // Invoiced checkbox (QB orders): checking an un-invoiced order opens the popup
+  // to enter its invoice number; clicking an already-invoiced one clears it.
+  const onInvoiceClick = (o) => {
+    if (o.invoiced) board.setInvoiced(o.id, false, null);
+    else setInvoiceTarget(o);
+  };
 
   // Receiving a material (from the receive popup): mark it received with the
   // qty/note, and — once all the item's materials are in — move the item to the
@@ -385,6 +394,7 @@ export default function App() {
           </div>
           <DuePill o={o} now={now} onChange={(date, time) => board.setDueDate(o.id, date, time)} />
           <CompletionPill o={o} onChange={(date) => board.setCompletionDate(o.id, date)} />
+          <InvoicedBadge o={o} onClick={onInvoiceClick} />
           <div className="basis-full sm:basis-auto sm:ml-auto flex flex-wrap items-center gap-3">
             <div className="flex flex-wrap items-center gap-1">
               {o.items.map((it) => (
@@ -514,7 +524,7 @@ export default function App() {
               >
                 {!newOrdersShown.length && <Empty>{newSource === "all" ? "Nothing waiting. New orders land here the moment they come in." : `No ${newSource} orders waiting.`}</Empty>}
                 {newOrdersShown.map((o) => (
-                  <Group key={o.id} o={o} now={now} onDueDate={board.setDueDate} onCompletion={board.setCompletionDate} onMethod={board.setFulfillmentMethod} onOpen={() => setDetailId(o.id)} collapsible noteRail open={isExpanded("new", o.id)} onToggle={() => toggleExpanded("new", o.id)}>
+                  <Group key={o.id} o={o} now={now} onDueDate={board.setDueDate} onCompletion={board.setCompletionDate} onMethod={board.setFulfillmentMethod} onInvoice={onInvoiceClick} onOpen={() => setDetailId(o.id)} collapsible noteRail open={isExpanded("new", o.id)} onToggle={() => toggleExpanded("new", o.id)}>
                     {/* Show every item, active (still-'new') ones first and the
                         already-routed (greyed/crossed-out) ones sunk to the bottom,
                         so nothing silently vanishes and the to-do items stay on top.
@@ -570,7 +580,7 @@ export default function App() {
                   <Empty>{pickNotesOnly ? "No items have notes right now." : "Empty. In-stock items show up here after triage."}</Empty>
                 )}
                 {[...(pickNotesOnly ? pickNoted : pickOrders)].sort(byUrgency).map((o) => (
-                  <Group key={o.id} o={o} now={now} onDueDate={board.setDueDate} onCompletion={board.setCompletionDate} onMethod={board.setFulfillmentMethod} onOpen={() => setDetailId(o.id)} collapsible open={isExpanded("pick", o.id)} onToggle={() => toggleExpanded("pick", o.id)}>
+                  <Group key={o.id} o={o} now={now} onDueDate={board.setDueDate} onCompletion={board.setCompletionDate} onMethod={board.setFulfillmentMethod} onInvoice={onInvoiceClick} onOpen={() => setDetailId(o.id)} collapsible open={isExpanded("pick", o.id)} onToggle={() => toggleExpanded("pick", o.id)}>
                     {o.items.filter((it) => it.stage === "picklist").map((it) => (
                       <ItemLine
                         key={it.id} it={it} now={now}
@@ -658,7 +668,7 @@ export default function App() {
                     const woItems = o.items.filter((it) => it.stage === "workorder");
                     const depts = [...new Set(woItems.map((it) => it.dept))];
                     return (
-                      <Group key={o.id} o={o} now={now} onDueDate={board.setDueDate} onCompletion={board.setCompletionDate} onMethod={board.setFulfillmentMethod} onOpen={() => setDetailId(o.id)}>
+                      <Group key={o.id} o={o} now={now} onDueDate={board.setDueDate} onCompletion={board.setCompletionDate} onMethod={board.setFulfillmentMethod} onInvoice={onInvoiceClick} onOpen={() => setDetailId(o.id)}>
                         {depts.map((dept) => {
                           const deptItems = woItems.filter((it) => it.dept === dept);
                           const multi = deptItems.length > 1;
@@ -704,7 +714,7 @@ export default function App() {
               <Tabwrap title="PURCHASING" action={<Btn kind="dark" onClick={() => setShowNewPurchase(true)}><Plus size={13} />New purchase</Btn>}>
                 {!buyOrders.length && <Empty>Nothing to buy. Materials land here when an item is triaged “need material.”</Empty>}
                 {buyOrders.map((o) => (
-                  <Group key={o.id} o={o} now={now} onDueDate={board.setDueDate} onCompletion={board.setCompletionDate} onMethod={board.setFulfillmentMethod} onOpen={() => setDetailId(o.id)}>
+                  <Group key={o.id} o={o} now={now} onDueDate={board.setDueDate} onCompletion={board.setCompletionDate} onMethod={board.setFulfillmentMethod} onInvoice={onInvoiceClick} onOpen={() => setDetailId(o.id)}>
                     {o.items.filter((it) => it.needsMaterial).map((it) =>
                       it.materials.filter((m) => !m.received).map((m) => {
                         // Once the expected date is reached, flag the row so the
@@ -846,6 +856,7 @@ export default function App() {
           now={now}
           onDueDate={(date, time) => board.setDueDate(detailOrder.id, date, time)}
           onCompletion={(date) => board.setCompletionDate(detailOrder.id, date)}
+          onInvoice={onInvoiceClick}
           onMethod={(m) => board.setFulfillmentMethod(detailOrder.id, m)}
           onSaveNotes={(notes) => board.setOrderNotes(detailOrder.id, notes)}
           onUpdateItem={(itemId, patch) => board.updateItem(itemId, patch)}
@@ -888,6 +899,13 @@ export default function App() {
           kind={partialTarget.kind}
           onConfirm={confirmPartial}
           onClose={() => setPartialTarget(null)}
+        />
+      )}
+      {invoiceTarget && (
+        <InvoiceModal
+          order={invoiceTarget}
+          onConfirm={async (num) => { await board.setInvoiced(invoiceTarget.id, true, num); setInvoiceTarget(null); }}
+          onClose={() => setInvoiceTarget(null)}
         />
       )}
       {orderTarget && (

@@ -81,6 +81,7 @@ export function useOrders(enabled) {
     setPriority: act((orderId, priority) => db.setPriority(orderId, priority)),
     setDueDate: act((orderId, dueDate, dueTime) => db.setDueDate(orderId, dueDate, dueTime)),
     setCompletionDate: act((orderId, date) => db.setCompletionDate(orderId, date)),
+    setInvoiced: act((orderId, invoiced, invoiceNumber) => db.setInvoiced(orderId, invoiced, invoiceNumber)),
     setFulfillmentMethod: act((orderId, method) => db.setFulfillmentMethod(orderId, method)),
     setOrderNotes: act((orderId, notes) => db.setOrderNotes(orderId, notes)),
     setLocation: act((orderId, location) => db.setLocation(orderId, location)),

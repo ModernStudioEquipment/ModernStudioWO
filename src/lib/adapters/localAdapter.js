@@ -156,6 +156,8 @@ export const localAdapter = {
       dueTime: dueTime || null,
       completionDate: null,
       shipTo: null,
+      invoiced: false,
+      invoiceNumber: null,
       fulfillment: null,
       fulfilledAt: null,
       location: null,
@@ -359,6 +361,13 @@ export const localAdapter = {
     const orders = read();
     const o = orders.find((x) => x.id === orderId);
     if (o) o.completionDate = completionDate || null;
+    write(orders);
+  },
+
+  async setInvoiced(orderId, invoiced, invoiceNumber) {
+    const orders = read();
+    const o = orders.find((x) => x.id === orderId);
+    if (o) { o.invoiced = !!invoiced; o.invoiceNumber = invoiceNumber || null; }
     write(orders);
   },
 

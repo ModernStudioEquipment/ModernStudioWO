@@ -68,6 +68,8 @@ function mapOrder(row, productPhotos = {}, fulfillmentsByOrder = {}) {
     completionDate: row.completion_date || null, // shop's estimated ready-by date
     notes: row.notes || null,
     shipTo: row.ship_to || null, // drop-ship recipient (who it's really going to)
+    invoiced: !!row.invoiced, // QB: came in as / been marked an invoice
+    invoiceNumber: row.invoice_number || null,
     fulfillmentMethod: row.fulfillment_method || null, // chosen at intake; sticks to the order
     fulfillment: row.fulfillment, // null | 'willcall' | 'shipping'
     fulfilledAt: row.fulfilled_at || null,
@@ -326,6 +328,13 @@ export const supabaseAdapter = {
   async setCompletionDate(orderId, completionDate) {
     const { error } = await supabase.from("orders").update({ completion_date: completionDate || null }).eq("id", orderId);
     if (error && !/completion_date/.test(error.message || "")) fail(error);
+  },
+
+  // QuickBooks "Invoiced" status + number. Needs migration 0032; tolerate it not
+  // being run yet.
+  async setInvoiced(orderId, invoiced, invoiceNumber) {
+    const { error } = await supabase.from("orders").update({ invoiced: !!invoiced, invoice_number: invoiceNumber || null }).eq("id", orderId);
+    if (error && !/invoiced|invoice_number/.test(error.message || "")) fail(error);
   },
 
   async setFulfillmentMethod(orderId, method) {

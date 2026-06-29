@@ -1,13 +1,13 @@
 import React, { useState, useRef, useEffect } from "react";
 import { X, Trash2, RotateCcw, Clock, ChevronDown, ExternalLink } from "lucide-react";
 import { C, PRI, elapsed, itemStatusText, trackingUrl } from "../../theme.js";
-import { Pill, Info, Stepper, DeptBadge, DuePill, CompletionPill, MethodBadge, SittingBadge } from "../ui.jsx";
+import { Pill, Info, Stepper, DeptBadge, DuePill, CompletionPill, MethodBadge, InvoicedBadge, SittingBadge } from "../ui.jsx";
 import { ItemTimeline } from "../ItemTimeline.jsx";
 
 // The office "where's my order?" view — full detail with a per-product
 // progress tracker. Items reconverge here even though they're triaged and
 // routed independently.
-export function OrderDetail({ order, status, now, onDueDate, onCompletion, onMethod, onSaveNotes, onUpdateItem, onUnpick, onCancel, onClose }) {
+export function OrderDetail({ order, status, now, onDueDate, onCompletion, onInvoice, onMethod, onSaveNotes, onUpdateItem, onUnpick, onCancel, onClose }) {
   const [confirming, setConfirming] = useState(false);
   const [reason, setReason] = useState("Customer cancelled");
   const [openTimeline, setOpenTimeline] = useState(null); // item id whose timeline is expanded
@@ -31,6 +31,7 @@ export function OrderDetail({ order, status, now, onDueDate, onCompletion, onMet
           <MethodBadge m={order.fulfillmentMethod} onChange={onMethod} />
           <DuePill o={order} now={now} onChange={onDueDate} />
           <CompletionPill o={order} onChange={onCompletion} />
+          <InvoicedBadge o={order} onClick={onInvoice} />
           <button onClick={onClose} className="ml-auto" style={{ color: "#fff" }}><X size={18} /></button>
         </div>
         <div className="p-4">

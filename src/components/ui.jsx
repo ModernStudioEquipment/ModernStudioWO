@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Clock, Wrench, Scissors, Cpu, Hammer, Flag, Check, ChevronDown, Store, Truck, Bell, CalendarCheck } from "lucide-react";
+import { Clock, Wrench, Scissors, Cpu, Hammer, Flag, Check, ChevronDown, Store, Truck, Bell, CalendarCheck, CheckSquare, Square } from "lucide-react";
 import { C, PRI, PRIORITIES, DEPTS, elapsed, sittingLevel, stageDwellMs, STAGE_LABELS, dueLabel, dueLevel, DUE } from "../theme.js";
 
 const DEPT_ICONS = { Shop: Hammer, CNC: Cpu, Sewing: Scissors, Saw: Wrench };
@@ -233,6 +233,26 @@ export function MethodBadge({ m, onChange }) {
   );
 }
 
+// QuickBooks "Invoiced" status. Green check + invoice # once invoiced; an empty
+// box otherwise. QB orders only. With onClick it's clickable — the parent decides
+// what a click does (uncheck, or open the invoice-number popup when checking).
+export function InvoicedBadge({ o, onClick }) {
+  if (o.source !== "QuickBooks") return null;
+  const inv = o.invoiced;
+  const badge = (
+    <span
+      className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-bold uppercase tracking-wide"
+      style={{ color: inv ? C.green : C.gray, background: inv ? C.greenBg : C.grayBg, cursor: onClick ? "pointer" : "default", whiteSpace: "nowrap" }}
+      title={onClick ? (inv ? "Invoiced — click to undo" : "Mark invoiced") : undefined}
+    >
+      {inv ? <CheckSquare size={13} /> : <Square size={13} />}
+      Invoiced{inv && o.invoiceNumber ? ` #${o.invoiceNumber}` : ""}
+    </span>
+  );
+  if (!onClick) return badge;
+  return <span onClick={(e) => { e.stopPropagation(); onClick(o); }} style={{ display: "inline-flex" }}>{badge}</span>;
+}
+
 const MOVE_TARGETS = [
   { stage: "new", label: "New Orders" },
   { stage: "picklist", label: "Pick List" },
@@ -255,7 +275,7 @@ export function MoveMenu({ stage, onMove }) {
   );
 }
 
-export function OrderHeader({ o, now, onDueDate, onCompletion, onMethod, onOpen, collapsible, open, onToggle }) {
+export function OrderHeader({ o, now, onDueDate, onCompletion, onMethod, onInvoice, onOpen, collapsible, open, onToggle }) {
   return (
     <div
       onClick={onOpen}
@@ -282,6 +302,7 @@ export function OrderHeader({ o, now, onDueDate, onCompletion, onMethod, onOpen,
           <MethodBadge m={o.fulfillmentMethod} onChange={onMethod ? (m) => onMethod(o.id, m) : undefined} />
           <DuePill o={o} now={now} onChange={onDueDate ? (date, time) => onDueDate(o.id, date, time) : undefined} />
           <CompletionPill o={o} onChange={onCompletion ? (date) => onCompletion(o.id, date) : undefined} />
+          <InvoicedBadge o={o} onClick={onInvoice} />
         </div>
         <div style={{ fontSize: 12, color: C.gray }}>Ordered by {o.contact}</div>
         {o.shipTo && <div style={{ fontSize: 12, color: C.inkSoft, fontWeight: 600 }}>→ Ship to: {o.shipTo}</div>}
@@ -293,7 +314,7 @@ export function OrderHeader({ o, now, onDueDate, onCompletion, onMethod, onOpen,
   );
 }
 
-export function Group({ o, now, children, onDueDate, onCompletion, onMethod, onOpen, collapsible, noteRail, open: openProp, onToggle: onToggleProp }) {
+export function Group({ o, now, children, onDueDate, onCompletion, onMethod, onInvoice, onOpen, collapsible, noteRail, open: openProp, onToggle: onToggleProp }) {
   const lvl = dueLevel(o, now);
   // Controlled collapse when open/onToggle are supplied (so the board can persist
   // it per-computer); otherwise fall back to local state (default expanded).
@@ -302,7 +323,7 @@ export function Group({ o, now, children, onDueDate, onCompletion, onMethod, onO
   const toggle = onToggleProp || (() => setOpenState((v) => !v));
   const [noteOpen, setNoteOpen] = useState(false);
   const header = (
-    <OrderHeader o={o} now={now} onDueDate={onDueDate} onCompletion={onCompletion} onMethod={onMethod} onOpen={onOpen}
+    <OrderHeader o={o} now={now} onDueDate={onDueDate} onCompletion={onCompletion} onMethod={onMethod} onInvoice={onInvoice} onOpen={onOpen}
       collapsible={collapsible} open={open} onToggle={toggle} />
   );
   const body = (!collapsible || open) && children;
