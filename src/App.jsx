@@ -15,6 +15,7 @@ import { Auth } from "./components/Auth.jsx";
 import { Logo } from "./components/Logo.jsx";
 import { Dashboard } from "./components/Dashboard.jsx";
 import { GlobalSearch } from "./components/GlobalSearch.jsx";
+import { SyncButton } from "./components/SyncButton.jsx";
 import { MaterialModal } from "./components/modals/MaterialModal.jsx";
 import { OrderDetail } from "./components/modals/OrderDetail.jsx";
 import { PickPhoto } from "./components/modals/PickPhoto.jsx";
@@ -515,7 +516,7 @@ export default function App() {
                   <div className="flex items-center gap-2 flex-wrap justify-end">
                     <SegGroup value={newSource} onChange={setNewSource} options={[["all", "All"], ["QuickBooks", "QB"], ["Shopify", "Shopify"]]} />
                     <SegGroup value={newSort} onChange={setNewSort} options={[["newest", "Newest"], ["due", "Due date"]]} />
-                    <Btn onClick={syncQuickBooks} disabled={syncing}><RefreshCw size={13} />{syncing ? "Syncing QuickBooks…" : "Sync QuickBooks"}</Btn>
+                    <SyncButton syncing={syncing} onClick={syncQuickBooks} />
                     <Btn kind="dark" onClick={() => setShowNew(true)}><Plus size={13} />New order</Btn>
                   </div>
                 }
