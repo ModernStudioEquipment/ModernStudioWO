@@ -55,8 +55,12 @@ const fromOnlineStore = (t) => !!(t.salesStoreName || t.salesChannelName || t.sa
 // using a bare date.
 const receivedAtOf = (t) => {
   const created = t.createdAt || t.created_at;
-  const d = created ? new Date(created) : null;
-  return d && !isNaN(d.getTime()) ? d.toISOString() : new Date().toISOString();
+  const ms = created ? new Date(created).getTime() : NaN;
+  const nowMs = Date.now();
+  // Use QuickBooks' creation time, but NEVER a future one: the office PC's clock
+  // can run fast, which would otherwise make a brand-new order read "-53m ago".
+  // Cap at the sync time so a fresh order reads "just now" instead.
+  return new Date(!isNaN(ms) ? Math.min(ms, nowMs) : nowMs).toISOString();
 };
 
 // Real product lines only: skip note/blank lines, shipping/freight, financial
