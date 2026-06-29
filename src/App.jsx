@@ -39,7 +39,9 @@ export default function App() {
   const allOrders = board.orders;
   const orders = allOrders.filter((o) => !o.cancelledAt);
 
-  const [tab, setTab] = useState("dash");
+  const [tab, setTab] = useState(() => {
+    try { return localStorage.getItem("mse_tab_v1") || "dash"; } catch { return "dash"; }
+  });
   const [now, setNow] = useState(Date.now());
   const [matTarget, setMatTarget] = useState(null); // itemId awaiting material entry
   const [doc, setDoc] = useState(null); // { o, it } for printable work order
@@ -54,6 +56,13 @@ export default function App() {
   const [showNewPurchase, setShowNewPurchase] = useState(false);
   const [newSort, setNewSort] = useState("newest"); // New Orders sort: newest first, or by due date
   const [newSource, setNewSource] = useState("all"); // New Orders filter: all / QuickBooks / Shopify
+  const [orderSource, setOrderSource] = useState("all"); // Orders tab filter: all / QuickBooks / Shopify
+  // Per-computer collapse memory: which order cards are expanded, scoped per
+  // board ('new' / 'pick'). Default = collapsed (absent from the set). Kept in
+  // localStorage so it's per-machine and NOT shared across the crew.
+  const [expanded, setExpanded] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("mse_expanded_v1") || "{}"); } catch { return {}; }
+  });
   const [fulfillTarget, setFulfillTarget] = useState(null); // { order, method }
   const [trackTarget, setTrackTarget] = useState(null); // order being marked shipped
   const [pickupTarget, setPickupTarget] = useState(null); // will-call order being marked picked up
@@ -68,6 +77,25 @@ export default function App() {
     const t = setInterval(() => setNow(Date.now()), 30000);
     return () => clearInterval(t);
   }, []);
+
+  // Persist the collapse memory on this machine.
+  useEffect(() => {
+    try { localStorage.setItem("mse_expanded_v1", JSON.stringify(expanded)); } catch { /* ignore */ }
+  }, [expanded]);
+
+  // Remember the active tab so a full-page refresh stays put (per machine).
+  useEffect(() => {
+    try { localStorage.setItem("mse_tab_v1", tab); } catch { /* ignore */ }
+  }, [tab]);
+  const isExpanded = (scope, id) => !!(expanded[scope] && expanded[scope][id]);
+  const toggleExpanded = (scope, id) => setExpanded((m) => {
+    const cur = { ...(m[scope] || {}) };
+    if (cur[id]) delete cur[id]; else cur[id] = true;
+    return { ...m, [scope]: cur };
+  });
+  const setAllExpanded = (scope, ids, on) => setExpanded((m) => ({
+    ...m, [scope]: on ? Object.fromEntries(ids.map((id) => [id, true])) : {},
+  }));
 
   // After a search jump, scroll the order's card into view and flash it —
   // works in whatever tab the card lives in (id set on every order element).
@@ -262,11 +290,13 @@ export default function App() {
   // The Orders tab is the active worklist: drop orders that have shipped or been
   // picked up (they still live on in the Shipped / Will Call tabs).
   const ordersForList = customerOrders.filter((o) => !o.trackingNumber && !o.pickedUpAt);
+  // Orders tab can be narrowed to QuickBooks / Shopify; the counts follow it.
+  const ordersSourced = ordersForList.filter((o) => orderSource === "all" || o.source === orderSource);
   const OFILTERS = [
-    { k: "all", label: "All", n: ordersForList.length },
-    { k: "triage", label: "In triage", n: ordersForList.filter(oInTriage).length },
-    { k: "prog", label: "In progress", n: ordersForList.filter(oProg).length },
-    { k: "done", label: "Completed", n: ordersForList.filter(awaitingFulfill).length },
+    { k: "all", label: "All", n: ordersSourced.length },
+    { k: "triage", label: "In triage", n: ordersSourced.filter(oInTriage).length },
+    { k: "prog", label: "In progress", n: ordersSourced.filter(oProg).length },
+    { k: "done", label: "Completed", n: ordersSourced.filter(awaitingFulfill).length },
     { k: "pct", label: "% done", n: null },
     { k: "due", label: "Due date", n: null },
   ];
@@ -285,22 +315,23 @@ export default function App() {
     return a.receivedAt - b.receivedAt;
   };
   const visibleOrders =
-    orderView === "triage" ? ordersForList.filter(oInTriage)
-    : orderView === "prog" ? ordersForList.filter(oProg)
-    : orderView === "done" ? ordersForList.filter(awaitingFulfill)
-    : orderView === "pct" ? [...ordersForList].sort((a, b) => pct(b) - pct(a))
-    : orderView === "due" ? [...ordersForList].sort(byDue)
-    : [...ordersForList].sort((a, b) => b.receivedAt - a.receivedAt);
+    orderView === "triage" ? ordersSourced.filter(oInTriage)
+    : orderView === "prog" ? ordersSourced.filter(oProg)
+    : orderView === "done" ? ordersSourced.filter(awaitingFulfill)
+    : orderView === "pct" ? [...ordersSourced].sort((a, b) => pct(b) - pct(a))
+    : orderView === "due" ? [...ordersSourced].sort(byDue)
+    : [...ordersSourced].sort((a, b) => b.receivedAt - a.receivedAt);
 
   // New Orders, filtered by source (All / QuickBooks / Shopify), then sorted.
   const newOrdersShown = [...newOrders]
     .filter((o) => newSource === "all" || o.source === newSource)
     .sort(newSort === "due" ? byUrgency : (a, b) => b.receivedAt - a.receivedAt);
   // Urgent tab: active orders that are manually Urgent or due within ~2 days
-  // (effectivePriority bumps due-soon orders to RUSH), soonest first.
+  // (effectivePriority bumps due-soon orders to RUSH). Soonest first, but
+  // production-done ("Ready to fulfill") orders sink to the bottom.
   const urgentOrders = [...ordersForList]
     .filter((o) => effectivePriority(o, now) === "RUSH")
-    .sort(byUrgency);
+    .sort((a, b) => (oDone(a) ? 1 : 0) - (oDone(b) ? 1 : 0) || byUrgency(a, b));
 
   // Search is scoped to whatever tab you're in — it only finds orders shown in
   // that tab. (Orders tab and Dashboard search across everything.)
@@ -336,7 +367,7 @@ export default function App() {
       <div
         key={o.id} id={`order-${o.id}`} onClick={() => setDetailId(o.id)}
         className="rounded mb-2"
-        style={{ background: urgent ? C.rushBg : "#fff", border: `1px solid ${urgent ? C.rush : C.line}`, borderLeft: `4px solid ${urgent ? C.rush : st.c}`, opacity: o.fulfillment ? 0.6 : 1, cursor: "pointer" }}
+        style={{ background: urgent ? C.rushBg : "#fff", border: `1px solid ${urgent ? C.rush : C.line}`, borderLeft: `4px solid ${urgent ? C.rush : st.c}`, opacity: o.fulfillment ? 0.6 : 1, cursor: "pointer", ...(o.notes ? { boxShadow: `0 0 0 2px ${C.high}` } : null) }}
       >
         <div className="flex items-center gap-x-3 gap-y-2 px-4 py-3 flex-wrap">
           <span className="font-bold" style={{ fontFamily: "ui-monospace,monospace", fontSize: 15, color: urgent ? C.rush : C.ink }}>#{o.orderNo}</span>
@@ -346,7 +377,7 @@ export default function App() {
             </span>
           )}
           <div className="min-w-0">
-            <div className="font-bold flex items-center gap-2 flex-wrap" style={{ fontSize: 14 }}>{o.customer}{o.notes && <Bell size={14} color={C.high} fill={C.high} title={`Note: ${o.notes}`} style={{ flexShrink: 0 }} />}<MethodBadge m={o.fulfillmentMethod} onChange={(m) => board.setFulfillmentMethod(o.id, m)} /></div>
+            <div className="font-bold flex items-center gap-2 flex-wrap" style={{ fontSize: 14 }}>{o.customer}{o.notes && <Bell size={15} color={C.rush} fill={C.rush} title={`Note: ${o.notes}`} style={{ flexShrink: 0 }} />}<MethodBadge m={o.fulfillmentMethod} onChange={(m) => board.setFulfillmentMethod(o.id, m)} /></div>
             <div style={{ fontSize: 12, color: C.gray }}>
               Ordered by {o.contact} · {elapsed(now - o.receivedAt)} ago
             </div>
@@ -469,18 +500,11 @@ export default function App() {
                 title="NEW ORDERS"
                 action={
                   <div className="flex items-center gap-2 flex-wrap justify-end">
-                    <div className="flex items-center gap-1">
-                      {[["all", "All"], ["QuickBooks", "QB"], ["Shopify", "Shopify"]].map(([v, lbl]) => (
-                        <button key={v} onClick={() => setNewSource(v)} className="px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wide"
-                          style={newSource === v ? { background: C.ink, color: "#fff" } : { background: "#fff", color: C.inkSoft, border: `1px solid ${C.line}` }}>{lbl}</button>
-                      ))}
-                    </div>
-                    <div className="flex items-center gap-1">
-                      {[["newest", "Newest"], ["due", "Due date"]].map(([v, lbl]) => (
-                        <button key={v} onClick={() => setNewSort(v)} className="px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wide"
-                          style={newSort === v ? { background: C.ink, color: "#fff" } : { background: "#fff", color: C.inkSoft, border: `1px solid ${C.line}` }}>{lbl}</button>
-                      ))}
-                    </div>
+                    <SegGroup label="Source" value={newSource} onChange={setNewSource} options={[["all", "All"], ["QuickBooks", "QB"], ["Shopify", "Shopify"]]} />
+                    <SegGroup label="Sort" value={newSort} onChange={setNewSort} options={[["newest", "Newest"], ["due", "Due date"]]} />
+                    <Btn onClick={() => setAllExpanded("new", newOrdersShown.map((o) => o.id), !newOrdersShown.some((o) => isExpanded("new", o.id)))}>
+                      {newOrdersShown.some((o) => isExpanded("new", o.id)) ? "Collapse all" : "Open all"}
+                    </Btn>
                     <Btn onClick={syncQuickBooks} disabled={syncing}><RefreshCw size={13} />{syncing ? "Syncing QuickBooks…" : "Sync QuickBooks"}</Btn>
                     <Btn kind="dark" onClick={() => setShowNew(true)}><Plus size={13} />New order</Btn>
                   </div>
@@ -488,12 +512,12 @@ export default function App() {
               >
                 {!newOrdersShown.length && <Empty>{newSource === "all" ? "Nothing waiting. New orders land here the moment they come in." : `No ${newSource} orders waiting.`}</Empty>}
                 {newOrdersShown.map((o) => (
-                  <Group key={o.id} o={o} now={now} onDueDate={board.setDueDate} onMethod={board.setFulfillmentMethod} onOpen={() => setDetailId(o.id)} collapsible>
-                    {/* Show every item. Untriaged ones keep their buttons; ones
-                        you've already routed stay visible — crossed out, greyed,
-                        and labelled with where they went — so nothing silently
-                        vanishes. The order leaves this tab only once all are done. */}
-                    {o.items.map((it) => it.stage === "new" ? (
+                  <Group key={o.id} o={o} now={now} onDueDate={board.setDueDate} onMethod={board.setFulfillmentMethod} onOpen={() => setDetailId(o.id)} collapsible noteRail open={isExpanded("new", o.id)} onToggle={() => toggleExpanded("new", o.id)}>
+                    {/* Show every item, active (still-'new') ones first and the
+                        already-routed (greyed/crossed-out) ones sunk to the bottom,
+                        so nothing silently vanishes and the to-do items stay on top.
+                        The order leaves this tab only once all are done. */}
+                    {[...o.items].sort((a, b) => itemRank(a) - itemRank(b)).map((it) => it.stage === "new" ? (
                       <div key={it.id} className="px-4 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
                         <div className="flex items-center gap-2 mb-2">
                           <DeptBadge d={it.dept} onChange={(dep) => board.updateItem(it.id, { dept: dep })} />
@@ -527,11 +551,16 @@ export default function App() {
                 title="PICK LIST"
                 sub="Click an item to see its image, then grab it and check it off."
                 action={
-                  <div className="flex items-center gap-1">
-                    <button onClick={() => setPickNotesOnly(false)} className="px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wide" style={!pickNotesOnly ? { background: C.ink, color: "#fff" } : { background: "#fff", color: C.inkSoft, border: `1px solid ${C.line}` }}>All</button>
-                    <button onClick={() => setPickNotesOnly(true)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wide" style={pickNotesOnly ? { background: C.ink, color: "#fff" } : { background: "#fff", color: C.inkSoft, border: `1px solid ${C.line}` }}>
-                      <Bell size={12} />With notes{pickNoted.length ? ` · ${pickNoted.length}` : ""}
-                    </button>
+                  <div className="flex items-center gap-2 flex-wrap justify-end">
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => setPickNotesOnly(false)} className="px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wide" style={!pickNotesOnly ? { background: C.ink, color: "#fff" } : { background: "#fff", color: C.inkSoft, border: `1px solid ${C.line}` }}>All</button>
+                      <button onClick={() => setPickNotesOnly(true)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wide" style={pickNotesOnly ? { background: C.ink, color: "#fff" } : { background: "#fff", color: C.inkSoft, border: `1px solid ${C.line}` }}>
+                        <Bell size={12} />With notes{pickNoted.length ? ` · ${pickNoted.length}` : ""}
+                      </button>
+                    </div>
+                    <Btn onClick={() => { const shown = pickNotesOnly ? pickNoted : pickOrders; setAllExpanded("pick", shown.map((o) => o.id), !shown.some((o) => isExpanded("pick", o.id))); }}>
+                      {(pickNotesOnly ? pickNoted : pickOrders).some((o) => isExpanded("pick", o.id)) ? "Collapse all" : "Open all"}
+                    </Btn>
                   </div>
                 }
               >
@@ -539,7 +568,7 @@ export default function App() {
                   <Empty>{pickNotesOnly ? "No items have notes right now." : "Empty. In-stock items show up here after triage."}</Empty>
                 )}
                 {[...(pickNotesOnly ? pickNoted : pickOrders)].sort(byUrgency).map((o) => (
-                  <Group key={o.id} o={o} now={now} onDueDate={board.setDueDate} onMethod={board.setFulfillmentMethod} onOpen={() => setDetailId(o.id)}>
+                  <Group key={o.id} o={o} now={now} onDueDate={board.setDueDate} onMethod={board.setFulfillmentMethod} onOpen={() => setDetailId(o.id)} collapsible open={isExpanded("pick", o.id)} onToggle={() => toggleExpanded("pick", o.id)}>
                     {o.items.filter((it) => it.stage === "picklist").map((it) => (
                       <ItemLine
                         key={it.id} it={it} now={now}
@@ -731,7 +760,7 @@ export default function App() {
             )}
 
             {tab === "orders" && (
-              <Tabwrap title="Orders">
+              <Tabwrap title="Orders" action={<SegGroup label="Source" value={orderSource} onChange={setOrderSource} options={[["all", "All"], ["QuickBooks", "QB"], ["Shopify", "Shopify"]]} />}>
                 <div className="flex items-center gap-2 mb-3 flex-wrap">
                   {OFILTERS.map((f) => (
                     <button
@@ -1006,18 +1035,26 @@ function FulfillmentBoard({ orders, now, onOpen, onMarkShipped, onPickedUp, onSe
         const totalOrdered = o.items.reduce((n, it) => n + Math.max(parseInt(it.qty, 10) || 1, 1), 0);
         const totalOut = o.items.reduce((n, it) => n + (it.fulfilledQty || 0), 0);
         const partial = !closed && totalOut > 0 && totalOut < totalOrdered;
+        // Urgent orders stay loud-red on the fulfillment boards too — unless
+        // they're closed (shipped/picked up), where the green "done" wins.
+        const urgent = !closed && effectivePriority(o, now) === "RUSH";
         return (
           <div
             key={o.id}
             id={`order-${o.id}`}
             onClick={() => onOpen(o.id)}
             className="rounded mb-2"
-            style={{ background: "#fff", border: `1px solid ${C.line}`, borderLeft: `4px solid ${closed ? C.green : C.line}`, opacity: closed ? 0.7 : 1, cursor: "pointer" }}
+            style={{ background: urgent ? C.rushBg : "#fff", border: `1px solid ${urgent ? C.rush : C.line}`, borderLeft: `4px solid ${closed ? C.green : urgent ? C.rush : C.line}`, opacity: closed ? 0.7 : 1, cursor: "pointer", ...(o.notes ? { boxShadow: `0 0 0 2px ${C.high}` } : null) }}
           >
             <div className="flex items-center gap-x-3 gap-y-2 px-4 py-3 flex-wrap">
-              <span className="font-bold" style={{ fontFamily: "ui-monospace,monospace", fontSize: 15 }}>#{o.orderNo}</span>
+              <span className="font-bold" style={{ fontFamily: "ui-monospace,monospace", fontSize: 15, color: urgent ? C.rush : C.ink }}>#{o.orderNo}</span>
+              {urgent && (
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-bold uppercase tracking-wide" style={{ background: C.rush, color: "#fff" }}>
+                  <Flag size={12} />Urgent
+                </span>
+              )}
               <div className="min-w-0">
-                <div className="font-bold flex items-center gap-2" style={{ fontSize: 14 }}>{o.customer}{o.notes && <Bell size={14} color={C.high} fill={C.high} title={`Note: ${o.notes}`} style={{ flexShrink: 0 }} />}</div>
+                <div className="font-bold flex items-center gap-2" style={{ fontSize: 14 }}>{o.customer}{o.notes && <Bell size={15} color={C.rush} fill={C.rush} title={`Note: ${o.notes}`} style={{ flexShrink: 0 }} />}</div>
                 <div style={{ fontSize: 12, color: C.gray }}>Ordered by {o.contact} · {elapsed(now - o.receivedAt)} ago</div>
               </div>
               <DuePill o={o} now={now} />
@@ -1070,6 +1107,38 @@ function FulfillmentBoard({ orders, now, onOpen, onMarkShipped, onPickedUp, onSe
         );
       })}
     </>
+  );
+}
+
+// Order items within a card: still-to-triage ('new') first, fully-done last,
+// everything already routed in between — so to-dos stay on top and finished work
+// sinks to the bottom.
+function itemRank(it) {
+  return it.stage === "new" ? 0 : it.stage === "done" ? 2 : 1;
+}
+
+// A tidy segmented control: an optional label, then equal-width buttons in one
+// bordered pill — so the Source picker and the Sort picker read as two distinct,
+// uniform groups instead of a jumble of different-width buttons.
+function SegGroup({ label, value, onChange, options, btnWidth = 62 }) {
+  return (
+    <span className="inline-flex items-center" style={{ border: `1px solid ${C.line}`, borderRadius: 7, overflow: "hidden", background: "#fff" }}>
+      {label && (
+        <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: 0.5, color: C.gray, textTransform: "uppercase", padding: "0 9px", whiteSpace: "nowrap" }}>{label}</span>
+      )}
+      {options.map(([v, lbl]) => {
+        const on = value === v;
+        return (
+          <button
+            key={v} onClick={() => onChange(v)}
+            className="text-xs font-bold uppercase tracking-wide"
+            style={{ minWidth: btnWidth, padding: "6px 10px", border: "none", borderLeft: `1px solid ${C.line}`, background: on ? C.ink : "#fff", color: on ? "#fff" : C.inkSoft, cursor: "pointer" }}
+          >
+            {lbl}
+          </button>
+        );
+      })}
+    </span>
   );
 }
 

@@ -240,7 +240,7 @@ export function OrderHeader({ o, now, onDueDate, onMethod, onOpen, collapsible, 
       <div style={{ minWidth: 0 }}>
         <div className="font-bold flex items-center gap-2 flex-wrap" style={{ fontSize: 14 }}>
           {o.customer}
-          {o.notes && <Bell size={14} color={C.high} fill={C.high} title={`Note: ${o.notes}`} style={{ flexShrink: 0 }} />}
+          {o.notes && <Bell size={15} color={C.rush} fill={C.rush} title={`Note: ${o.notes}`} style={{ flexShrink: 0 }} />}
           <MethodBadge m={o.fulfillmentMethod} onChange={onMethod ? (m) => onMethod(o.id, m) : undefined} />
           <DuePill o={o} now={now} onChange={onDueDate ? (date, time) => onDueDate(o.id, date, time) : undefined} />
         </div>
@@ -253,14 +253,56 @@ export function OrderHeader({ o, now, onDueDate, onMethod, onOpen, collapsible, 
   );
 }
 
-export function Group({ o, now, children, onDueDate, onMethod, onOpen, collapsible }) {
+export function Group({ o, now, children, onDueDate, onMethod, onOpen, collapsible, noteRail, open: openProp, onToggle: onToggleProp }) {
   const lvl = dueLevel(o, now);
-  const [open, setOpen] = useState(true);
+  // Controlled collapse when open/onToggle are supplied (so the board can persist
+  // it per-computer); otherwise fall back to local state (default expanded).
+  const [openState, setOpenState] = useState(true);
+  const open = openProp !== undefined ? openProp : openState;
+  const toggle = onToggleProp || (() => setOpenState((v) => !v));
+  const [noteOpen, setNoteOpen] = useState(false);
+  const header = (
+    <OrderHeader o={o} now={now} onDueDate={onDueDate} onMethod={onMethod} onOpen={onOpen}
+      collapsible={collapsible} open={open} onToggle={toggle} />
+  );
+  const body = (!collapsible || open) && children;
+  // An order with a note gets a clear amber ring around the whole card so it
+  // can't be missed (amber = the established "note" color, distinct from the
+  // overdue/urgent red so they don't collide).
+  const noteRing = o.notes ? { boxShadow: `0 0 0 2px ${C.high}` } : null;
+  // New Orders: when an order has a note, the left edge grows into a wider rail
+  // with a BRIGHT RED bell — hover it to peek the note.
+  if (noteRail && o.notes) {
+    return (
+      <div className="mb-3" style={{ position: "relative" }}>
+        <div id={`order-${o.id}`} className="rounded flex" style={{ background: "#fff", border: `1px solid ${C.line}`, overflow: "hidden", ...noteRing }}>
+          <div
+            onMouseEnter={() => setNoteOpen(true)}
+            onMouseLeave={() => setNoteOpen(false)}
+            className="flex flex-col items-center"
+            style={{ width: 38, flexShrink: 0, background: C.highBg, paddingTop: 14, cursor: "default" }}
+          >
+            <Bell size={18} color={C.rush} fill={C.rush} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {header}
+            {body}
+          </div>
+        </div>
+        {/* Hover the bell rail to peek the note — a small tooltip, not a panel. */}
+        {noteOpen && (
+          <div className="flex items-start gap-2" style={{ position: "absolute", left: 46, top: 8, zIndex: 60, maxWidth: 300, background: C.ink, color: "#fff", borderRadius: 8, padding: "9px 12px", fontSize: 13, lineHeight: 1.45, boxShadow: "0 10px 28px rgba(20,28,38,0.28)", pointerEvents: "none" }}>
+            <Bell size={14} color={C.rush} fill={C.rush} style={{ flexShrink: 0, marginTop: 1 }} />
+            <span>{o.notes}</span>
+          </div>
+        )}
+      </div>
+    );
+  }
   return (
-    <div id={`order-${o.id}`} className="rounded mb-3" style={{ background: "#fff", border: `1px solid ${C.line}`, borderLeft: `4px solid ${lvl ? DUE[lvl].c : C.line}` }}>
-      <OrderHeader o={o} now={now} onDueDate={onDueDate} onMethod={onMethod} onOpen={onOpen}
-        collapsible={collapsible} open={open} onToggle={() => setOpen((v) => !v)} />
-      {(!collapsible || open) && children}
+    <div id={`order-${o.id}`} className="rounded mb-3" style={{ background: "#fff", border: `1px solid ${C.line}`, borderLeft: `4px solid ${lvl ? DUE[lvl].c : C.line}`, ...noteRing }}>
+      {header}
+      {body}
     </div>
   );
 }

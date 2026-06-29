@@ -138,7 +138,7 @@ export function Dashboard({ orders = [], workOrders = [], now, onNavigate, onOpe
       </div>
 
       <div className="grid mb-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 12 }}>
-        <Kpi label="Due soon" value={dueSoonCount} accent={C.rush} sub={dueSoonCount ? "due ≤2 days / overdue" : "none right now"} hot to="orders" />
+        <Kpi label="Due soon" value={dueSoonCount} accent={C.rush} sub={dueSoonCount ? "due ≤2 days / overdue" : "none right now"} hot to="urgent" />
         <Kpi label="In progress" value={pWork} accent={C.blue} sub={`across ${inProgOrders} order${inProgOrders === 1 ? "" : "s"}`} to="work" />
         <Kpi label="Awaiting material" value={awaitingCount} accent={C.high} sub={awaitingCount ? "in purchasing" : "nothing waiting"} hot to="buy" />
         <Kpi label="Materials arriving" value={arrivingCount} accent={overdueCount ? C.rush : C.gold} sub={overdueCount ? `${overdueCount} overdue` : arrivingCount ? "expected today" : "none due"} hot to="buy" />
