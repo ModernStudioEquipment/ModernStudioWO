@@ -344,6 +344,27 @@ export const supabaseAdapter = {
     fail(error);
   },
 
+  // Pull a partially-fulfilled order back off Will Call / Shipping. Clears the
+  // order-level fulfillment (so it leaves the fulfillment board) but NEVER
+  // touches fulfilled_qty or the fulfillments log — what already went out stays
+  // recorded. With a stage, the not-fully-out items move there to be finished;
+  // without one, items stay done and the order returns to the Orders worklist.
+  async reopenOrder(orderId, stage = null) {
+    let { error } = await supabase
+      .from("orders")
+      .update({ fulfillment: null, fulfilled_at: null, fulfillment_location: null })
+      .eq("id", orderId);
+    fail(error);
+    if (!stage) return;
+    const { data: items } = await supabase.from("items").select("id,qty,fulfilled_qty").eq("order_id", orderId);
+    const numQty = (q) => Math.max(parseInt(q, 10) || 1, 1);
+    const ids = (items || []).filter((it) => (it.fulfilled_qty || 0) < numQty(it.qty)).map((it) => it.id);
+    if (ids.length) {
+      ({ error } = await supabase.from("items").update({ stage }).in("id", ids));
+      fail(error);
+    }
+  },
+
   async markShipped(orderId, { tracking, carrier, notes } = {}) {
     const shippedAt = new Date().toISOString();
     let { error } = await supabase

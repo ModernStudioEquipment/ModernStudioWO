@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import {
   Clock, Printer, Plus, Truck, CheckCircle2, AlertTriangle, Hammer,
-  Flag, Check, ArrowRight, ShoppingCart, LogOut, Store, MapPin, Package, X, Bell, ExternalLink, RefreshCw, Pencil,
+  Flag, Check, ArrowRight, ShoppingCart, LogOut, Store, MapPin, Package, X, Bell, ExternalLink, RefreshCw, Pencil, RotateCcw,
 } from "lucide-react";
 import { C, PRI, PRI_CYCLE, PRI_RANK, elapsed, blocked, pct, dueLabel, priLabel, effectivePriority, trackingUrl, stagedTooLong, stagedDwellMs, STAGE_LABELS } from "./theme.js";
 import { backendMode } from "./lib/db.js";
@@ -9,7 +9,7 @@ import { useAuth } from "./hooks/useAuth.js";
 import { useOrders } from "./hooks/useOrders.js";
 import { useWorkOrders } from "./hooks/useWorkOrders.js";
 import {
-  Pill, Btn, Group, ItemLine, Empty, Tabwrap, DeptBadge, DuePill, MethodBadge, MoveMenu, SittingBadge,
+  Pill, Btn, Group, ItemLine, Empty, Tabwrap, DeptBadge, DuePill, MethodBadge, MoveMenu, SittingBadge, InlineMenu,
 } from "./components/ui.jsx";
 import { Auth } from "./components/Auth.jsx";
 import { Logo } from "./components/Logo.jsx";
@@ -786,13 +786,13 @@ export default function App() {
 
             {tab === "willcall" && (
               <Tabwrap title="Will Call">
-                <FulfillmentBoard variant="willcall" orders={willCallOrders} now={now} onOpen={setDetailId} onPickedUp={(o) => setPartialTarget({ order: o, kind: "pickup" })} onSetLocation={board.setLocation} emptyText="Nothing on will-call yet. Completed orders land here when you mark them Will Call." />
+                <FulfillmentBoard variant="willcall" orders={willCallOrders} now={now} onOpen={setDetailId} onPickedUp={(o) => setPartialTarget({ order: o, kind: "pickup" })} onSetLocation={board.setLocation} onReopen={board.reopenOrder} emptyText="Nothing on will-call yet. Completed orders land here when you mark them Will Call." />
               </Tabwrap>
             )}
 
             {tab === "shipping" && (
               <Tabwrap title="Shipping">
-                <FulfillmentBoard variant="shipping" orders={shippingOrders} now={now} onOpen={setDetailId} onMarkShipped={(o) => setPartialTarget({ order: o, kind: "shipment" })} onSetLocation={board.setLocation} emptyText="Nothing shipping yet. Completed orders land here when you mark them Ship." />
+                <FulfillmentBoard variant="shipping" orders={shippingOrders} now={now} onOpen={setDetailId} onMarkShipped={(o) => setPartialTarget({ order: o, kind: "shipment" })} onSetLocation={board.setLocation} onReopen={board.reopenOrder} emptyText="Nothing shipping yet. Completed orders land here when you mark them Ship." />
               </Tabwrap>
             )}
 
@@ -1024,7 +1024,7 @@ function LocationCell({ value, onSave }) {
   );
 }
 
-function FulfillmentBoard({ orders, now, onOpen, onMarkShipped, onPickedUp, onSetLocation, variant, emptyText }) {
+function FulfillmentBoard({ orders, now, onOpen, onMarkShipped, onPickedUp, onSetLocation, onReopen, variant, emptyText }) {
   if (!orders.length) return <Empty>{emptyText}</Empty>;
   return (
     <>
@@ -1100,6 +1100,24 @@ function FulfillmentBoard({ orders, now, onOpen, onMarkShipped, onPickedUp, onSe
                       <Check size={13} />Picked up
                     </Btn>
                   )
+                )}
+                {/* Send a not-yet-finished order back to a working tab. "Reopen"
+                    keeps items done (just needs to go out); "Work Order/Pick List"
+                    sends the not-fully-out items back to be finished. */}
+                {onReopen && !closed && (
+                  <InlineMenu
+                    align="right"
+                    options={[
+                      { value: "reopen", label: "Reopen — back to Orders" },
+                      { value: "workorder", label: "Send to Work Order" },
+                      { value: "picklist", label: "Send to Pick List" },
+                    ]}
+                    onSelect={(v) => onReopen(o.id, v === "reopen" ? null : v)}
+                  >
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded font-bold uppercase tracking-wide" style={{ fontSize: 12, background: "#fff", color: C.inkSoft, border: `1px solid ${C.line}`, cursor: "pointer", whiteSpace: "nowrap" }}>
+                      <RotateCcw size={12} />Send back
+                    </span>
+                  </InlineMenu>
                 )}
               </div>
             </div>

@@ -374,6 +374,24 @@ export const localAdapter = {
     write(orders);
   },
 
+  // Pull a partially-fulfilled order back off Will Call / Shipping. Clears the
+  // order-level fulfillment; keeps fulfilledQty intact. With a stage, the
+  // not-fully-out items move there; without one, the order returns to Orders.
+  async reopenOrder(orderId, stage = null) {
+    const orders = read();
+    const o = orders.find((x) => x.id === orderId);
+    if (o) {
+      o.fulfillment = null;
+      o.fulfilledAt = null;
+      o.location = null;
+      if (stage) {
+        const numQty = (q) => Math.max(parseInt(q, 10) || 1, 1);
+        (o.items || []).forEach((it) => { if ((it.fulfilledQty || 0) < numQty(it.qty)) it.stage = stage; });
+      }
+    }
+    write(orders);
+  },
+
   // Close out a completed order: method is 'willcall' or 'shipping', plus a
   // free-text location. Moves it into the matching top tab.
   async fulfillOrder(orderId, method, location) {
