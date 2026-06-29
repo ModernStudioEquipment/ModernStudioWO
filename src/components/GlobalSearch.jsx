@@ -41,6 +41,7 @@ export function GlobalSearch({ orders, onOpen }) {
           if (String(o.orderNo).toLowerCase().includes(query)) return true;
           if ((o.customer || "").toLowerCase().includes(query)) return true;
           if ((o.contact || "").toLowerCase().includes(query)) return true;
+          if ((o.shipTo || "").toLowerCase().includes(query)) return true; // the drop-ship recipient
           return (o.items || []).some((it) => (it.name || "").toLowerCase().includes(query));
         })
         .slice(0, 12)

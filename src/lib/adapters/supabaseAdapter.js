@@ -67,6 +67,7 @@ function mapOrder(row, productPhotos = {}, fulfillmentsByOrder = {}) {
     dueTime: row.due_time || null,
     completionDate: row.completion_date || null, // shop's estimated ready-by date
     notes: row.notes || null,
+    shipTo: row.ship_to || null, // drop-ship recipient (who it's really going to)
     fulfillmentMethod: row.fulfillment_method || null, // chosen at intake; sticks to the order
     fulfillment: row.fulfillment, // null | 'willcall' | 'shipping'
     fulfilledAt: row.fulfilled_at || null,

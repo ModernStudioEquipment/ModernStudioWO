@@ -21,11 +21,15 @@ const CONDUCTOR_BASE = "https://api.conductor.is/v1/quickbooks-desktop";
 
 export const maxDuration = 60;
 
-export async function GET() {
-  return run({ commit: false });
+// ?shiptoBackfillDays=N runs a one-time pass that fills the ship_to (drop-ship
+// recipient) on EXISTING orders from the last N days — no inserts.
+export async function GET(request) {
+  const days = Number(new URL(request.url).searchParams.get("shiptoBackfillDays") || 0);
+  return run({ commit: false, shipToBackfillDays: days });
 }
-export async function POST() {
-  return run({ commit: true });
+export async function POST(request) {
+  const days = Number(new URL(request.url).searchParams.get("shiptoBackfillDays") || 0);
+  return run({ commit: true, shipToBackfillDays: days });
 }
 
 // One-off maintenance: remove synced QuickBooks orders so the next sync re-pulls
@@ -62,6 +66,17 @@ const receivedAtOf = (t) => {
   // Cap at the sync time so a fresh order reads "just now" instead.
   return new Date(!isNaN(ms) ? Math.min(ms, nowMs) : nowMs).toISOString();
 };
+
+// The drop-ship recipient — QuickBooks' "Ship To" block (Conductor's
+// shippingAddress). Line 1 is the recipient name, line 2 the company/venue; the
+// rest is the street address. We keep the top two lines = "who it's going to"
+// (e.g. "Dylan Michael Petraitis · Nashville Convention & Visitors"). Null when
+// there's no separate ship-to.
+function shipToOf(t) {
+  const a = t.shippingAddress || t.shipAddress || t.shipping_address || {};
+  const who = [a.line1, a.line2].map((s) => String(s || "").trim()).filter(Boolean);
+  return who.join(" · ") || null;
+}
 
 // Real product lines only: skip note/blank lines, shipping/freight, financial
 // adjustments, and fee/labor charges.
@@ -128,7 +143,7 @@ async function fetchTxns(path, conductorKey, endUserId, since, extra = "") {
   return out;
 }
 
-async function run({ commit }) {
+async function run({ commit, shipToBackfillDays }) {
   const conductorKey = process.env.CONDUCTOR_SECRET_KEY;
   const endUserId = process.env.CONDUCTOR_END_USER_ID;
   const url = process.env.VITE_SUPABASE_URL;
@@ -141,6 +156,9 @@ async function run({ commit }) {
     !serviceKey && "SUPABASE_SECRET_KEY",
   ].filter(Boolean);
   if (missing.length) return json(500, { error: "Not configured", missing });
+
+  // One-time backfill: fill ship_to on existing orders, no inserts.
+  if (shipToBackfillDays > 0) return backfillShipTo({ days: shipToBackfillDays, conductorKey, endUserId, url, serviceKey });
 
   // --- 1. Pull recent sales orders AND invoices (16-day window keeps QB fast) ---
   const since = new Date(Date.now() - 16 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -177,6 +195,7 @@ async function run({ commit }) {
     fromOnlineStore: fromOnlineStore(so),
     isOpen: !(so.isFullyInvoiced ?? so.is_fully_invoiced ?? false) && !(so.isManuallyClosed ?? so.is_manually_closed ?? false),
     receivedAt: receivedAtOf(so),
+    shipTo: shipToOf(so),
   })).filter((o) => o.orderNo && o.isOpen && o.items.length && !o.fromOnlineStore);
 
   // --- 3. Map invoices: real invoices (start with 4), not Shopify, + linked SO ---
@@ -187,6 +206,7 @@ async function run({ commit }) {
     items: mapItems(inv),
     fromOnlineStore: fromOnlineStore(inv),
     receivedAt: receivedAtOf(inv),
+    shipTo: shipToOf(inv),
     linkedSo: linkedSalesOrders(inv),
   })).filter((o) => o.orderNo && o.orderNo.startsWith("4") && o.items.length && !o.fromOnlineStore);
 
@@ -244,7 +264,14 @@ async function run({ commit }) {
         p_items: m.items,
       }),
     });
-    if (ins.ok) inserted++;
+    if (ins.ok) {
+      inserted++;
+      // Stamp the drop-ship recipient on the order we just created (tolerate the
+      // ship_to column not existing yet — migration 0031).
+      if (m.shipTo) await fetch(`${url}/rest/v1/orders?order_no=eq.${encodeURIComponent(m.orderNo)}&source=eq.QuickBooks`, {
+        method: "PATCH", headers: sb, body: JSON.stringify({ ship_to: m.shipTo }),
+      }).catch(() => {});
+    }
     else { failed++; if (!firstError) firstError = { status: ins.status, detail: (await ins.text()).slice(0, 400) }; }
   }
   return json(200, {
@@ -254,6 +281,40 @@ async function run({ commit }) {
     invoicesSkippedAsSalesOrderDup: invLinkedDup.length,
     inserted, failed, firstError,
   });
+}
+
+// One-time pass: pull the last N days of sales orders + invoices and fill the
+// drop-ship recipient (ship_to) on EXISTING QuickBooks orders that don't have it
+// yet. No inserts, no dedup — just backfill. Run once after deploy.
+async function backfillShipTo({ days, conductorKey, endUserId, url, serviceKey }) {
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  let soList, invList;
+  try {
+    [soList, invList] = await Promise.all([
+      fetchTxns("sales-orders", conductorKey, endUserId, since),
+      fetchTxns("invoices", conductorKey, endUserId, since),
+    ]);
+  } catch (e) {
+    return json(e.status ? 502 : 504, { error: "Conductor request failed", status: e.status, detail: (e.detail || String(e)).slice(0, 300) });
+  }
+  // order_no -> ship_to (first one wins; an SO and its invoice share the number)
+  const map = new Map();
+  for (const t of [...soList, ...invList]) {
+    const no = refNo(t), st = shipToOf(t);
+    if (no && st && !map.has(no)) map.set(no, st);
+  }
+  const entries = [...map.entries()];
+  const sb = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json", Prefer: "return=representation" };
+  let updated = 0;
+  for (let i = 0; i < entries.length; i += 20) {
+    const res = await Promise.all(entries.slice(i, i + 20).map(([no, st]) =>
+      fetch(`${url}/rest/v1/orders?order_no=eq.${encodeURIComponent(no)}&source=eq.QuickBooks&ship_to=is.null`, {
+        method: "PATCH", headers: sb, body: JSON.stringify({ ship_to: st }),
+      }).then((r) => (r.ok ? r.json().catch(() => []) : [])).then((rows) => (Array.isArray(rows) ? rows.length : 0)).catch(() => 0)
+    ));
+    updated += res.reduce((a, b) => a + b, 0);
+  }
+  return json(200, { mode: "shipto-backfill", days, withShipTo: entries.length, ordersUpdated: updated });
 }
 
 function json(status, b) {

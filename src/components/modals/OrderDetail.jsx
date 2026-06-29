@@ -38,6 +38,7 @@ export function OrderDetail({ order, status, now, onDueDate, onCompletion, onMet
             <Info label="Company" value={order.customer} />
             <Info label="Ordered by" value={order.contact} />
             <Info label="Received" value={`${receivedOn} · ${elapsed(now - order.receivedAt)} ago`} />
+            {order.shipTo && <Info label="Ship to" value={order.shipTo} />}
           </div>
           <div className="flex items-center gap-2 mb-1">
             <Pill c={status.c} bg={status.bg} Icon={status.Icon}>{status.label}</Pill>

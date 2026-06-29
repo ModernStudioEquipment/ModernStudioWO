@@ -381,6 +381,7 @@ export default function App() {
             <div style={{ fontSize: 12, color: C.gray }}>
               Ordered by {o.contact} · {elapsed(now - o.receivedAt)} ago
             </div>
+            {o.shipTo && <div style={{ fontSize: 12, color: C.inkSoft, fontWeight: 600 }}>→ Ship to: {o.shipTo}</div>}
           </div>
           <DuePill o={o} now={now} onChange={(date, time) => board.setDueDate(o.id, date, time)} />
           <CompletionPill o={o} onChange={(date) => board.setCompletionDate(o.id, date)} />
@@ -1058,6 +1059,7 @@ function FulfillmentBoard({ orders, now, onOpen, onMarkShipped, onPickedUp, onSe
               <div className="min-w-0">
                 <div className="font-bold flex items-center gap-2" style={{ fontSize: 14 }}>{o.customer}{o.notes && <Bell size={15} color={C.rush} fill={C.rush} title={`Note: ${o.notes}`} style={{ flexShrink: 0 }} />}</div>
                 <div style={{ fontSize: 12, color: C.gray }}>Ordered by {o.contact} · {elapsed(now - o.receivedAt)} ago</div>
+                {o.shipTo && <div style={{ fontSize: 12, color: C.inkSoft, fontWeight: 600 }}>→ Ship to: {o.shipTo}</div>}
               </div>
               <DuePill o={o} now={now} />
               {partial && <Pill c={C.high} bg={C.highBg} Icon={Package}>Partial · {totalOut}/{totalOrdered} {variant === "willcall" ? "picked up" : "shipped"}</Pill>}
