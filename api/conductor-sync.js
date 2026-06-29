@@ -48,7 +48,16 @@ const refNo = (t) => String(t.refNumber ?? t.ref_number ?? t.transactionNumber ?
 const customerOf = (t) =>
   (t.customer && (t.customer.fullName || t.customer.name)) || t.customerFullName || t.customerName || "QuickBooks customer";
 const fromOnlineStore = (t) => !!(t.salesStoreName || t.salesChannelName || t.salesStoreType);
-const receivedAtOf = (t) => String(t.transactionDate || t.txnDate || t.date || "").slice(0, 10) || null;
+// When the order was created in QuickBooks — a full date+time (createdAt is ISO
+// 8601). We deliberately AVOID transactionDate here: it's date-only, so it would
+// peg "received" to midnight and make a just-entered order read as many hours
+// old. Fall back to the sync time (≈ now, with the 10-min auto-sync) before ever
+// using a bare date.
+const receivedAtOf = (t) => {
+  const created = t.createdAt || t.created_at;
+  const d = created ? new Date(created) : null;
+  return d && !isNaN(d.getTime()) ? d.toISOString() : new Date().toISOString();
+};
 
 // Real product lines only: skip note/blank lines, shipping/freight, financial
 // adjustments, and fee/labor charges.
