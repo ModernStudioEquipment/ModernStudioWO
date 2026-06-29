@@ -186,9 +186,9 @@ function CompletionEditor({ initialDate, onChange, onClose }) {
 export function CompletionPill({ o, onChange, showEmpty }) {
   const [editing, setEditing] = useState(false);
   const date = o.completionDate;
-  // On cards we only show it once a date is set (keeps cards uncluttered); the
-  // order-detail passes showEmpty so you can still set it there.
-  if (!date && !showEmpty) return null;
+  // Show it whenever it's set, or wherever it's settable (onChange on the cards,
+  // showEmpty in the order detail) so you can add a ready-by right from the card.
+  if (!date && !onChange && !showEmpty) return null;
   const pill = (
     <Pill c={date ? C.blue : C.gray} bg={date ? C.blueBg : C.grayBg} Icon={CalendarCheck}>
       {date ? `Ready ${dueLabel(date)}` : "Ready-by"}{onChange && <ChevronDown size={11} style={{ opacity: 0.6 }} />}
