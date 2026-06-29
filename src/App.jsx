@@ -512,8 +512,8 @@ export default function App() {
                 title="NEW ORDERS"
                 action={
                   <div className="flex items-center gap-2 flex-wrap justify-end">
-                    <SegGroup label="Source" value={newSource} onChange={setNewSource} options={[["all", "All"], ["QuickBooks", "QB"], ["Shopify", "Shopify"]]} />
-                    <SegGroup label="Sort" value={newSort} onChange={setNewSort} options={[["newest", "Newest"], ["due", "Due date"]]} />
+                    <SegGroup value={newSource} onChange={setNewSource} options={[["all", "All"], ["QuickBooks", "QB"], ["Shopify", "Shopify"]]} />
+                    <SegGroup value={newSort} onChange={setNewSort} options={[["newest", "Newest"], ["due", "Due date"]]} />
                     <Btn onClick={() => setAllExpanded("new", newOrdersShown.map((o) => o.id), !newOrdersShown.some((o) => isExpanded("new", o.id)))}>
                       {newOrdersShown.some((o) => isExpanded("new", o.id)) ? "Collapse all" : "Open all"}
                     </Btn>
@@ -772,7 +772,7 @@ export default function App() {
             )}
 
             {tab === "orders" && (
-              <Tabwrap title="Orders" action={<SegGroup label="Source" value={orderSource} onChange={setOrderSource} options={[["all", "All"], ["QuickBooks", "QB"], ["Shopify", "Shopify"]]} />}>
+              <Tabwrap title="Orders" action={<SegGroup value={orderSource} onChange={setOrderSource} options={[["all", "All"], ["QuickBooks", "QB"], ["Shopify", "Shopify"]]} />}>
                 <div className="flex items-center gap-2 mb-3 flex-wrap">
                   {OFILTERS.map((f) => (
                     <button
