@@ -1157,27 +1157,32 @@ function itemRank(it) {
   return it.stage === "new" ? 0 : it.stage === "done" ? 2 : 1;
 }
 
-// A tidy segmented control: an optional label, then equal-width buttons in one
-// bordered pill — so the Source picker and the Sort picker read as two distinct,
-// uniform groups instead of a jumble of different-width buttons.
-function SegGroup({ label, value, onChange, options, btnWidth = 62 }) {
+// A segmented control with an Apple-style SLIDING pill: the dark indicator
+// glides to whichever option you click instead of snapping. Equal-width buttons
+// so the pill lines up on every option; an optional label sits to the left.
+function SegGroup({ label, value, onChange, options, btnWidth = 70 }) {
+  const idx = Math.max(0, options.findIndex(([v]) => v === value));
   return (
-    <span className="inline-flex items-center" style={{ border: `1px solid ${C.line}`, borderRadius: 7, overflow: "hidden", background: "#fff" }}>
+    <span className="inline-flex items-center" style={{ border: `1px solid ${C.line}`, borderRadius: 8, overflow: "hidden", background: "#fff" }}>
       {label && (
-        <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: 0.5, color: C.gray, textTransform: "uppercase", padding: "0 9px", whiteSpace: "nowrap" }}>{label}</span>
+        <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: 0.5, color: C.gray, textTransform: "uppercase", padding: "0 9px", whiteSpace: "nowrap", alignSelf: "stretch", display: "flex", alignItems: "center", borderRight: `1px solid ${C.line}` }}>{label}</span>
       )}
-      {options.map(([v, lbl]) => {
-        const on = value === v;
-        return (
-          <button
-            key={v} onClick={() => onChange(v)}
-            className="text-xs font-bold uppercase tracking-wide"
-            style={{ minWidth: btnWidth, padding: "6px 10px", border: "none", borderLeft: `1px solid ${C.line}`, background: on ? C.ink : "#fff", color: on ? "#fff" : C.inkSoft, cursor: "pointer" }}
-          >
-            {lbl}
-          </button>
-        );
-      })}
+      <span style={{ position: "relative", display: "flex", padding: 3 }}>
+        {/* the sliding pill — translateX by the active index, with a springy ease */}
+        <span aria-hidden style={{ position: "absolute", top: 3, bottom: 3, left: 3, width: btnWidth, borderRadius: 6, background: C.ink, transform: `translateX(${idx * btnWidth}px)`, transition: "transform 0.26s cubic-bezier(0.34, 1.12, 0.64, 1)" }} />
+        {options.map(([v, lbl]) => {
+          const on = value === v;
+          return (
+            <button
+              key={v} onClick={() => onChange(v)}
+              className="text-xs font-bold uppercase tracking-wide"
+              style={{ position: "relative", zIndex: 1, width: btnWidth, padding: "6px 0", border: "none", background: "transparent", color: on ? "#fff" : C.inkSoft, cursor: "pointer", transition: "color 0.2s", whiteSpace: "nowrap" }}
+            >
+              {lbl}
+            </button>
+          );
+        })}
+      </span>
     </span>
   );
 }
