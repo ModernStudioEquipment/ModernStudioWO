@@ -37,6 +37,11 @@ body {
   .card-pop:hover { transform: none; }
 }
 
+/* Nav tabs brighten on hover (real pointer only); the active pill slides behind. */
+@media (hover: hover) {
+  .navtab:hover { color: #fff !important; }
+}
+
 /* Inline-editable fields on the work-order sheets. Look like the printed text;
    a faint underline shows they're editable, highlighted on focus. */
 .wo-edit {

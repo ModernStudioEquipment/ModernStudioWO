@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   Clock, Printer, Plus, Truck, CheckCircle2, AlertTriangle, Hammer,
   Flag, Check, ArrowRight, ShoppingCart, LogOut, Store, MapPin, Package, X, Bell, ExternalLink, RefreshCw, Pencil, RotateCcw, ChevronsDownUp, ChevronsUpDown,
@@ -45,6 +45,19 @@ export default function App() {
     try { return localStorage.getItem("mse_tab_v1") || "dash"; } catch { return "dash"; }
   });
   const [now, setNow] = useState(Date.now());
+  // A pill behind the active tab that glides to whichever tab is selected. Measures
+  // the active tab each render; only updates (and only animates after the first
+  // paint) when the geometry actually changes, so there's no flash and no loop.
+  const tabEls = useRef({});
+  const tabFirst = useRef(true);
+  const [pill, setPill] = useState({ left: 0, top: 0, width: 0, height: 0, animate: false });
+  useLayoutEffect(() => {
+    const el = tabEls.current[tab];
+    if (!el) return;
+    const n = { left: el.offsetLeft, top: el.offsetTop, width: el.offsetWidth, height: el.offsetHeight, animate: !tabFirst.current };
+    tabFirst.current = false;
+    setPill((p) => (p.left === n.left && p.top === n.top && p.width === n.width && p.height === n.height) ? p : n);
+  });
   const [matTarget, setMatTarget] = useState(null); // itemId awaiting material entry
   const [doc, setDoc] = useState(null); // { o, it } for printable work order
   const [flashItem, setFlashItem] = useState(null);
@@ -461,13 +474,15 @@ export default function App() {
         >
           <Logo height={30} variant="light" />
         </button>
-        <div className="flex items-center gap-1 ml-2 flex-1 min-w-0 no-scrollbar basis-full order-last md:basis-0 md:order-none" style={{ overflowX: "auto" }}>
+        <div className="flex items-center gap-1 ml-2 flex-1 min-w-0 no-scrollbar basis-full order-last md:basis-0 md:order-none" style={{ overflowX: "auto", position: "relative" }}>
+          <span aria-hidden style={{ position: "absolute", left: 0, top: 0, transform: `translate(${pill.left}px, ${pill.top}px)`, width: pill.width, height: pill.height, background: "rgba(255,255,255,0.16)", borderRadius: 8, transition: pill.animate ? "transform 0.32s cubic-bezier(0.34,1.1,0.64,1), width 0.32s cubic-bezier(0.34,1.1,0.64,1)" : "none", pointerEvents: "none", zIndex: 0 }} />
           {TABS.map((t) => (
             <button
               key={t.k}
+              ref={(el) => { if (el) tabEls.current[t.k] = el; }}
               onClick={() => { setTab(t.k); window.scrollTo({ top: 0, behavior: "smooth" }); }}
-              className="relative px-3 py-1.5 rounded font-bold shrink-0 whitespace-nowrap"
-              style={{ fontSize: 13, background: tab === t.k ? "rgba(255,255,255,0.14)" : "transparent", color: tab === t.k ? "#fff" : "rgba(255,255,255,0.65)" }}
+              className="navtab relative px-3 py-1.5 rounded font-bold shrink-0 whitespace-nowrap"
+              style={{ fontSize: 13, background: "transparent", color: tab === t.k ? "#fff" : "rgba(255,255,255,0.65)", zIndex: 1, transition: "color 0.25s" }}
             >
               {t.label}{t.n ? ` · ${t.n}` : ""}
               {t.dot ? (

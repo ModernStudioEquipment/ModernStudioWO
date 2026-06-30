@@ -105,12 +105,12 @@ export function Dashboard({ orders = [], workOrders = [], now, onNavigate, onOpe
   const dateStr = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
   const timeStr = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }).toLowerCase().replace(" ", "");
 
-  const card = { background: C.surface, border: `0.5px solid ${C.line}`, borderRadius: 8 };
+  const card = { background: C.surface, border: `0.5px solid ${C.line}`, borderRadius: 12, boxShadow: C.shadow };
   const tagStyle = { rush: { c: C.rush, bg: C.rushBg }, high: { c: C.high, bg: C.highBg }, stale: { c: C.rush, bg: C.rushBg }, sitting: { c: C.high, bg: C.highBg }, ship: { c: C.gold, bg: C.goldBg } };
   const sectionLabel = { fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.6 };
 
   const Kpi = ({ label, value, accent, sub, hot, to }) => (
-    <div onClick={() => onNavigate(to)} style={{ background: C.surface, border: `1px solid ${C.line}`, borderLeft: `4px solid ${accent}`, borderRadius: 6, padding: "13px 15px", cursor: "pointer" }}>
+    <div onClick={() => onNavigate(to)} className="card-pop" style={{ background: C.surface, border: `1px solid ${C.line}`, borderLeft: `4px solid ${accent}`, padding: "13px 15px", cursor: "pointer" }}>
       <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 0.6, textTransform: "uppercase", color: C.gray }}>{label}</div>
       <div style={{ fontFamily: "ui-monospace,monospace", fontSize: 30, fontWeight: 800, lineHeight: 1.1, marginTop: 2 }}>{value}</div>
       <div style={{ fontSize: 11.5, color: hot && value ? accent : C.gray, fontWeight: hot && value ? 600 : 400 }}>{sub}</div>
