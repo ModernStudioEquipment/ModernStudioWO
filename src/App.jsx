@@ -74,9 +74,11 @@ export default function App() {
   const [orderSource, setOrderSource] = useState("all"); // Orders tab filter: all / QuickBooks / Shopify
   const [orderDrag, setOrderDrag] = useState(null); // order id being dragged in the Orders tab (for the visual dim)
   const orderDragRef = useRef(null); // synchronous copy so the drop handler never reads a stale value
-  const [manualOrder, setManualOrder] = useState(() => { // per-computer drag-reorder of the Orders tab
-    try { return JSON.parse(localStorage.getItem("mse_orders_manual_v1")) || []; } catch { return []; }
-  });
+  const [optArr, setOptArr] = useState(null); // optimistic manual order during a drag (snappy before the DB write lands)
+  // Shared drag-reorder: the sequence lives in the DB (app_settings, key
+  // "orders_manual") so the whole crew sees the same order; realtime keeps boards synced.
+  const manualOrder = optArr || board.arrangement || [];
+  useEffect(() => { setOptArr(null); }, [board.arrangement]); // once the saved order lands, drop the optimistic copy
   // Per-computer collapse memory: which order cards are expanded, scoped per
   // board ('new' / 'pick'). Default = collapsed (absent from the set). Kept in
   // localStorage so it's per-machine and NOT shared across the crew.
@@ -349,8 +351,8 @@ export default function App() {
     : orderView === "pct" ? [...ordersSourced].sort((a, b) => pct(b) - pct(a))
     : orderView === "due" ? [...ordersSourced].sort(byDue)
     : [...ordersSourced].sort((a, b) => b.receivedAt - a.receivedAt);
-  // Orders tab: hold-and-drag to reorder, saved per computer. A manual order
-  // overrides the sort above; "Reset order" clears it back to automatic.
+  // Orders tab: hold-and-drag to reorder. The order is shared across the crew
+  // (stored in the DB) and overrides the sort above; "Reset order" clears it.
   const orderedVisible = manualOrder.length
     ? [...visibleOrders].sort((a, b) => {
         const ia = manualOrder.indexOf(a.id), ib = manualOrder.indexOf(b.id);
@@ -365,11 +367,11 @@ export default function App() {
     const from = ids.indexOf(src), to = ids.indexOf(targetId);
     if (from < 0 || to < 0) return setOrderDrag(null);
     ids.splice(to, 0, ids.splice(from, 1)[0]);
-    setManualOrder(ids);
-    try { localStorage.setItem("mse_orders_manual_v1", JSON.stringify(ids)); } catch { /* ignore */ }
+    setOptArr(ids); // show the new order instantly
+    board.setArrangement(ids); // persist team-wide; realtime refetch syncs every open board
     setOrderDrag(null);
   };
-  const resetOrder = () => { setManualOrder([]); try { localStorage.removeItem("mse_orders_manual_v1"); } catch { /* ignore */ } };
+  const resetOrder = () => { setOptArr([]); board.setArrangement([]); };
 
   // New Orders, filtered by source (All / QuickBooks / Shopify), then sorted.
   const newOrdersShown = [...newOrders]

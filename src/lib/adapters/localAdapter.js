@@ -124,6 +124,16 @@ export const localAdapter = {
     return orders;
   },
 
+  // Shared manual order of the Orders tab. Local mode is single-machine, so this
+  // lives in localStorage; cross-tab sync rides the same BroadcastChannel.
+  async getArrangement() {
+    try { return JSON.parse(localStorage.getItem("mse_orders_manual_v1")) || []; } catch { return []; }
+  },
+  async setArrangement(ids) {
+    try { localStorage.setItem("mse_orders_manual_v1", JSON.stringify(ids || [])); } catch { /* ignore */ }
+    channel?.postMessage("changed");
+  },
+
   subscribe(cb) {
     const onMsg = () => cb();
     channel?.addEventListener("message", onMsg);

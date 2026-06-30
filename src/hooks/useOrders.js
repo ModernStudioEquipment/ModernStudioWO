@@ -9,6 +9,7 @@ import { db } from "../lib/db.js";
 
 export function useOrders(enabled) {
   const [orders, setOrders] = useState([]);
+  const [arrangement, setArrangementState] = useState([]); // shared manual order of the Orders tab (DB-backed)
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const debounceRef = useRef(null);
@@ -17,6 +18,9 @@ export function useOrders(enabled) {
     try {
       const data = await db.getOrders();
       setOrders(data);
+      // The shared Orders-tab arrangement rides the same refetch, so any realtime
+      // change (including a reorder, via app_settings) refreshes it for everyone.
+      setArrangementState((await db.getArrangement?.()) || []);
       setError(null);
       return data;
     } catch (e) {
@@ -66,6 +70,8 @@ export function useOrders(enabled) {
     loading,
     error,
     refetch,
+    arrangement,
+    setArrangement: act((ids) => db.setArrangement(ids)),
     nextOrderNo: () => db.nextOrderNo(),
     createOrder: act((payload) => db.createOrder(payload)),
     createPurchase: act((payload) => db.createPurchase(payload)),

@@ -171,6 +171,23 @@ export const supabaseAdapter = {
     fail(error);
   },
 
+  // Shared "manual order" of the Orders tab — a single JSON row in app_settings
+  // (key "orders_manual") holding the order-id sequence the whole crew sees.
+  // Realtime on app_settings (0035) pushes a reorder to every open board.
+  // Tolerates the table not existing yet: reads return [], writes no-op.
+  async getArrangement(key = "orders_manual") {
+    const { data, error } = await supabase
+      .from("app_settings").select("value").eq("key", key).maybeSingle();
+    if (error) return [];
+    return Array.isArray(data?.value) ? data.value : [];
+  },
+  async setArrangement(ids, key = "orders_manual") {
+    const { error } = await supabase
+      .from("app_settings")
+      .upsert({ key, value: ids, updated_at: new Date().toISOString() }, { onConflict: "key" });
+    if (error && error.code !== "42P01") fail(error); // 42P01 = table missing (migration not run yet)
+  },
+
   subscribe(cb) {
     // Each subscriber needs its OWN channel: reusing a topic name returns the
     // already-subscribed channel, and adding callbacks to it throws.
@@ -181,6 +198,7 @@ export const supabaseAdapter = {
       .on("postgres_changes", { event: "*", schema: "public", table: "materials" }, cb)
       .on("postgres_changes", { event: "*", schema: "public", table: "item_events" }, cb)
       .on("postgres_changes", { event: "*", schema: "public", table: "work_orders" }, cb)
+      .on("postgres_changes", { event: "*", schema: "public", table: "app_settings" }, cb)
       .subscribe();
     return () => supabase.removeChannel(channel);
   },
