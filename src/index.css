@@ -23,6 +23,7 @@
   --c-green: #1E7A4B; --c-green-bg: #E3F0E9;
   --c-gold: #9C7A0F;  --c-gold-bg: #F7EFCB;
   --c-gray: #6E6C68;  --c-gray-bg: #EBEAE6;
+  --c-note: #FFC400;  --c-note-rail: #36363B;
 }
 html.dark {
   color-scheme: dark;
@@ -40,6 +41,7 @@ html.dark {
   --c-green: #57CE85; --c-green-bg: rgba(87, 206, 133, 0.15);
   --c-gold: #D8B441;  --c-gold-bg: rgba(216, 180, 65, 0.15);
   --c-gray: #9B9BA1;  --c-gray-bg: rgba(255, 255, 255, 0.07);
+  --c-note: #FFCF33;  --c-note-rail: #34343A;
 }
 
 html,

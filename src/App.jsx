@@ -432,7 +432,7 @@ export default function App() {
         onDrop={dragOn ? (e) => { e.preventDefault(); dropOrder(o.id); } : undefined}
         onDragEnd={dragOn ? () => { orderDragRef.current = null; setOrderDrag(null); } : undefined}
         className="mb-2 card-pop"
-        style={{ background: urgent ? C.rushBg : C.surface, border: `1px solid ${urgent ? C.rush : C.line}`, borderLeft: `4px solid ${urgent ? C.rush : st.c}`, opacity: orderDrag === o.id ? 0.4 : (o.fulfillment ? 0.6 : 1), cursor: dragOn ? "grab" : "pointer", ...(o.notes ? { boxShadow: `0 0 0 2px ${C.high}` } : null) }}
+        style={{ background: urgent ? C.rushBg : C.surface, border: `1px solid ${urgent ? C.rush : C.line}`, borderLeft: `4px solid ${urgent ? C.rush : st.c}`, opacity: orderDrag === o.id ? 0.4 : (o.fulfillment ? 0.6 : 1), cursor: dragOn ? "grab" : "pointer", ...(o.notes ? { boxShadow: `0 0 0 2px ${C.note}` } : null) }}
       >
         <div className="flex items-center gap-x-3 gap-y-2 px-4 py-3 flex-wrap">
           <span className="font-bold" style={{ fontFamily: "ui-monospace,monospace", fontSize: 15, color: urgent ? C.rush : C.ink }}>#{o.orderNo}</span>
@@ -442,7 +442,7 @@ export default function App() {
             </span>
           )}
           <div className="min-w-0">
-            <div className="font-bold flex items-center gap-2 flex-wrap" style={{ fontSize: 14 }}>{o.customer}{o.notes && <Bell size={15} color={C.rush} fill={C.rush} title={`Note: ${o.notes}`} style={{ flexShrink: 0 }} />}<MethodBadge m={o.fulfillmentMethod} onChange={(m) => board.setFulfillmentMethod(o.id, m)} /></div>
+            <div className="font-bold flex items-center gap-2 flex-wrap" style={{ fontSize: 14 }}>{o.customer}{o.notes && <Bell size={15} color={C.note} fill={C.note} title={`Note: ${o.notes}`} style={{ flexShrink: 0 }} />}<MethodBadge m={o.fulfillmentMethod} onChange={(m) => board.setFulfillmentMethod(o.id, m)} /></div>
             <div style={{ fontSize: 12, color: C.gray }}>
               Ordered by {o.contact} · {elapsed(now - o.receivedAt)} ago
             </div>
@@ -1127,8 +1127,8 @@ function FulfillmentBoard({ orders, now, onOpen, onMarkShipped, onPickedUp, onSe
             key={o.id}
             id={`order-${o.id}`}
             onClick={() => onOpen(o.id)}
-            className="rounded mb-2"
-            style={{ background: urgent ? C.rushBg : C.surface, border: `1px solid ${urgent ? C.rush : C.line}`, borderLeft: `4px solid ${closed ? C.green : urgent ? C.rush : C.line}`, opacity: closed ? 0.7 : 1, cursor: "pointer", ...(o.notes ? { boxShadow: `0 0 0 2px ${C.high}` } : null) }}
+            className="mb-2 card-pop"
+            style={{ background: urgent ? C.rushBg : C.surface, border: `1px solid ${urgent ? C.rush : C.line}`, borderLeft: `4px solid ${closed ? C.green : urgent ? C.rush : C.line}`, opacity: closed ? 0.7 : 1, cursor: "pointer", ...(o.notes ? { boxShadow: `0 0 0 2px ${C.note}` } : null) }}
           >
             <div className="flex items-center gap-x-3 gap-y-2 px-4 py-3 flex-wrap">
               <span className="font-bold" style={{ fontFamily: "ui-monospace,monospace", fontSize: 15, color: urgent ? C.rush : C.ink }}>#{o.orderNo}</span>
@@ -1138,7 +1138,7 @@ function FulfillmentBoard({ orders, now, onOpen, onMarkShipped, onPickedUp, onSe
                 </span>
               )}
               <div className="min-w-0">
-                <div className="font-bold flex items-center gap-2" style={{ fontSize: 14 }}>{o.customer}{o.notes && <Bell size={15} color={C.rush} fill={C.rush} title={`Note: ${o.notes}`} style={{ flexShrink: 0 }} />}</div>
+                <div className="font-bold flex items-center gap-2" style={{ fontSize: 14 }}>{o.customer}{o.notes && <Bell size={15} color={C.note} fill={C.note} title={`Note: ${o.notes}`} style={{ flexShrink: 0 }} />}</div>
                 <div style={{ fontSize: 12, color: C.gray }}>Ordered by {o.contact} · {elapsed(now - o.receivedAt)} ago</div>
                 {o.shipTo && <div style={{ fontSize: 12, color: C.inkSoft, fontWeight: 600 }}>→ Ship to: {o.shipTo}</div>}
               </div>

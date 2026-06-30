@@ -300,7 +300,7 @@ export function OrderHeader({ o, now, onDueDate, onCompletion, onMethod, onInvoi
       <div style={{ minWidth: 0 }}>
         <div className="font-bold flex items-center gap-2 flex-wrap" style={{ fontSize: 14 }}>
           {o.customer}
-          {o.notes && !noteRail && <Bell size={15} color={C.rush} fill={C.rush} title={`Note: ${o.notes}`} style={{ flexShrink: 0 }} />}
+          {o.notes && !noteRail && <Bell size={15} color={C.note} fill={C.note} title={`Note: ${o.notes}`} style={{ flexShrink: 0 }} />}
           <MethodBadge m={o.fulfillmentMethod} onChange={onMethod ? (m) => onMethod(o.id, m) : undefined} />
           <DuePill o={o} now={now} onChange={onDueDate ? (date, time) => onDueDate(o.id, date, time) : undefined} />
           <CompletionPill o={o} onChange={onCompletion ? (date) => onCompletion(o.id, date) : undefined} />
@@ -332,7 +332,7 @@ export function Group({ o, now, children, onDueDate, onCompletion, onMethod, onI
   // An order with a note gets a clear amber ring around the whole card so it
   // can't be missed (amber = the established "note" color, distinct from the
   // overdue/urgent red so they don't collide).
-  const noteRing = o.notes ? { boxShadow: `0 0 0 2px ${C.high}` } : null;
+  const noteRing = o.notes ? { boxShadow: `0 0 0 2px ${C.note}` } : null;
   // New Orders: when an order has a note, the left edge grows into a wider rail
   // with a BRIGHT RED bell — hover it to peek the note.
   if (noteRail && o.notes) {
@@ -343,9 +343,9 @@ export function Group({ o, now, children, onDueDate, onCompletion, onMethod, onI
             onMouseEnter={() => setNoteOpen(true)}
             onMouseLeave={() => setNoteOpen(false)}
             className="flex flex-col items-center"
-            style={{ width: 38, flexShrink: 0, background: C.highBg, paddingTop: 14, cursor: "default" }}
+            style={{ width: 38, flexShrink: 0, background: C.noteRail, paddingTop: 14, cursor: "default" }}
           >
-            <Bell size={18} color={C.rush} fill={C.rush} />
+            <Bell size={18} color={C.note} fill={C.note} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             {header}
@@ -355,7 +355,7 @@ export function Group({ o, now, children, onDueDate, onCompletion, onMethod, onI
         {/* Hover the bell rail to peek the note — a small tooltip, not a panel. */}
         {noteOpen && (
           <div className="flex items-start gap-2" style={{ position: "absolute", left: 46, top: 8, zIndex: 60, maxWidth: 300, background: C.fill, color: "#fff", borderRadius: 8, padding: "9px 12px", fontSize: 13, lineHeight: 1.45, boxShadow: "0 10px 28px rgba(20,28,38,0.28)", pointerEvents: "none" }}>
-            <Bell size={14} color={C.rush} fill={C.rush} style={{ flexShrink: 0, marginTop: 1 }} />
+            <Bell size={14} color={C.note} fill={C.note} style={{ flexShrink: 0, marginTop: 1 }} />
             <span>{o.notes}</span>
           </div>
         )}

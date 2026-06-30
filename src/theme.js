@@ -28,6 +28,8 @@ export const C = {
   goldBg: "var(--c-gold-bg)",
   gray: "var(--c-gray)",
   grayBg: "var(--c-gray-bg)",
+  note: "var(--c-note)",         // bright yellow — order-note bell + outline
+  noteRail: "var(--c-note-rail)", // charcoal grey — the New Orders note box
 };
 
 // Priority is stored as RUSH/High/Normal (DB constraint) but DISPLAYED as
