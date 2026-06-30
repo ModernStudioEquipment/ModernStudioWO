@@ -218,7 +218,7 @@ export function Dashboard({ orders = [], workOrders = [], now, onNavigate, onOpe
         </div>
       </div>
 
-      <div style={{ ...card, overflow: "hidden" }}>
+      <div className="card-pop" style={{ ...card, overflow: "hidden" }}>
         <div className="flex items-center justify-between" style={{ padding: "10px 14px", borderBottom: `0.5px solid ${C.concrete}` }}>
           <span style={sectionLabel}>Recent orders</span>
           <span onClick={() => onNavigate("orders")} style={{ fontSize: 11.5, color: C.blue, cursor: "pointer", fontWeight: 600 }}>View all →</span>
