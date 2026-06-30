@@ -46,19 +46,23 @@ function parseCSV(text) {
 //        "Title — Variant" (em dash), matching the Shopify webhook. ---
 const rows = parseCSV(readFileSync(CSV, "utf8"));
 const head = rows[0];
-const cH = head.indexOf("Handle"), cT = head.indexOf("Title"), cO = head.indexOf("Option1 Value"), cS = head.indexOf("Variant SKU");
+const cH = head.indexOf("Handle"), cT = head.indexOf("Title"), cS = head.indexOf("Variant SKU");
+const cOpt = [head.indexOf("Option1 Value"), head.indexOf("Option2 Value"), head.indexOf("Option3 Value")].filter((i) => i >= 0);
 const nameToSku = new Map();
+const add = (n, sku) => { if (n && !nameToSku.has(n)) nameToSku.set(n, sku); };
 let curHandle = null, curTitle = null;
 for (let i = 1; i < rows.length; i++) {
   const r = rows[i]; if (!r || r.length <= cS) continue;
   const h = (r[cH] || "").trim(), t = (r[cT] || "").trim();
   if (h !== curHandle) { curHandle = h; curTitle = null; }
   if (t) curTitle = t;
-  const sku = (r[cS] || "").trim(), opt = (r[cO] || "").trim();
-  if (sku && curTitle) {
-    const name = (opt && opt.toLowerCase() !== "default title") ? `${curTitle} — ${opt}` : curTitle;
-    if (!nameToSku.has(name)) nameToSku.set(name, sku);
-  }
+  const sku = (r[cS] || "").trim();
+  if (!sku || !curTitle) continue;
+  // Join ALL options the way the board names a variant ("V1 / V2"), and register
+  // both the em-dash and hyphen separators since board names use either one.
+  const variant = cOpt.map((i) => (r[i] || "").trim()).filter((v) => v && v.toLowerCase() !== "default title").join(" / ");
+  if (variant) { add(`${curTitle} — ${variant}`, sku); add(`${curTitle} - ${variant}`, sku); }
+  else add(curTitle, sku);
 }
 console.log(`Parsed ${nameToSku.size} Shopify product names from the CSV.`);
 if (DRY) { console.log("DRY RUN sample:", [...nameToSku].slice(0, 8)); process.exit(0); }
