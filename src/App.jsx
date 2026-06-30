@@ -376,8 +376,8 @@ export default function App() {
     return (
       <div
         key={o.id} id={`order-${o.id}`} onClick={() => setDetailId(o.id)}
-        className="mb-2"
-        style={{ background: urgent ? C.rushBg : "#fff", border: `1px solid ${urgent ? C.rush : C.line}`, borderLeft: `4px solid ${urgent ? C.rush : st.c}`, opacity: o.fulfillment ? 0.6 : 1, cursor: "pointer", borderRadius: 12, boxShadow: C.shadow, ...(o.notes ? { boxShadow: `0 0 0 2px ${C.high}` } : null) }}
+        className="mb-2 card-pop"
+        style={{ background: urgent ? C.rushBg : "#fff", border: `1px solid ${urgent ? C.rush : C.line}`, borderLeft: `4px solid ${urgent ? C.rush : st.c}`, opacity: o.fulfillment ? 0.6 : 1, cursor: "pointer", ...(o.notes ? { boxShadow: `0 0 0 2px ${C.high}` } : null) }}
       >
         <div className="flex items-center gap-x-3 gap-y-2 px-4 py-3 flex-wrap">
           <span className="font-bold" style={{ fontFamily: "ui-monospace,monospace", fontSize: 15, color: urgent ? C.rush : C.ink }}>#{o.orderNo}</span>

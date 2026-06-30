@@ -338,7 +338,7 @@ export function Group({ o, now, children, onDueDate, onCompletion, onMethod, onI
   if (noteRail && o.notes) {
     return (
       <div className="mb-3" style={{ position: "relative" }}>
-        <div id={`order-${o.id}`} className="flex" style={{ background: "#fff", border: `1px solid ${C.line}`, overflow: "hidden", borderRadius: 12, boxShadow: C.shadow, ...noteRing }}>
+        <div id={`order-${o.id}`} className="flex card-pop" style={{ background: "#fff", border: `1px solid ${C.line}`, overflow: "hidden", ...noteRing }}>
           <div
             onMouseEnter={() => setNoteOpen(true)}
             onMouseLeave={() => setNoteOpen(false)}
@@ -363,7 +363,7 @@ export function Group({ o, now, children, onDueDate, onCompletion, onMethod, onI
     );
   }
   return (
-    <div id={`order-${o.id}`} className="mb-3" style={{ background: "#fff", border: `1px solid ${C.line}`, borderLeft: `4px solid ${lvl ? DUE[lvl].c : C.line}`, borderRadius: 12, boxShadow: C.shadow, ...noteRing }}>
+    <div id={`order-${o.id}`} className="mb-3 card-pop" style={{ background: "#fff", border: `1px solid ${C.line}`, borderLeft: `4px solid ${lvl ? DUE[lvl].c : C.line}`, ...noteRing }}>
       {header}
       {body}
     </div>
