@@ -18,21 +18,32 @@ function itemSku(it) {
   return m ? m[1] : null;
 }
 
-// item_photos can exceed the API's 1000-row page cap, so page through all of it.
-// Cached after the first non-empty load (the library only changes when photos are
-// uploaded); an empty/missing-table result isn't cached, so it retries next time.
-let _photoBySku = null;
-async function loadPhotoBySku() {
-  if (_photoBySku) return _photoBySku;
+// item_photos / product_photos can exceed the API's 1000-row page cap, so page
+// through all of it. Each is cached after its first non-empty load (the libraries
+// change only when photos are added); an empty/missing-table result isn't cached,
+// so it retries on the next load.
+async function loadPaged(table, keyCol, lower) {
   const map = {};
   for (let from = 0; ; from += 1000) {
-    const { data, error } = await supabase.from("item_photos").select("sku,image_url").range(from, from + 999);
+    const { data, error } = await supabase.from(table).select(`${keyCol},image_url`).range(from, from + 999);
     if (error || !Array.isArray(data) || !data.length) break;
-    data.forEach((r) => { if (r.sku) map[String(r.sku).toLowerCase()] = r.image_url; });
+    data.forEach((r) => { const k = r[keyCol]; if (k != null) map[lower ? String(k).toLowerCase() : k] = r.image_url; });
     if (data.length < 1000) break;
   }
-  if (Object.keys(map).length) _photoBySku = map;
   return map;
+}
+let _photoBySku = null, _productPhotos = null;
+async function loadPhotoBySku() {
+  if (_photoBySku) return _photoBySku;
+  const m = await loadPaged("item_photos", "sku", true);
+  if (Object.keys(m).length) _photoBySku = m;
+  return m;
+}
+async function loadProductPhotos() {
+  if (_productPhotos) return _productPhotos;
+  const m = await loadPaged("product_photos", "name", false);
+  if (Object.keys(m).length) _productPhotos = m;
+  return m;
 }
 
 let channelSeq = 0; // unique realtime channel names — one channel per subscriber
@@ -131,11 +142,10 @@ export const supabaseAdapter = {
         .order("received_at", { ascending: false }));
     }
     fail(error);
-    // Product photo library: a photo remembered per product fills in for any item
-    // that doesn't have its own. Tolerate the table not existing yet (0028).
-    const productPhotos = {};
-    const { data: pp } = await supabase.from("product_photos").select("name,image_url");
-    if (Array.isArray(pp)) pp.forEach((r) => { productPhotos[r.name] = r.image_url; });
+    // Product photo library: a photo remembered per product name fills in for any
+    // item that doesn't have its own — this is how Shopify items get matched.
+    // Paged + cached; tolerates the table not existing yet (0028).
+    const productPhotos = await loadProductPhotos();
     // SKU-keyed photo library (0034): how QuickBooks items get their photo, matched
     // by the SKU in their "Item #:" note. Paged + cached; tolerates the table missing.
     const photoBySku = await loadPhotoBySku();
