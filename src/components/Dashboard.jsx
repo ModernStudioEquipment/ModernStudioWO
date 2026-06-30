@@ -12,7 +12,9 @@ export function Dashboard({ orders = [], workOrders = [], now, onNavigate, onOpe
   const orderActive = (o) => o.items.length > 0 && o.items.some(active) && !fulfilled(o);
 
   // ---- KPIs ----
-  const dueSoonCount = orders.filter((o) => dueLevel(o, ts) && orderActive(o)).length;
+  // Shopify orders are excluded from the urgent count (matches the Urgent tab) —
+  // their due date shows past-due on the card, but they don't count as urgent.
+  const dueSoonCount = orders.filter((o) => o.source !== "Shopify" && dueLevel(o, ts) && orderActive(o)).length;
   const inProgItems = items.filter((it) => it.stage === "workorder").length;
   const inProgOrders = orders.filter((o) => o.items.some((it) => it.stage === "workorder")).length;
   const awaitingCount = items.filter((it) => it.stage === "awaiting").length;

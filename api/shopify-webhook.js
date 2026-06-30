@@ -101,6 +101,10 @@ export async function POST(request) {
         priority: "Normal",
         source: "Shopify",
         will_call: false,
+        // Shopify orders are due 5 days after they're placed. This shows as a
+        // due/past-due date on the board, but Shopify orders are kept OUT of the
+        // urgent lane (see effectivePriority) — that's reserved for QuickBooks.
+        due_date: dueFivePlacedDays(order.created_at),
       },
       p_items: items,
     }),
@@ -124,6 +128,19 @@ function json(status, body) {
     status,
     headers: { "Content-Type": "application/json" },
   });
+}
+
+// Due date = 5 days after the order was placed. Shopify's created_at is ISO-8601
+// in the shop's own timezone (e.g. "2026-06-29T14:30:00-05:00"), so the first 10
+// chars are the local placed-date; add 5 days with plain date math (anchored at
+// UTC midnight) to avoid timezone drift. Returns "YYYY-MM-DD".
+function dueFivePlacedDays(createdAt) {
+  const datePart = String(createdAt || "").slice(0, 10);
+  const base = /^\d{4}-\d{2}-\d{2}$/.test(datePart)
+    ? new Date(`${datePart}T00:00:00Z`)
+    : new Date(); // fallback: today, if Shopify ever omits created_at
+  base.setUTCDate(base.getUTCDate() + 5);
+  return base.toISOString().slice(0, 10);
 }
 
 // Fetch each product's primary image from the Shopify Admin API. Returns a map
