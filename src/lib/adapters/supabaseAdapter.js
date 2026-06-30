@@ -106,6 +106,7 @@ function mapOrder(row, productPhotos = {}, fulfillmentsByOrder = {}, photoBySku 
     completionDate: row.completion_date || null, // shop's estimated ready-by date
     notes: row.notes || null,
     shipTo: row.ship_to || null, // drop-ship recipient (who it's really going to)
+    shipVia: row.ship_via || null, // shipping method ("Ship Via" from QB / Shopify line)
     invoiced: !!row.invoiced, // QB: came in as / been marked an invoice
     invoiceNumber: row.invoice_number || null,
     fulfillmentMethod: row.fulfillment_method || null, // chosen at intake; sticks to the order

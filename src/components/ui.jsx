@@ -308,6 +308,7 @@ export function OrderHeader({ o, now, onDueDate, onCompletion, onMethod, onInvoi
         </div>
         <div style={{ fontSize: 12, color: C.gray }}>Ordered by {o.contact}</div>
         {o.shipTo && <div style={{ fontSize: 12, color: C.inkSoft, fontWeight: 600 }}>→ Ship to: {o.shipTo}</div>}
+        {o.shipVia && <div style={{ fontSize: 12, color: C.inkSoft, fontWeight: 600 }}>→ Ship via: {o.shipVia}</div>}
       </div>
       <span className="basis-full sm:basis-auto sm:ml-auto flex items-center gap-2">
         <Pill c={C.inkSoft} bg={C.grayBg} Icon={Clock}>{elapsed(now - o.receivedAt)} ago</Pill>

@@ -166,6 +166,7 @@ export const localAdapter = {
       dueTime: dueTime || null,
       completionDate: null,
       shipTo: null,
+      shipVia: null,
       invoiced: false,
       invoiceNumber: null,
       fulfillment: null,

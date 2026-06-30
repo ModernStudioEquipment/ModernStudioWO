@@ -78,6 +78,16 @@ function shipToOf(t) {
   return who.join(" · ") || null;
 }
 
+// QuickBooks "Ship Via" — the shipping method (ShipMethodRef), e.g. "UPS Ground"
+// or "Will Call". Conductor exposes it as `shipmentMethod` (a ref with fullName);
+// tolerate a couple of shapes. Null when none is set.
+function shipViaOf(t) {
+  const sm = t.shipmentMethod || t.shippingMethod || t.shipMethod || null;
+  if (!sm) return null;
+  const v = (typeof sm === "string" ? sm : (sm.fullName || sm.name || "")).trim();
+  return v || null;
+}
+
 // Real product lines only: skip note/blank lines, shipping/freight, financial
 // adjustments, and fee/labor charges.
 function mapItems(t) {
@@ -196,6 +206,7 @@ async function run({ commit, shipToBackfillDays }) {
     isOpen: !(so.isFullyInvoiced ?? so.is_fully_invoiced ?? false) && !(so.isManuallyClosed ?? so.is_manually_closed ?? false),
     receivedAt: receivedAtOf(so),
     shipTo: shipToOf(so),
+    shipVia: shipViaOf(so),
   })).filter((o) => o.orderNo && o.isOpen && o.items.length && !o.fromOnlineStore);
 
   // --- 3. Map invoices: real invoices (start with 4), not Shopify, + linked SO ---
@@ -207,6 +218,7 @@ async function run({ commit, shipToBackfillDays }) {
     fromOnlineStore: fromOnlineStore(inv),
     receivedAt: receivedAtOf(inv),
     shipTo: shipToOf(inv),
+    shipVia: shipViaOf(inv),
     linkedSo: linkedSalesOrders(inv),
   })).filter((o) => o.orderNo && o.orderNo.startsWith("4") && o.items.length && !o.fromOnlineStore);
 
@@ -248,7 +260,7 @@ async function run({ commit, shipToBackfillDays }) {
         wouldAdd: invsToAdd.length,
       },
       wouldAddTotal: toAdd.length,
-      sample: toAdd.slice(0, 8).map((m) => ({ kind: m.kind, orderNo: m.orderNo, date: m.receivedAt, customer: m.customer, linkedSo: m.linkedSo })),
+      sample: toAdd.slice(0, 8).map((m) => ({ kind: m.kind, orderNo: m.orderNo, date: m.receivedAt, customer: m.customer, shipVia: m.shipVia, linkedSo: m.linkedSo })),
       note: "Preview only — nothing inserted.",
     });
   }
@@ -272,6 +284,7 @@ async function run({ commit, shipToBackfillDays }) {
       // not existing yet.
       const patch = {};
       if (m.shipTo) patch.ship_to = m.shipTo;
+      if (m.shipVia) patch.ship_via = m.shipVia;
       if (m.kind === "invoice") { patch.invoiced = true; patch.invoice_number = m.orderNo; }
       if (Object.keys(patch).length) await fetch(`${url}/rest/v1/orders?order_no=eq.${encodeURIComponent(m.orderNo)}&source=eq.QuickBooks`, {
         method: "PATCH", headers: sb, body: JSON.stringify(patch),
@@ -318,24 +331,34 @@ async function backfillShipTo({ days, conductorKey, endUserId, url, serviceKey }
   } catch (e) {
     return json(e.status ? 502 : 504, { error: "Conductor request failed", status: e.status, detail: (e.detail || String(e)).slice(0, 300) });
   }
-  // order_no -> ship_to (first one wins; an SO and its invoice share the number)
+  // order_no -> { to, via } (first non-empty wins; an SO + its invoice share the no.)
   const map = new Map();
   for (const t of [...soList, ...invList]) {
-    const no = refNo(t), st = shipToOf(t);
-    if (no && st && !map.has(no)) map.set(no, st);
+    const no = refNo(t);
+    if (!no) continue;
+    const cur = map.get(no) || { to: null, via: null };
+    if (!cur.to) cur.to = shipToOf(t);
+    if (!cur.via) cur.via = shipViaOf(t);
+    map.set(no, cur);
   }
-  const entries = [...map.entries()];
+  const entries = [...map.entries()].filter(([, v]) => v.to || v.via);
   const sb = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json", Prefer: "return=representation" };
-  let updated = 0;
+  // PATCH one column only where it's still null (don't clobber a manual value).
+  const patchNull = (no, col, val) =>
+    fetch(`${url}/rest/v1/orders?order_no=eq.${encodeURIComponent(no)}&source=eq.QuickBooks&${col}=is.null`, {
+      method: "PATCH", headers: sb, body: JSON.stringify({ [col]: val }),
+    }).then((r) => (r.ok ? r.json().catch(() => []) : [])).then((rows) => (Array.isArray(rows) ? rows.length : 0)).catch(() => 0);
+  let shipToUpdated = 0, shipViaUpdated = 0;
   for (let i = 0; i < entries.length; i += 20) {
-    const res = await Promise.all(entries.slice(i, i + 20).map(([no, st]) =>
-      fetch(`${url}/rest/v1/orders?order_no=eq.${encodeURIComponent(no)}&source=eq.QuickBooks&ship_to=is.null`, {
-        method: "PATCH", headers: sb, body: JSON.stringify({ ship_to: st }),
-      }).then((r) => (r.ok ? r.json().catch(() => []) : [])).then((rows) => (Array.isArray(rows) ? rows.length : 0)).catch(() => 0)
-    ));
-    updated += res.reduce((a, b) => a + b, 0);
+    const res = await Promise.all(entries.slice(i, i + 20).flatMap(([no, v]) => [
+      v.to ? patchNull(no, "ship_to", v.to) : Promise.resolve(0),
+      v.via ? patchNull(no, "ship_via", v.via) : Promise.resolve(0),
+    ]));
+    res.forEach((n, idx) => { (idx % 2 === 0 ? shipToUpdated += n : shipViaUpdated += n); });
   }
-  return json(200, { mode: "shipto-backfill", days, withShipTo: entries.length, ordersUpdated: updated });
+  return json(200, { mode: "ship-backfill", days,
+    withShipTo: entries.filter(([, v]) => v.to).length, shipToUpdated,
+    withShipVia: entries.filter(([, v]) => v.via).length, shipViaUpdated });
 }
 
 function json(status, b) {

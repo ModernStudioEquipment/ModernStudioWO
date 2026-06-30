@@ -50,6 +50,9 @@ export async function POST(request) {
   const personName = [cust.first_name, cust.last_name].filter(Boolean).join(" ").trim();
   const customer = addr.company || personName || "Shopify customer";
   const contact = personName || order.email || "—";
+  // Shipping method the customer chose at checkout (Shopify's shipping line),
+  // e.g. "UPS® Ground" or "Local pickup" — shown next to Ship To. Null if none.
+  const shipVia = (order.shipping_lines || []).map((l) => String((l && l.title) || "").trim()).filter(Boolean).join(", ") || null;
 
   const items = (order.line_items || []).map((li, i) => ({
     name: li.variant_title ? `${li.title} — ${li.variant_title}` : li.title,
@@ -113,6 +116,14 @@ export async function POST(request) {
   if (!ins.ok) {
     const detail = await ins.text();
     return json(502, { error: "Database insert failed", detail: detail.slice(0, 300) });
+  }
+
+  // Stamp the shipping method onto the order (shown next to Ship To). Best-effort:
+  // never block the order on it, and tolerate the ship_via column not existing yet.
+  if (shipVia) {
+    await fetch(`${url}/rest/v1/orders?source=eq.Shopify&order_no=eq.${encodeURIComponent(orderNo)}`, {
+      method: "PATCH", headers: sb, body: JSON.stringify({ ship_via: shipVia }),
+    }).catch(() => {});
   }
 
   return json(200, { ok: true, order_no: orderNo, items: items.length });
