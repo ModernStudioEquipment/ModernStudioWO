@@ -3,11 +3,12 @@
 // red = RUSH, amber = waiting/ordering, green = ready/done, blue = in-progress.
 
 export const C = {
-  ink: "#171717",
+  ink: "#1D1D1F",
   inkSoft: "#3D3D3B",
-  concrete: "#ECEAE6",
+  concrete: "#F5F5F7",
   surface: "#FFFFFF",
-  line: "#D6D4CF",
+  line: "#E6E6EB",
+  shadow: "0 1px 2px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.05)",
   rush: "#C8102E",
   rushBg: "#FAE6E9",
   high: "#B26A00",
