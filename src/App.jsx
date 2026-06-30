@@ -1183,7 +1183,7 @@ function FulfillmentBoard({ orders, now, onOpen, onMarkShipped, onPickedUp, onSe
                     ]}
                     onSelect={(v) => onReopen(o.id, v === "reopen" ? null : v)}
                   >
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded font-bold uppercase tracking-wide" style={{ fontSize: 12, background: "#fff", color: C.inkSoft, border: `1px solid ${C.line}`, cursor: "pointer", whiteSpace: "nowrap" }}>
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded font-bold uppercase tracking-wide btn-pop" style={{ fontSize: 12, background: "#fff", color: C.inkSoft, border: `1px solid ${C.line}`, cursor: "pointer", whiteSpace: "nowrap" }}>
                       <RotateCcw size={12} />Send back
                     </span>
                   </InlineMenu>
@@ -1238,7 +1238,7 @@ function SegGroup({ label, value, onChange, options, btnWidth = 70 }) {
           return (
             <button
               key={v} onClick={() => onChange(v)}
-              className="text-xs font-bold uppercase tracking-wide"
+              className="text-xs font-bold uppercase tracking-wide no-pop"
               style={{ position: "relative", zIndex: 1, width: btnWidth, padding: "6px 0", border: "none", background: "transparent", color: on ? "#fff" : C.inkSoft, cursor: "pointer", transition: "color 0.2s", whiteSpace: "nowrap" }}
             >
               {lbl}

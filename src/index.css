@@ -42,6 +42,41 @@ body {
   .navtab:hover { color: #fff !important; }
 }
 
+/* Every clickable button shows a real pointer — some inline-styled buttons (like
+   the "Create new work order" department buttons) were missing it. */
+button:not(:disabled) {
+  cursor: pointer;
+}
+
+/* The card hover language, scaled down for controls: a gentle lift + soft shadow
+   over a real pointer, and a subtle press on click. Applies to every button
+   EXCEPT the nav tabs and the sliding-pill segmented toggles (marked .no-pop,
+   since a lift would fight their gliding indicator) and dropdown rows; plus any
+   span-based control tagged .btn-pop. Touch screens (no hover) and
+   prefers-reduced-motion are completely unaffected. */
+button:not(.navtab):not(.no-pop),
+.btn-pop {
+  transition: transform 0.12s cubic-bezier(0.2, 0.7, 0.3, 1), box-shadow 0.12s ease;
+}
+@media (hover: hover) {
+  button:not(:disabled):not(.navtab):not(.no-pop):hover,
+  .btn-pop:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  }
+  button:not(:disabled):not(.navtab):not(.no-pop):active,
+  .btn-pop:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  button:not(.navtab):not(.no-pop),
+  .btn-pop { transition: none; }
+  button:not(:disabled):not(.navtab):not(.no-pop):hover,
+  .btn-pop:hover { transform: none; }
+}
+
 /* Inline-editable fields on the work-order sheets. Look like the printed text;
    a faint underline shows they're editable, highlighted on focus. */
 .wo-edit {

@@ -27,7 +27,7 @@ export function InlineMenu({ children, options, onSelect, align = "left" }) {
             <button
               key={opt.value}
               onClick={() => { onSelect(opt.value); setOpen(false); }}
-              className="flex items-center gap-2 w-full"
+              className="flex items-center gap-2 w-full no-pop"
               style={{ padding: "7px 11px", fontSize: 13, fontWeight: 600, textAlign: "left", background: "#fff", border: "none", cursor: "pointer", whiteSpace: "nowrap", color: C.ink }}
               onMouseEnter={(e) => (e.currentTarget.style.background = C.concrete)}
               onMouseLeave={(e) => (e.currentTarget.style.background = "#fff")}
@@ -268,7 +268,7 @@ export function MoveMenu({ stage, onMove }) {
   return (
     <InlineMenu align="right" options={options} onSelect={onMove}>
       <span
-        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded font-bold uppercase tracking-wide"
+        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded font-bold uppercase tracking-wide btn-pop"
         style={{ fontSize: 12, background: "#fff", color: C.inkSoft, border: `1px solid ${C.line}`, cursor: "pointer", whiteSpace: "nowrap" }}
       >
         Move to<ChevronDown size={12} style={{ opacity: 0.6 }} />
