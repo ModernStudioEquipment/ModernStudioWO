@@ -31,11 +31,11 @@ export function PartialModal({ order, kind, onConfirm, onClose }) {
   };
 
   const label = { fontSize: 11, fontWeight: 700, color: C.gray, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 5 };
-  const inp = { border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 14, background: "#fff" };
+  const inp = { border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 14, background: C.surface };
   return (
     <div style={overlay} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: 460, maxWidth: "94vw", background: C.concrete, borderRadius: 8, overflow: "hidden" }}>
-        <div className="flex items-center gap-2 px-4 py-3 font-bold" style={{ background: C.ink, color: "#fff" }}>
+        <div className="flex items-center gap-2 px-4 py-3 font-bold" style={{ background: C.fill, color: "#fff" }}>
           {isPickup ? <Store size={17} /> : <Truck size={17} />}
           {isPickup ? "Record pickup" : "Record shipment"} · #{order.orderNo}
           <button onClick={onClose} className="ml-auto" style={{ color: "#fff" }}><X size={18} /></button>

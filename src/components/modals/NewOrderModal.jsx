@@ -58,13 +58,13 @@ export function NewOrderModal({ getNextOrderNo, onCreate, onClose }) {
     }
   };
 
-  const inp = { border: `1px solid ${C.line}`, background: "#fff", fontSize: 13, borderRadius: 6 };
+  const inp = { border: `1px solid ${C.line}`, background: C.surface, fontSize: 13, borderRadius: 6 };
   const label = { fontSize: 10, fontWeight: 700, color: C.gray, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 };
 
   return (
     <div style={overlay} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: 620, maxWidth: "96vw", background: C.concrete, borderRadius: 8, overflow: "hidden" }}>
-        <div className="flex items-center px-4 py-3 font-bold" style={{ background: C.ink, color: "#fff" }}>
+        <div className="flex items-center px-4 py-3 font-bold" style={{ background: C.fill, color: "#fff" }}>
           New order
           <button onClick={onClose} className="ml-auto" style={{ color: "#fff" }}><X size={18} /></button>
         </div>
@@ -112,7 +112,7 @@ export function NewOrderModal({ getNextOrderNo, onCreate, onClose }) {
               <div className="flex" style={{ border: `1px solid ${C.line}`, borderRadius: 6, overflow: "hidden", width: "fit-content" }}>
                 {[["willcall", "Will Call", Store], ["shipping", "Shipping", Truck]].map(([val, lbl, Icon]) => (
                   <button key={val} type="button" onClick={() => setMethod(method === val ? "" : val)} className="flex items-center gap-1.5 px-3 py-2"
-                    style={method === val ? { background: C.ink, color: "#fff" } : { background: "#fff", color: C.inkSoft }}>
+                    style={method === val ? { background: C.fill, color: "#fff" } : { background: C.surface, color: C.inkSoft }}>
                     <Icon size={14} /><span style={{ fontSize: 12, fontWeight: 700 }}>{lbl}</span>
                   </button>
                 ))}
@@ -146,7 +146,7 @@ export function NewOrderModal({ getNextOrderNo, onCreate, onClose }) {
                     onClick={() => updItem(i, "dept", d)}
                     title={d}
                     className="px-2 py-2"
-                    style={it.dept === d ? { background: C.ink, color: "#fff" } : { background: "#fff", color: C.inkSoft }}
+                    style={it.dept === d ? { background: C.fill, color: "#fff" } : { background: C.surface, color: C.inkSoft }}
                   >
                     <DeptIcon d={d} size={14} />
                   </button>
@@ -167,7 +167,7 @@ export function NewOrderModal({ getNextOrderNo, onCreate, onClose }) {
           <button
             onClick={addItem}
             className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-bold uppercase tracking-wide mb-4"
-            style={{ background: "#fff", color: C.inkSoft, border: `1px solid ${C.line}` }}
+            style={{ background: C.surface, color: C.inkSoft, border: `1px solid ${C.line}` }}
           >
             <Plus size={13} />Add product
           </button>
@@ -178,7 +178,7 @@ export function NewOrderModal({ getNextOrderNo, onCreate, onClose }) {
             onClick={submit}
             disabled={!canSave}
             className="w-full py-2.5 rounded font-bold uppercase tracking-wide"
-            style={{ background: C.ink, color: "#fff", opacity: canSave ? 1 : 0.5 }}
+            style={{ background: C.fill, color: "#fff", opacity: canSave ? 1 : 0.5 }}
           >
             {saving ? "Saving…" : "Create order"}
           </button>

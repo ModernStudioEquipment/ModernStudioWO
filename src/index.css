@@ -1,10 +1,59 @@
 @import "tailwindcss";
 
+/* ============================ THEME TOKENS ============================
+   Light is the default. Dark mode is a per-device opt-in: a `.dark` class on
+   <html> (driven by localStorage, applied before first paint in index.html)
+   swaps the values below, repainting every C.* token at once. Status hues
+   brighten for contrast on dark; `--c-fill` (button/header surface) stays dark
+   so its light text keeps working. Printing forces the light set (see @media
+   print) so work-order sheets always come out black-on-white. */
+:root {
+  color-scheme: light;
+  --c-ink: #1D1D1F;
+  --c-ink-soft: #3D3D3B;
+  --c-concrete: #F5F5F7;
+  --c-surface: #FFFFFF;
+  --c-fill: #1D1D1F;
+  --c-on-fill: #FFFFFF;
+  --c-line: #E6E6EB;
+  --c-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.05);
+  --c-rush: #C8102E;  --c-rush-bg: #FAE6E9;
+  --c-high: #B26A00;  --c-high-bg: #FAEFD9;
+  --c-blue: #27557F;  --c-blue-bg: #E8EEF4;
+  --c-green: #1E7A4B; --c-green-bg: #E3F0E9;
+  --c-gold: #9C7A0F;  --c-gold-bg: #F7EFCB;
+  --c-gray: #6E6C68;  --c-gray-bg: #EBEAE6;
+}
+html.dark {
+  color-scheme: dark;
+  --c-ink: #F1F1F3;
+  --c-ink-soft: #C2C2C6;
+  --c-concrete: #0E0E11;
+  --c-surface: #1A1A1D;
+  --c-fill: #34343A;
+  --c-on-fill: #F1F1F3;
+  --c-line: #2D2D33;
+  --c-shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 8px 22px rgba(0, 0, 0, 0.6);
+  --c-rush: #FF6B7C;  --c-rush-bg: rgba(255, 107, 124, 0.15);
+  --c-high: #E6A33A;  --c-high-bg: rgba(230, 163, 58, 0.15);
+  --c-blue: #74A9DC;  --c-blue-bg: rgba(116, 169, 220, 0.16);
+  --c-green: #57CE85; --c-green-bg: rgba(87, 206, 133, 0.15);
+  --c-gold: #D8B441;  --c-gold-bg: rgba(216, 180, 65, 0.15);
+  --c-gray: #9B9BA1;  --c-gray-bg: rgba(255, 255, 255, 0.07);
+}
+
 html,
 body,
 #root {
   margin: 0;
   min-height: 100%;
+}
+
+/* Page surface + default text follow the theme, so any gap the app's own
+   containers don't paint still flips with dark mode. */
+body {
+  background: var(--c-concrete);
+  color: var(--c-ink);
 }
 
 /* Crisper, lighter text rendering — the single biggest "Apple feel" win — plus a
@@ -82,19 +131,19 @@ button:not(.navtab):not(.no-pop),
 .wo-edit {
   font: inherit;
   border: none;
-  border-bottom: 1px dashed #c9c7c2;
+  border-bottom: 1px dashed var(--c-line);
   background: transparent;
   outline: none;
   padding: 1px 3px;
-  color: #171717;
+  color: var(--c-ink);
   border-radius: 2px;
 }
 .wo-edit:focus {
-  background: #faefd9;
-  border-bottom-color: #b26a00;
+  background: var(--c-high-bg);
+  border-bottom-color: var(--c-high);
 }
 .wo-edit::placeholder {
-  color: #b6b4af;
+  color: var(--c-gray);
 }
 
 /* "Completed by" signature line — editable, but keeps its solid underline when
@@ -102,19 +151,26 @@ button:not(.navtab):not(.no-pop),
 .wo-sign {
   font: inherit;
   border: none;
-  border-bottom: 1px solid #171717;
+  border-bottom: 1px solid var(--c-ink);
   background: transparent;
   outline: none;
   padding: 1px 4px;
-  color: #171717;
+  color: var(--c-ink);
 }
 .wo-sign:focus {
-  background: #faefd9;
+  background: var(--c-high-bg);
 }
 
 /* Print: show only the work-order document, and make editable fields print
    clean (no underline/background, hide on-screen-only controls). */
 @media print {
+  /* Always print light — work-order sheets are black-on-white regardless of theme. */
+  :root,
+  html.dark {
+    --c-ink: #000; --c-ink-soft: #222; --c-concrete: #fff; --c-surface: #fff;
+    --c-fill: #000; --c-on-fill: #fff; --c-line: #ccc; --c-gray: #444;
+    --c-rush: #C8102E; --c-high: #B26A00; --c-blue: #27557F; --c-green: #1E7A4B; --c-gold: #9C7A0F;
+  }
   body * {
     visibility: hidden !important;
   }
@@ -140,10 +196,10 @@ button:not(.navtab):not(.no-pop),
 @keyframes flashRow {
   0%,
   100% {
-    background: #fff;
+    background: var(--c-surface);
   }
   40% {
-    background: #faefd9;
+    background: var(--c-high-bg);
   }
 }
 

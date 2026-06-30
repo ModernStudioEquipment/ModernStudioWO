@@ -27,11 +27,11 @@ export function ReceiveModal({ material, onConfirm, onClose }) {
     }
   };
   const label = { fontSize: 11, fontWeight: 700, color: C.gray, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 5 };
-  const inp = { border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 14, background: "#fff" };
+  const inp = { border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 14, background: C.surface };
   return (
     <div style={overlay} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: 440, maxWidth: "94vw", background: C.concrete, borderRadius: 8, overflow: "hidden" }}>
-        <div className="flex items-center gap-2 px-4 py-3 font-bold" style={{ background: C.ink, color: "#fff" }}>
+        <div className="flex items-center gap-2 px-4 py-3 font-bold" style={{ background: C.fill, color: "#fff" }}>
           <PackageCheck size={17} />Received
           <button onClick={onClose} className="ml-auto" style={{ color: "#fff" }}><X size={18} /></button>
         </div>
@@ -42,7 +42,7 @@ export function ReceiveModal({ material, onConfirm, onClose }) {
             <div className="flex" style={{ border: `1px solid ${C.line}`, borderRadius: 6, overflow: "hidden", width: "fit-content" }}>
               {DESTS.map((d) => (
                 <button key={d.stage} onClick={() => setStage(d.stage)} className="px-4 py-2 text-sm font-bold"
-                  style={stage === d.stage ? { background: C.ink, color: "#fff" } : { background: "#fff", color: C.inkSoft }}>
+                  style={stage === d.stage ? { background: C.fill, color: "#fff" } : { background: C.surface, color: C.inkSoft }}>
                   {d.label}
                 </button>
               ))}

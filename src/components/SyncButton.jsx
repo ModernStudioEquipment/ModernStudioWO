@@ -30,7 +30,7 @@ export function SyncButton({ syncing, onClick }) {
       title={syncing ? "Syncing QuickBooks…" : "Sync QuickBooks"}
       aria-label={syncing ? "Syncing QuickBooks" : "Sync QuickBooks"}
       className="relative inline-flex items-center justify-center shrink-0"
-      style={{ width: 44, height: 44, borderRadius: 22, border: `1px solid ${C.line}`, background: "#fff", cursor: syncing ? "default" : "pointer", padding: 0 }}
+      style={{ width: 44, height: 44, borderRadius: 22, border: `1px solid ${C.line}`, background: C.surface, cursor: syncing ? "default" : "pointer", padding: 0 }}
     >
       {/* the arrows ring around the logo — spins on sync */}
       <RefreshCw

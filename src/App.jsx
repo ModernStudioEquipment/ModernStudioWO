@@ -1,7 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   Clock, Printer, Plus, Truck, CheckCircle2, AlertTriangle, Hammer,
-  Flag, Check, ArrowRight, ShoppingCart, LogOut, Store, MapPin, Package, X, Bell, ExternalLink, RefreshCw, Pencil, RotateCcw, ChevronsDownUp, ChevronsUpDown,
+  Flag, Check, ArrowRight, ShoppingCart, LogOut, Store, MapPin, Package, X, Bell, ExternalLink, RefreshCw, Pencil, RotateCcw, ChevronsDownUp, ChevronsUpDown, Sun, Moon,
 } from "lucide-react";
 import { C, PRI, PRI_CYCLE, PRI_RANK, elapsed, blocked, pct, dueLabel, priLabel, effectivePriority, trackingUrl, stagedTooLong, stagedDwellMs, STAGE_LABELS } from "./theme.js";
 import { backendMode } from "./lib/db.js";
@@ -45,6 +45,14 @@ export default function App() {
     try { return localStorage.getItem("mse_tab_v1") || "dash"; } catch { return "dash"; }
   });
   const [now, setNow] = useState(Date.now());
+  // Per-device dark mode — saved in localStorage only, never shared with the team.
+  // A `.dark` class on <html> swaps the CSS color tokens; index.html applies the
+  // saved choice before first paint so there's no flash of light on load.
+  const [dark, setDark] = useState(() => { try { return localStorage.getItem("mse_theme_v1") === "dark"; } catch { return false; } });
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", dark);
+    try { localStorage.setItem("mse_theme_v1", dark ? "dark" : "light"); } catch { /* ignore */ }
+  }, [dark]);
   // A pill behind the active tab that glides to whichever tab is selected. Measures
   // the active tab each render; only updates (and only animates after the first
   // paint) when the geometry actually changes, so there's no flash and no loop.
@@ -424,7 +432,7 @@ export default function App() {
         onDrop={dragOn ? (e) => { e.preventDefault(); dropOrder(o.id); } : undefined}
         onDragEnd={dragOn ? () => { orderDragRef.current = null; setOrderDrag(null); } : undefined}
         className="mb-2 card-pop"
-        style={{ background: urgent ? C.rushBg : "#fff", border: `1px solid ${urgent ? C.rush : C.line}`, borderLeft: `4px solid ${urgent ? C.rush : st.c}`, opacity: orderDrag === o.id ? 0.4 : (o.fulfillment ? 0.6 : 1), cursor: dragOn ? "grab" : "pointer", ...(o.notes ? { boxShadow: `0 0 0 2px ${C.high}` } : null) }}
+        style={{ background: urgent ? C.rushBg : C.surface, border: `1px solid ${urgent ? C.rush : C.line}`, borderLeft: `4px solid ${urgent ? C.rush : st.c}`, opacity: orderDrag === o.id ? 0.4 : (o.fulfillment ? 0.6 : 1), cursor: dragOn ? "grab" : "pointer", ...(o.notes ? { boxShadow: `0 0 0 2px ${C.high}` } : null) }}
       >
         <div className="flex items-center gap-x-3 gap-y-2 px-4 py-3 flex-wrap">
           <span className="font-bold" style={{ fontFamily: "ui-monospace,monospace", fontSize: 15, color: urgent ? C.rush : C.ink }}>#{o.orderNo}</span>
@@ -499,7 +507,7 @@ export default function App() {
     <div style={{ background: C.concrete, minHeight: "100vh", fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif", color: C.ink }}>
       {/* ---- top bar (pinned so tabs + search stay visible while scrolling).
            On phones it wraps: logo + search on top, full-width scrollable tabs below. ---- */}
-      <div className="flex items-center gap-x-4 gap-y-2 px-5 py-3 flex-wrap md:flex-nowrap" style={{ background: C.ink, color: "#fff", position: "sticky", top: 0, zIndex: 50 }}>
+      <div className="flex items-center gap-x-4 gap-y-2 px-5 py-3 flex-wrap md:flex-nowrap" style={{ background: C.fill, color: "#fff", position: "sticky", top: 0, zIndex: 50 }}>
         <button
           onClick={() => { setTab("dash"); window.scrollTo({ top: 0, behavior: "smooth" }); }}
           className="shrink-0"
@@ -528,6 +536,14 @@ export default function App() {
           ))}
         </div>
         <GlobalSearch orders={searchScope} onOpen={goToOrder} key={tab} />
+        <button
+          onClick={() => setDark((d) => !d)}
+          title={dark ? "Switch to light mode" : "Switch to dark mode"}
+          className="inline-flex items-center shrink-0"
+          style={{ color: "rgba(255,255,255,0.7)", background: "transparent", border: "none", cursor: "pointer", padding: 4 }}
+        >
+          {dark ? <Sun size={16} /> : <Moon size={16} />}
+        </button>
         {auth.needsAuth && (
           <button onClick={auth.signOut} title="Sign out" className="inline-flex items-center gap-1.5 shrink-0" style={{ color: "rgba(255,255,255,0.7)", fontSize: 12 }}>
             <LogOut size={15} />
@@ -613,8 +629,8 @@ export default function App() {
                 titleAside={<ExpandToggle scope="pick" ids={(pickNotesOnly ? pickNoted : pickOrders).map((o) => o.id)} isExpanded={isExpanded} setAllExpanded={setAllExpanded} />}
                 action={
                   <div className="flex items-center gap-1">
-                    <button onClick={() => setPickNotesOnly(false)} className="px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wide" style={!pickNotesOnly ? { background: C.ink, color: "#fff" } : { background: "#fff", color: C.inkSoft, border: `1px solid ${C.line}` }}>All</button>
-                    <button onClick={() => setPickNotesOnly(true)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wide" style={pickNotesOnly ? { background: C.ink, color: "#fff" } : { background: "#fff", color: C.inkSoft, border: `1px solid ${C.line}` }}>
+                    <button onClick={() => setPickNotesOnly(false)} className="px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wide" style={!pickNotesOnly ? { background: C.fill, color: "#fff" } : { background: C.surface, color: C.inkSoft, border: `1px solid ${C.line}` }}>All</button>
+                    <button onClick={() => setPickNotesOnly(true)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wide" style={pickNotesOnly ? { background: C.fill, color: "#fff" } : { background: C.surface, color: C.inkSoft, border: `1px solid ${C.line}` }}>
                       <Bell size={12} />With notes{pickNoted.length ? ` · ${pickNoted.length}` : ""}
                     </button>
                   </div>
@@ -647,14 +663,14 @@ export default function App() {
             {tab === "work" && (
               <Tabwrap title="WORK ORDERS" sub="QuickBooks orders you create here, plus Shopify orders pulled from the web.">
                 {/* ---- QuickBooks: custom work orders ---- */}
-                <div className="rounded mb-3 p-3 flex items-center gap-2 flex-wrap" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
+                <div className="rounded mb-3 p-3 flex items-center gap-2 flex-wrap" style={{ background: C.surface, border: `1px solid ${C.line}` }}>
                   <span style={{ fontSize: 12, fontWeight: 700, color: C.gray, textTransform: "uppercase", letterSpacing: 0.5 }}>Create new work order</span>
                   {WO_TYPES.map((t) => (
                     <button
                       key={t.key}
                       onClick={async () => setCustomDoc({ type: t.key, orderNo: await wo.nextWorkOrderNo() })}
                       className="px-3 py-2 rounded font-bold uppercase tracking-wide text-xs"
-                      style={{ background: C.ink, color: "#fff" }}
+                      style={{ background: C.fill, color: "#fff" }}
                     >
                       {t.label}
                     </button>
@@ -668,7 +684,7 @@ export default function App() {
                     onClick={() => setCustomDoc(w)}
                     title="Open to edit"
                     className="rounded mb-3"
-                    style={{ background: "#fff", border: `1px solid ${C.line}`, borderLeft: `4px solid ${C.ink}`, cursor: "pointer" }}
+                    style={{ background: C.surface, border: `1px solid ${C.line}`, borderLeft: `4px solid ${C.ink}`, cursor: "pointer" }}
                   >
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
                       <span className="font-bold" style={{ fontFamily: "ui-monospace,monospace", fontSize: 15 }}>WO #{w.orderNo}</span>
@@ -696,7 +712,7 @@ export default function App() {
                         <button
                           key={k} onClick={() => setWorkCombined(k === "combined")}
                           className="px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wide"
-                          style={on ? { background: C.ink, color: "#fff" } : { background: "#fff", color: C.inkSoft, border: `1px solid ${C.line}` }}
+                          style={on ? { background: C.fill, color: "#fff" } : { background: C.surface, color: C.inkSoft, border: `1px solid ${C.line}` }}
                         >
                           {label}
                         </button>
@@ -822,7 +838,7 @@ export default function App() {
                     <button
                       key={f.k} onClick={() => setOrderView(f.k)}
                       className="px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wide"
-                      style={orderView === f.k ? { background: C.ink, color: "#fff" } : { background: "#fff", color: C.inkSoft, border: `1px solid ${C.line}` }}
+                      style={orderView === f.k ? { background: C.fill, color: "#fff" } : { background: C.surface, color: C.inkSoft, border: `1px solid ${C.line}` }}
                     >
                       {f.label}{f.n != null ? ` · ${f.n}` : ""}
                     </button>
@@ -968,7 +984,7 @@ export default function App() {
           style={{ position: "fixed", inset: 0, background: "rgba(20,28,38,0.5)", display: "flex", alignItems: "flex-start", justifyContent: "center", overflowY: "auto", zIndex: 60, padding: "24px 12px" }}
         >
           <div onClick={(e) => e.stopPropagation()} style={{ width: 400, maxWidth: "92vw", background: C.concrete, borderRadius: 8, overflow: "hidden", marginTop: "12vh" }}>
-            <div className="flex items-center gap-2 px-4 py-3 font-bold" style={{ background: C.ink, color: "#fff" }}>
+            <div className="flex items-center gap-2 px-4 py-3 font-bold" style={{ background: C.fill, color: "#fff" }}>
               Marked as picked?
               <button onClick={() => setConfirmStock(null)} className="ml-auto" style={{ color: "#fff" }}><X size={18} /></button>
             </div>
@@ -978,7 +994,7 @@ export default function App() {
               </div>
               <div className="flex gap-2">
                 <button onClick={() => { board.finishItem(confirmStock.id); setConfirmStock(null); }} className="flex-1 py-2.5 rounded font-bold uppercase tracking-wide text-xs" style={{ background: C.green, color: "#fff" }}>Yes — already picked</button>
-                <button onClick={() => { triage(confirmStock.id, "instock"); setConfirmStock(null); }} className="flex-1 py-2.5 rounded font-bold uppercase tracking-wide text-xs" style={{ background: "#fff", color: C.green, border: `1px solid ${C.green}` }}>No — send to pick list</button>
+                <button onClick={() => { triage(confirmStock.id, "instock"); setConfirmStock(null); }} className="flex-1 py-2.5 rounded font-bold uppercase tracking-wide text-xs" style={{ background: C.surface, color: C.green, border: `1px solid ${C.green}` }}>No — send to pick list</button>
               </div>
             </div>
           </div>
@@ -1026,10 +1042,10 @@ function CombinedItems({ orders, stage, onMake, onDept }) {
           onClick={onMake ? () => onMake(r) : undefined}
           title={onMake ? "Make one work order for all of these" : undefined}
           className="rounded mb-2"
-          style={{ background: "#fff", border: `1px solid ${C.line}`, cursor: onMake ? "pointer" : "default" }}
+          style={{ background: C.surface, border: `1px solid ${C.line}`, cursor: onMake ? "pointer" : "default" }}
         >
           <div className="flex items-center gap-x-3 gap-y-2 px-4 py-3 flex-wrap">
-            <span className="inline-flex items-center justify-center font-bold" style={{ minWidth: 46, height: 34, padding: "0 10px", borderRadius: 6, background: C.ink, color: "#fff", fontFamily: "ui-monospace,monospace", fontSize: 17 }}>
+            <span className="inline-flex items-center justify-center font-bold" style={{ minWidth: 46, height: 34, padding: "0 10px", borderRadius: 6, background: C.fill, color: "#fff", fontFamily: "ui-monospace,monospace", fontSize: 17 }}>
               ×{r.qty}
             </span>
             <DeptBadge d={r.dept} onChange={onDept ? (dep) => onDept(r, dep) : undefined} />
@@ -1112,7 +1128,7 @@ function FulfillmentBoard({ orders, now, onOpen, onMarkShipped, onPickedUp, onSe
             id={`order-${o.id}`}
             onClick={() => onOpen(o.id)}
             className="rounded mb-2"
-            style={{ background: urgent ? C.rushBg : "#fff", border: `1px solid ${urgent ? C.rush : C.line}`, borderLeft: `4px solid ${closed ? C.green : urgent ? C.rush : C.line}`, opacity: closed ? 0.7 : 1, cursor: "pointer", ...(o.notes ? { boxShadow: `0 0 0 2px ${C.high}` } : null) }}
+            style={{ background: urgent ? C.rushBg : C.surface, border: `1px solid ${urgent ? C.rush : C.line}`, borderLeft: `4px solid ${closed ? C.green : urgent ? C.rush : C.line}`, opacity: closed ? 0.7 : 1, cursor: "pointer", ...(o.notes ? { boxShadow: `0 0 0 2px ${C.high}` } : null) }}
           >
             <div className="flex items-center gap-x-3 gap-y-2 px-4 py-3 flex-wrap">
               <span className="font-bold" style={{ fontFamily: "ui-monospace,monospace", fontSize: 15, color: urgent ? C.rush : C.ink }}>#{o.orderNo}</span>
@@ -1183,7 +1199,7 @@ function FulfillmentBoard({ orders, now, onOpen, onMarkShipped, onPickedUp, onSe
                     ]}
                     onSelect={(v) => onReopen(o.id, v === "reopen" ? null : v)}
                   >
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded font-bold uppercase tracking-wide btn-pop" style={{ fontSize: 12, background: "#fff", color: C.inkSoft, border: `1px solid ${C.line}`, cursor: "pointer", whiteSpace: "nowrap" }}>
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded font-bold uppercase tracking-wide btn-pop" style={{ fontSize: 12, background: C.surface, color: C.inkSoft, border: `1px solid ${C.line}`, cursor: "pointer", whiteSpace: "nowrap" }}>
                       <RotateCcw size={12} />Send back
                     </span>
                   </InlineMenu>
@@ -1213,7 +1229,7 @@ function ExpandToggle({ scope, ids, isExpanded, setAllExpanded }) {
       onClick={() => setAllExpanded(scope, ids, !anyOpen)}
       title={anyOpen ? "Collapse all" : "Expand all"}
       className="inline-flex items-center justify-center"
-      style={{ width: 28, height: 28, borderRadius: 6, border: `1px solid ${C.line}`, background: "#fff", color: C.inkSoft, cursor: "pointer" }}
+      style={{ width: 28, height: 28, borderRadius: 6, border: `1px solid ${C.line}`, background: C.surface, color: C.inkSoft, cursor: "pointer" }}
     >
       {anyOpen ? <ChevronsDownUp size={15} /> : <ChevronsUpDown size={15} />}
     </button>
@@ -1226,13 +1242,13 @@ function ExpandToggle({ scope, ids, isExpanded, setAllExpanded }) {
 function SegGroup({ label, value, onChange, options, btnWidth = 70 }) {
   const idx = Math.max(0, options.findIndex(([v]) => v === value));
   return (
-    <span className="inline-flex items-center" style={{ border: `1px solid ${C.line}`, borderRadius: 8, overflow: "hidden", background: "#fff" }}>
+    <span className="inline-flex items-center" style={{ border: `1px solid ${C.line}`, borderRadius: 8, overflow: "hidden", background: C.surface }}>
       {label && (
         <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: 0.5, color: C.gray, textTransform: "uppercase", padding: "0 9px", whiteSpace: "nowrap", alignSelf: "stretch", display: "flex", alignItems: "center", borderRight: `1px solid ${C.line}` }}>{label}</span>
       )}
       <span style={{ position: "relative", display: "flex", padding: 3 }}>
         {/* the sliding pill — translateX by the active index, with a springy ease */}
-        <span aria-hidden style={{ position: "absolute", top: 3, bottom: 3, left: 3, width: btnWidth, borderRadius: 6, background: C.ink, transform: `translateX(${idx * btnWidth}px)`, transition: "transform 0.26s cubic-bezier(0.34, 1.12, 0.64, 1)" }} />
+        <span aria-hidden style={{ position: "absolute", top: 3, bottom: 3, left: 3, width: btnWidth, borderRadius: 6, background: C.fill, transform: `translateX(${idx * btnWidth}px)`, transition: "transform 0.26s cubic-bezier(0.34, 1.12, 0.64, 1)" }} />
         {options.map(([v, lbl]) => {
           const on = value === v;
           return (
@@ -1264,7 +1280,7 @@ function SectionHeader({ label, count }) {
 
 function Splash({ children }) {
   return (
-    <div style={{ background: C.ink, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontStyle: "italic", fontWeight: 700 }}>
+    <div style={{ background: C.fill, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontStyle: "italic", fontWeight: 700 }}>
       {children}
     </div>
   );

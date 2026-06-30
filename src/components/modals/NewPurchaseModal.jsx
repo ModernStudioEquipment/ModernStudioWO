@@ -47,13 +47,13 @@ export function NewPurchaseModal({ getNextOrderNo, onCreate, onClose }) {
     }
   };
 
-  const inp = { border: `1px solid ${C.line}`, background: "#fff", fontSize: 13, borderRadius: 6 };
+  const inp = { border: `1px solid ${C.line}`, background: C.surface, fontSize: 13, borderRadius: 6 };
   const label = { fontSize: 10, fontWeight: 700, color: C.gray, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 };
 
   return (
     <div style={overlay} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: 560, maxWidth: "96vw", background: C.concrete, borderRadius: 8, overflow: "hidden" }}>
-        <div className="flex items-center px-4 py-3 font-bold" style={{ background: C.ink, color: "#fff" }}>
+        <div className="flex items-center px-4 py-3 font-bold" style={{ background: C.fill, color: "#fff" }}>
           New purchase
           <button onClick={onClose} className="ml-auto" style={{ color: "#fff" }}><X size={18} /></button>
         </div>
@@ -63,7 +63,7 @@ export function NewPurchaseModal({ getNextOrderNo, onCreate, onClose }) {
             <div className="flex" style={{ border: `1px solid ${C.line}`, borderRadius: 6, overflow: "hidden", width: "fit-content" }}>
               {DEPTS.map((d) => (
                 <button key={d} onClick={() => setDept(d)} title={d} className="flex items-center gap-1.5 px-3 py-2"
-                  style={dept === d ? { background: C.ink, color: "#fff" } : { background: "#fff", color: C.inkSoft }}>
+                  style={dept === d ? { background: C.fill, color: "#fff" } : { background: C.surface, color: C.inkSoft }}>
                   <DeptIcon d={d} size={14} /><span style={{ fontSize: 12, fontWeight: 700 }}>{d}</span>
                 </button>
               ))}
@@ -75,7 +75,7 @@ export function NewPurchaseModal({ getNextOrderNo, onCreate, onClose }) {
             <div className="flex" style={{ border: `1px solid ${C.line}`, borderRadius: 6, overflow: "hidden", width: "fit-content" }}>
               {[[false, "An order"], [true, "Inventory"]].map(([val, lbl]) => (
                 <button key={String(val)} type="button" onClick={() => setForInventory(val)} className="px-4 py-2 text-sm font-bold"
-                  style={forInventory === val ? { background: C.ink, color: "#fff" } : { background: "#fff", color: C.inkSoft }}>
+                  style={forInventory === val ? { background: C.fill, color: "#fff" } : { background: C.surface, color: C.inkSoft }}>
                   {lbl}
                 </button>
               ))}
@@ -93,7 +93,7 @@ export function NewPurchaseModal({ getNextOrderNo, onCreate, onClose }) {
             </div>
           ))}
           <button onClick={addMat} className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-bold uppercase tracking-wide mb-4"
-            style={{ background: "#fff", color: C.inkSoft, border: `1px solid ${C.line}` }}>
+            style={{ background: C.surface, color: C.inkSoft, border: `1px solid ${C.line}` }}>
             <Plus size={13} />Add line
           </button>
 
@@ -105,7 +105,7 @@ export function NewPurchaseModal({ getNextOrderNo, onCreate, onClose }) {
           {error && <div style={{ fontSize: 13, color: C.rush, marginBottom: 10 }}>{error}</div>}
 
           <button onClick={submit} disabled={!canSave} className="w-full py-2.5 rounded font-bold uppercase tracking-wide flex items-center justify-center gap-2"
-            style={{ background: C.ink, color: "#fff", opacity: canSave ? 1 : 0.5 }}>
+            style={{ background: C.fill, color: "#fff", opacity: canSave ? 1 : 0.5 }}>
             <ShoppingCart size={15} />{saving ? "Saving…" : "Add purchase"}
           </button>
         </div>

@@ -20,7 +20,7 @@ export function MaterialModal({ onClose, onCommit }) {
     setFocusIdx(rows.length);
   };
   const valid = rows.filter((r) => r.name.trim());
-  const inp = { border: `1px solid ${C.line}`, background: "#fff", fontSize: 13, borderRadius: 6 };
+  const inp = { border: `1px solid ${C.line}`, background: C.surface, fontSize: 13, borderRadius: 6 };
 
   const commit = async () => {
     if (!valid.length || saving) return;
@@ -35,7 +35,7 @@ export function MaterialModal({ onClose, onCommit }) {
   return (
     <div style={overlay} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: 460, maxWidth: "92vw", background: C.concrete, borderRadius: 8, overflow: "hidden" }}>
-        <div className="flex items-center px-4 py-3 font-bold" style={{ background: C.ink, color: "#fff" }}>
+        <div className="flex items-center px-4 py-3 font-bold" style={{ background: C.fill, color: "#fff" }}>
           What material is needed?
           <button onClick={onClose} className="ml-auto" style={{ color: "#fff" }}><X size={18} /></button>
         </div>
@@ -66,7 +66,7 @@ export function MaterialModal({ onClose, onCommit }) {
           <button
             onClick={addRow}
             className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-bold uppercase tracking-wide mb-3"
-            style={{ background: "#fff", color: C.inkSoft, border: `1px solid ${C.line}` }}
+            style={{ background: C.surface, color: C.inkSoft, border: `1px solid ${C.line}` }}
           >
             <Plus size={13} />More material needed
           </button>
@@ -74,7 +74,7 @@ export function MaterialModal({ onClose, onCommit }) {
             onClick={commit}
             disabled={!valid.length || saving}
             className="w-full py-2.5 rounded font-bold uppercase tracking-wide"
-            style={{ background: C.ink, color: "#fff", opacity: valid.length && !saving ? 1 : 0.5 }}
+            style={{ background: C.fill, color: "#fff", opacity: valid.length && !saving ? 1 : 0.5 }}
           >
             {saving ? "Sending…" : "Send to Purchasing"}
           </button>

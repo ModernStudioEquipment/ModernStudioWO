@@ -2,25 +2,32 @@
 // Black-and-white industrial; color is reserved for MEANING only:
 // red = RUSH, amber = waiting/ordering, green = ready/done, blue = in-progress.
 
+// Colors are CSS variables (defined in index.css) so a single `.dark` class on
+// <html> repaints the whole app — light is the default; dark is a per-device
+// opt-in (localStorage), never shared. `ink` is the primary text + decorative
+// marks (flips dark↔light); `fill`/`onFill` are the dark button/header surfaces
+// that must STAY dark in dark mode so their light text keeps its contrast.
 export const C = {
-  ink: "#1D1D1F",
-  inkSoft: "#3D3D3B",
-  concrete: "#F5F5F7",
-  surface: "#FFFFFF",
-  line: "#E6E6EB",
-  shadow: "0 1px 2px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.05)",
-  rush: "#C8102E",
-  rushBg: "#FAE6E9",
-  high: "#B26A00",
-  highBg: "#FAEFD9",
-  blue: "#27557F",
-  blueBg: "#E8EEF4",
-  green: "#1E7A4B",
-  greenBg: "#E3F0E9",
-  gold: "#9C7A0F",
-  goldBg: "#F7EFCB",
-  gray: "#6E6C68",
-  grayBg: "#EBEAE6",
+  ink: "var(--c-ink)",
+  inkSoft: "var(--c-ink-soft)",
+  concrete: "var(--c-concrete)",
+  surface: "var(--c-surface)",
+  fill: "var(--c-fill)",
+  onFill: "var(--c-on-fill)",
+  line: "var(--c-line)",
+  shadow: "var(--c-shadow)",
+  rush: "var(--c-rush)",
+  rushBg: "var(--c-rush-bg)",
+  high: "var(--c-high)",
+  highBg: "var(--c-high-bg)",
+  blue: "var(--c-blue)",
+  blueBg: "var(--c-blue-bg)",
+  green: "var(--c-green)",
+  greenBg: "var(--c-green-bg)",
+  gold: "var(--c-gold)",
+  goldBg: "var(--c-gold-bg)",
+  gray: "var(--c-gray)",
+  grayBg: "var(--c-gray-bg)",
 };
 
 // Priority is stored as RUSH/High/Normal (DB constraint) but DISPLAYED as

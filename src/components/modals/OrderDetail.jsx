@@ -25,7 +25,7 @@ export function OrderDetail({ order, status, now, onDueDate, onCompletion, onInv
   return (
     <div style={overlay} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: 580, maxWidth: "96vw", background: C.concrete, borderRadius: 8, overflow: "hidden" }}>
-        <div className="px-4 py-3" style={{ background: C.ink, color: "#fff" }}>
+        <div className="px-4 py-3" style={{ background: C.fill, color: "#fff" }}>
           <div className="flex items-start gap-3">
             <span className="font-bold" style={{ fontFamily: "ui-monospace,monospace", fontSize: 16, flexShrink: 0 }}>#{order.orderNo}</span>
             <span className="font-bold flex-1 min-w-0" style={{ fontSize: 15 }}>{order.customer}</span>
@@ -73,11 +73,11 @@ export function OrderDetail({ order, status, now, onDueDate, onCompletion, onInv
                 rows={2}
                 placeholder="Notes about this order…"
                 className="w-full px-2 py-2 outline-none"
-                style={{ border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 13, background: "#fff", resize: "none", overflow: "hidden", minHeight: 52 }}
+                style={{ border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 13, background: C.surface, resize: "none", overflow: "hidden", minHeight: 52 }}
               />
               {notes !== savedNotes && (
                 <button onClick={async () => { await onSaveNotes(notes.trim() || null); setSavedNotes(notes); }}
-                  className="mt-2 px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wide" style={{ background: C.ink, color: "#fff" }}>
+                  className="mt-2 px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wide" style={{ background: C.fill, color: "#fff" }}>
                   Save note
                 </button>
               )}
@@ -92,7 +92,7 @@ export function OrderDetail({ order, status, now, onDueDate, onCompletion, onInv
           {order.items.map((it) => {
             const open = openTimeline === it.id;
             return (
-            <div key={it.id} className="rounded mb-2 p-3" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
+            <div key={it.id} className="rounded mb-2 p-3" style={{ background: C.surface, border: `1px solid ${C.line}` }}>
               <div className="flex items-center gap-2">
                 <DeptBadge d={it.dept} onChange={onUpdateItem ? (dep) => onUpdateItem(it.id, { dept: dep }) : undefined} />
                 <span className="font-bold" style={{ fontSize: 14 }}>{it.name}</span>
@@ -150,7 +150,7 @@ export function OrderDetail({ order, status, now, onDueDate, onCompletion, onInv
                 <div>
                   <div style={{ fontSize: 13, color: C.inkSoft, marginBottom: 8 }}>Cancel this order? It's kept on record with a reason.</div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <select value={reason} onChange={(e) => setReason(e.target.value)} className="px-2 py-1.5 outline-none" style={{ border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 13, background: "#fff" }}>
+                    <select value={reason} onChange={(e) => setReason(e.target.value)} className="px-2 py-1.5 outline-none" style={{ border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 13, background: C.surface }}>
                       <option>Customer cancelled</option>
                       <option>Duplicate order</option>
                       <option>Entered by mistake</option>
@@ -159,13 +159,13 @@ export function OrderDetail({ order, status, now, onDueDate, onCompletion, onInv
                     <button onClick={async () => { await onCancel(reason); onClose(); }} className="px-3 py-1.5 rounded font-bold uppercase tracking-wide" style={{ fontSize: 12, background: C.rush, color: "#fff", letterSpacing: 0.5 }}>
                       Cancel order
                     </button>
-                    <button onClick={() => setConfirming(false)} className="px-3 py-1.5 rounded font-bold uppercase tracking-wide" style={{ fontSize: 12, background: "#fff", color: C.inkSoft, border: `1px solid ${C.line}`, letterSpacing: 0.5 }}>
+                    <button onClick={() => setConfirming(false)} className="px-3 py-1.5 rounded font-bold uppercase tracking-wide" style={{ fontSize: 12, background: C.surface, color: C.inkSoft, border: `1px solid ${C.line}`, letterSpacing: 0.5 }}>
                       Keep
                     </button>
                   </div>
                 </div>
               ) : (
-                <button onClick={() => setConfirming(true)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded font-bold uppercase tracking-wide" style={{ fontSize: 12, background: "#fff", color: C.rush, border: `1px solid ${C.rush}`, letterSpacing: 0.5 }}>
+                <button onClick={() => setConfirming(true)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded font-bold uppercase tracking-wide" style={{ fontSize: 12, background: C.surface, color: C.rush, border: `1px solid ${C.rush}`, letterSpacing: 0.5 }}>
                   <Trash2 size={13} />Cancel order
                 </button>
               )}

@@ -23,12 +23,12 @@ export function FulfillModal({ order, method, onConfirm, onClose }) {
   };
 
   const Icon = isShip ? Truck : Store;
-  const inp = { border: `1px solid ${C.line}`, background: "#fff", fontSize: 14, borderRadius: 6 };
+  const inp = { border: `1px solid ${C.line}`, background: C.surface, fontSize: 14, borderRadius: 6 };
 
   return (
     <div style={overlay} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: 440, maxWidth: "92vw", background: C.concrete, borderRadius: 8, overflow: "hidden" }}>
-        <div className="flex items-center gap-2 px-4 py-3 font-bold" style={{ background: C.ink, color: "#fff" }}>
+        <div className="flex items-center gap-2 px-4 py-3 font-bold" style={{ background: C.fill, color: "#fff" }}>
           <Icon size={17} />
           {isShip ? "Ship order" : "Will call"} · #{order.orderNo}
           <button onClick={onClose} className="ml-auto" style={{ color: "#fff" }}><X size={18} /></button>
@@ -56,7 +56,7 @@ export function FulfillModal({ order, method, onConfirm, onClose }) {
             onClick={confirm}
             disabled={!location.trim() || saving}
             className="w-full py-2.5 rounded font-bold uppercase tracking-wide"
-            style={{ background: C.ink, color: "#fff", opacity: location.trim() && !saving ? 1 : 0.5 }}
+            style={{ background: C.fill, color: "#fff", opacity: location.trim() && !saving ? 1 : 0.5 }}
           >
             {saving ? "Completing…" : "Complete"}
           </button>

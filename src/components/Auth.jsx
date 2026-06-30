@@ -32,10 +32,10 @@ export function Auth({ auth }) {
     }
   };
 
-  const inp = { border: `1px solid ${C.line}`, background: "#fff", fontSize: 14, borderRadius: 6 };
+  const inp = { border: `1px solid ${C.line}`, background: C.surface, fontSize: 14, borderRadius: 6 };
 
   return (
-    <div style={{ background: C.ink, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+    <div style={{ background: C.fill, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
       <div style={{ width: 360, maxWidth: "94vw" }}>
         <div className="mb-6 text-center">
           <Logo height={42} variant="light" />
@@ -59,7 +59,7 @@ export function Auth({ auth }) {
           <button
             type="submit" disabled={busy}
             className="w-full py-2.5 rounded font-bold uppercase tracking-wide"
-            style={{ background: C.ink, color: "#fff", opacity: busy ? 0.6 : 1 }}
+            style={{ background: C.fill, color: "#fff", opacity: busy ? 0.6 : 1 }}
           >
             {busy ? "…" : mode === "signin" ? "Sign in" : "Sign up"}
           </button>

@@ -15,7 +15,7 @@ export function PickedUpModal({ order, onConfirm, onClose }) {
   return (
     <div style={overlay} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: 420, maxWidth: "94vw", background: C.concrete, borderRadius: 8, overflow: "hidden" }}>
-        <div className="flex items-center gap-2 px-4 py-3 font-bold" style={{ background: C.ink, color: "#fff" }}>
+        <div className="flex items-center gap-2 px-4 py-3 font-bold" style={{ background: C.fill, color: "#fff" }}>
           Picked up — #{order.orderNo}
           <button onClick={onClose} className="ml-auto" style={{ color: "#fff" }}><X size={18} /></button>
         </div>
@@ -30,7 +30,7 @@ export function PickedUpModal({ order, onConfirm, onClose }) {
             onKeyDown={(e) => e.key === "Enter" && confirm()}
             placeholder="Name of who collected it"
             className="w-full px-2 py-2 outline-none mb-4"
-            style={{ border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 14, background: "#fff" }}
+            style={{ border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 14, background: C.surface }}
           />
           <Btn kind="gold" onClick={confirm} disabled={saving}>
             <Check size={15} />{saving ? "Saving…" : "Confirm pickup"}

@@ -68,7 +68,7 @@ export function CustomWorkOrderDoc({ wo, onSave, onClose }) {
           <Btn kind="brass" onClick={() => save(true)} disabled={saving}><Printer size={15} />Save &amp; Print</Btn>
           <Btn onClick={onClose}>Close</Btn>
         </div>
-        <div id="wo" style={{ background: "#fff", border: `1px solid ${C.line}`, padding: "30px 34px" }}>
+        <div id="wo" style={{ background: C.surface, border: `1px solid ${C.line}`, padding: "30px 34px" }}>
           <Body {...bodyProps} />
         </div>
       </div>

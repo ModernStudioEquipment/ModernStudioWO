@@ -53,7 +53,7 @@ export function PickPhoto({ order, item, onPicked, onSetImage, onUploadImage, on
   return (
     <div style={overlay} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: 480, maxWidth: "94vw", background: C.concrete, borderRadius: 8, overflow: "hidden" }}>
-        <div className="flex items-center gap-3 px-4 py-3" style={{ background: C.ink, color: "#fff" }}>
+        <div className="flex items-center gap-3 px-4 py-3" style={{ background: C.fill, color: "#fff" }}>
           <span className="font-bold" style={{ fontSize: 15 }}>{item.name}</span>
           <span style={{ fontFamily: "ui-monospace,monospace", color: "rgba(255,255,255,0.7)" }}>×{item.qty}</span>
           <button onClick={onClose} className="ml-auto" style={{ color: "#fff" }}><X size={18} /></button>
@@ -65,7 +65,7 @@ export function PickPhoto({ order, item, onPicked, onSetImage, onUploadImage, on
             onDrop={onUploadImage ? (e) => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files && e.dataTransfer.files[0]); } : undefined}
             onClick={onUploadImage && !hasImg ? () => fileRef.current && fileRef.current.click() : undefined}
             className="flex items-center justify-center"
-            style={{ minHeight: 300, border: `${dragOver ? 2 : 1}px ${hasImg && !dragOver ? "solid" : "dashed"} ${dragOver ? C.blue : C.line}`, borderRadius: 6, background: dragOver ? C.blueBg : "#fff", overflow: "hidden", color: C.gray, cursor: onUploadImage && !hasImg ? "pointer" : "default" }}
+            style={{ minHeight: 300, border: `${dragOver ? 2 : 1}px ${hasImg && !dragOver ? "solid" : "dashed"} ${dragOver ? C.blue : C.line}`, borderRadius: 6, background: dragOver ? C.blueBg : C.surface, overflow: "hidden", color: C.gray, cursor: onUploadImage && !hasImg ? "pointer" : "default" }}
           >
             {uploading ? (
               <div style={{ fontSize: 14, fontWeight: 700, color: C.ink }}>Uploading…</div>
@@ -88,7 +88,7 @@ export function PickPhoto({ order, item, onPicked, onSetImage, onUploadImage, on
                 onChange={(e) => { setUrl(e.target.value); setBroken(false); }}
                 placeholder="Paste an image URL…"
                 className="flex-1 px-2 py-2 outline-none"
-                style={{ border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 13, background: "#fff" }}
+                style={{ border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 13, background: C.surface }}
               />
               <Btn onClick={saveImage} disabled={savingImg}><ImagePlus size={14} />{savingImg ? "Saving…" : "Save photo"}</Btn>
             </div>
@@ -103,7 +103,7 @@ export function PickPhoto({ order, item, onPicked, onSetImage, onUploadImage, on
                 placeholder="Leave a note for whoever picks this — e.g. 'grab the blue ones from the back shelf'"
                 rows={3}
                 className="w-full px-2 py-2 outline-none"
-                style={{ border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 13, background: "#fff", resize: "vertical" }}
+                style={{ border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 13, background: C.surface, resize: "vertical" }}
               />
               <div className="flex justify-end mt-2">
                 <Btn onClick={saveNote} disabled={savingNote || !noteDirty}>{savingNote ? "Saving…" : "Save note"}</Btn>

@@ -84,7 +84,7 @@ export function GlobalSearch({ orders, onOpen }) {
             width: 380,
             maxHeight: 440,
             overflowY: "auto",
-            background: "#fff",
+            background: C.surface,
             borderRadius: 8,
             boxShadow: "0 12px 36px rgba(0,0,0,0.22)",
             border: `1px solid ${C.line}`,

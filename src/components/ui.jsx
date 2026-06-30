@@ -22,15 +22,15 @@ export function InlineMenu({ children, options, onSelect, align = "left" }) {
     <span ref={ref} style={{ position: "relative", display: "inline-flex" }} onClick={(e) => e.stopPropagation()}>
       <span onClick={() => setOpen((v) => !v)}>{children}</span>
       {open && (
-        <div style={{ position: "absolute", top: "100%", [align]: 0, marginTop: 4, zIndex: 90, background: "#fff", border: `1px solid ${C.line}`, borderRadius: 6, boxShadow: "0 6px 22px rgba(0,0,0,0.13)", minWidth: 132, overflow: "hidden" }}>
+        <div style={{ position: "absolute", top: "100%", [align]: 0, marginTop: 4, zIndex: 90, background: C.surface, border: `1px solid ${C.line}`, borderRadius: 6, boxShadow: "0 6px 22px rgba(0,0,0,0.13)", minWidth: 132, overflow: "hidden" }}>
           {options.map((opt) => (
             <button
               key={opt.value}
               onClick={() => { onSelect(opt.value); setOpen(false); }}
               className="flex items-center gap-2 w-full no-pop"
-              style={{ padding: "7px 11px", fontSize: 13, fontWeight: 600, textAlign: "left", background: "#fff", border: "none", cursor: "pointer", whiteSpace: "nowrap", color: C.ink }}
+              style={{ padding: "7px 11px", fontSize: 13, fontWeight: 600, textAlign: "left", background: C.surface, border: "none", cursor: "pointer", whiteSpace: "nowrap", color: C.ink }}
               onMouseEnter={(e) => (e.currentTarget.style.background = C.concrete)}
-              onMouseLeave={(e) => (e.currentTarget.style.background = "#fff")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = C.surface)}
             >
               {opt.icon}{opt.label}
             </button>
@@ -55,9 +55,9 @@ export function Pill({ children, c, bg, Icon }) {
 
 export function Btn({ children, onClick, kind = "ghost", disabled, type = "button" }) {
   const styles = {
-    ghost: { background: "#fff", color: C.inkSoft, border: `1px solid ${C.line}` },
-    dark: { background: C.ink, color: "#fff" },
-    brass: { background: C.ink, color: "#fff" },
+    ghost: { background: C.surface, color: C.inkSoft, border: `1px solid ${C.line}` },
+    dark: { background: C.fill, color: "#fff" },
+    brass: { background: C.fill, color: "#fff" },
     green: { background: C.greenBg, color: C.green, border: `1px solid ${C.green}` },
     gold: { background: C.goldBg, color: C.gold, border: `1px solid ${C.gold}` },
     amber: { background: C.highBg, color: C.high, border: `1px solid ${C.high}` },
@@ -120,19 +120,19 @@ export function PriorityPill({ priority, onChange }) {
 function DueEditor({ initialDate, initialTime, onChange, onClose }) {
   const [date, setDate] = useState(initialDate || "");
   const [time, setTime] = useState(initialTime || "");
-  const inp = { border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 13, background: "#fff" };
+  const inp = { border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 13, background: C.surface };
   const lbl = { fontSize: 10, fontWeight: 700, color: C.gray, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3 };
   const apply = (d, t) => { setDate(d); setTime(t); onChange(d || null, d && t ? t : null); };
   return (
     <>
       <div onClick={(e) => { e.stopPropagation(); onClose(); }} style={{ position: "fixed", inset: 0, zIndex: 49 }} />
-      <div onClick={(e) => e.stopPropagation()} style={{ position: "absolute", top: "100%", left: 0, marginTop: 4, zIndex: 50, background: "#fff", border: `1px solid ${C.line}`, borderRadius: 8, padding: 10, boxShadow: "0 8px 24px rgba(20,28,38,0.16)", width: 210 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ position: "absolute", top: "100%", left: 0, marginTop: 4, zIndex: 50, background: C.surface, border: `1px solid ${C.line}`, borderRadius: 8, padding: 10, boxShadow: "0 8px 24px rgba(20,28,38,0.16)", width: 210 }}>
         <div style={lbl}>Due date</div>
         <input type="date" value={date} onChange={(e) => apply(e.target.value, e.target.value ? time : "")} className="w-full px-2 py-1.5 mb-2 outline-none" style={inp} />
         <div style={lbl}>Time (optional)</div>
         <div className="flex items-center gap-1">
           <input type="time" step={600} value={time} disabled={!date} onChange={(e) => apply(date, e.target.value)} className="flex-1 px-2 py-1.5 outline-none" style={{ ...inp, opacity: date ? 1 : 0.5 }} />
-          {time && <button onClick={() => apply(date, "")} title="Remove the time" style={{ padding: "5px 8px", border: `1px solid ${C.line}`, borderRadius: 6, color: C.gray, background: "#fff", fontSize: 12, fontWeight: 700 }}>Clear</button>}
+          {time && <button onClick={() => apply(date, "")} title="Remove the time" style={{ padding: "5px 8px", border: `1px solid ${C.line}`, borderRadius: 6, color: C.gray, background: C.surface, fontSize: 12, fontWeight: 700 }}>Clear</button>}
         </div>
         {date && <button onClick={() => { apply("", ""); onClose(); }} style={{ marginTop: 8, fontSize: 12, color: C.rush, fontWeight: 700, background: "none", border: "none", padding: 0, cursor: "pointer" }}>Clear due date</button>}
       </div>
@@ -166,12 +166,12 @@ export function DuePill({ o, now = Date.now(), onChange }) {
 // Estimated "ready by" date popover — date only, no urgency.
 function CompletionEditor({ initialDate, onChange, onClose }) {
   const [date, setDate] = useState(initialDate || "");
-  const inp = { border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 13, background: "#fff" };
+  const inp = { border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 13, background: C.surface };
   const lbl = { fontSize: 10, fontWeight: 700, color: C.gray, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3 };
   return (
     <>
       <div onClick={(e) => { e.stopPropagation(); onClose(); }} style={{ position: "fixed", inset: 0, zIndex: 49 }} />
-      <div onClick={(e) => e.stopPropagation()} style={{ position: "absolute", top: "100%", left: 0, marginTop: 4, zIndex: 50, background: "#fff", border: `1px solid ${C.line}`, borderRadius: 8, padding: 10, boxShadow: "0 8px 24px rgba(20,28,38,0.16)", width: 196 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ position: "absolute", top: "100%", left: 0, marginTop: 4, zIndex: 50, background: C.surface, border: `1px solid ${C.line}`, borderRadius: 8, padding: 10, boxShadow: "0 8px 24px rgba(20,28,38,0.16)", width: 196 }}>
         <div style={lbl}>Estimated ready by</div>
         <input type="date" value={date} onChange={(e) => { setDate(e.target.value); onChange(e.target.value || null); }} className="w-full px-2 py-1.5 outline-none" style={inp} />
         {date && <button onClick={() => { onChange(null); onClose(); }} style={{ marginTop: 8, fontSize: 12, color: C.rush, fontWeight: 700, background: "none", border: "none", padding: 0, cursor: "pointer" }}>Clear ready-by date</button>}
@@ -269,7 +269,7 @@ export function MoveMenu({ stage, onMove }) {
     <InlineMenu align="right" options={options} onSelect={onMove}>
       <span
         className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded font-bold uppercase tracking-wide btn-pop"
-        style={{ fontSize: 12, background: "#fff", color: C.inkSoft, border: `1px solid ${C.line}`, cursor: "pointer", whiteSpace: "nowrap" }}
+        style={{ fontSize: 12, background: C.surface, color: C.inkSoft, border: `1px solid ${C.line}`, cursor: "pointer", whiteSpace: "nowrap" }}
       >
         Move to<ChevronDown size={12} style={{ opacity: 0.6 }} />
       </span>
@@ -283,7 +283,7 @@ export function OrderHeader({ o, now, onDueDate, onCompletion, onMethod, onInvoi
       onClick={onOpen}
       title={onOpen ? "Open order details" : undefined}
       className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3"
-      style={{ borderBottom: `1px solid ${C.line}`, background: "#fff", borderTopLeftRadius: 6, borderTopRightRadius: 6, cursor: onOpen ? "pointer" : "default" }}
+      style={{ borderBottom: `1px solid ${C.line}`, background: C.surface, borderTopLeftRadius: 6, borderTopRightRadius: 6, cursor: onOpen ? "pointer" : "default" }}
     >
       {collapsible && (
         <button
@@ -338,7 +338,7 @@ export function Group({ o, now, children, onDueDate, onCompletion, onMethod, onI
   if (noteRail && o.notes) {
     return (
       <div className="mb-3" style={{ position: "relative" }}>
-        <div id={`order-${o.id}`} className="flex card-pop" style={{ background: "#fff", border: `1px solid ${C.line}`, overflow: "hidden", ...noteRing }}>
+        <div id={`order-${o.id}`} className="flex card-pop" style={{ background: C.surface, border: `1px solid ${C.line}`, overflow: "hidden", ...noteRing }}>
           <div
             onMouseEnter={() => setNoteOpen(true)}
             onMouseLeave={() => setNoteOpen(false)}
@@ -354,7 +354,7 @@ export function Group({ o, now, children, onDueDate, onCompletion, onMethod, onI
         </div>
         {/* Hover the bell rail to peek the note — a small tooltip, not a panel. */}
         {noteOpen && (
-          <div className="flex items-start gap-2" style={{ position: "absolute", left: 46, top: 8, zIndex: 60, maxWidth: 300, background: C.ink, color: "#fff", borderRadius: 8, padding: "9px 12px", fontSize: 13, lineHeight: 1.45, boxShadow: "0 10px 28px rgba(20,28,38,0.28)", pointerEvents: "none" }}>
+          <div className="flex items-start gap-2" style={{ position: "absolute", left: 46, top: 8, zIndex: 60, maxWidth: 300, background: C.fill, color: "#fff", borderRadius: 8, padding: "9px 12px", fontSize: 13, lineHeight: 1.45, boxShadow: "0 10px 28px rgba(20,28,38,0.28)", pointerEvents: "none" }}>
             <Bell size={14} color={C.rush} fill={C.rush} style={{ flexShrink: 0, marginTop: 1 }} />
             <span>{o.notes}</span>
           </div>
@@ -363,7 +363,7 @@ export function Group({ o, now, children, onDueDate, onCompletion, onMethod, onI
     );
   }
   return (
-    <div id={`order-${o.id}`} className="mb-3 card-pop" style={{ background: "#fff", border: `1px solid ${C.line}`, borderLeft: `4px solid ${lvl ? DUE[lvl].c : C.line}`, ...noteRing }}>
+    <div id={`order-${o.id}`} className="mb-3 card-pop" style={{ background: C.surface, border: `1px solid ${C.line}`, borderLeft: `4px solid ${lvl ? DUE[lvl].c : C.line}`, ...noteRing }}>
       {header}
       {body}
     </div>
@@ -413,7 +413,7 @@ export function ItemLine({ it, right, onOpen, flash, onDept, now }) {
 
 export function Empty({ children }) {
   return (
-    <div className="rounded px-4 py-10 text-center" style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.gray, fontSize: 14 }}>
+    <div className="rounded px-4 py-10 text-center" style={{ background: C.surface, border: `1px solid ${C.line}`, color: C.gray, fontSize: 14 }}>
       {children}
     </div>
   );
@@ -462,7 +462,7 @@ export function Stepper({ it }) {
                 className="flex items-center justify-center"
                 style={{
                   width: 22, height: 22, borderRadius: 11,
-                  background: done ? C.ink : "#fff",
+                  background: done ? C.fill : C.surface,
                   border: done ? "none" : `2px solid ${cur ? C.high : C.line}`,
                   color: "#fff",
                 }}

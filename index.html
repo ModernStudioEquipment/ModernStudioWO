@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>Modern-Fulfillment</title>
+    <!-- Apply the per-device dark-mode choice before first paint (no flash of light). -->
+    <script>
+      try { if (localStorage.getItem("mse_theme_v1") === "dark") document.documentElement.classList.add("dark"); } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -64,7 +64,7 @@ function PhotoBox({ minHeight = 220, imageUrl, onUpload }) {
   const hiddenInput = onUpload && <input ref={fileRef} type="file" accept="image/*" className="no-print" style={{ display: "none" }} onChange={(e) => handle(e.target.files && e.target.files[0])} />;
   if (imageUrl) {
     return (
-      <div {...drop} className="flex items-center justify-center" style={{ position: "relative", margin: "20px 0", minHeight, border: `${dragOver ? 2 : 1}px ${dragOver ? "dashed" : "solid"} ${dragOver ? C.blue : C.line}`, borderRadius: 4, background: "#fff", overflow: "hidden" }}>
+      <div {...drop} className="flex items-center justify-center" style={{ position: "relative", margin: "20px 0", minHeight, border: `${dragOver ? 2 : 1}px ${dragOver ? "dashed" : "solid"} ${dragOver ? C.blue : C.line}`, borderRadius: 4, background: C.surface, overflow: "hidden" }}>
         <img src={imageUrl} alt="Product" style={{ maxWidth: "100%", maxHeight: minHeight + 80, objectFit: "contain" }} />
         {onUpload && <button type="button" className="no-print" onClick={() => fileRef.current && fileRef.current.click()} style={{ position: "absolute", top: 6, right: 6, fontSize: 11, fontWeight: 700, background: "rgba(255,255,255,0.92)", border: `1px solid ${C.line}`, borderRadius: 6, padding: "3px 8px", cursor: "pointer" }}>{uploading ? "…" : "Replace"}</button>}
         {hiddenInput}
@@ -93,7 +93,7 @@ function CompletedBy({ value, onChange }) {
 
 function AddRow({ onClick }) {
   return (
-    <button onClick={onClick} className="no-print inline-flex items-center gap-1 px-2 py-1 mt-2 rounded text-xs font-bold uppercase tracking-wide" style={{ background: "#fff", color: C.inkSoft, border: `1px solid ${C.line}` }}>
+    <button onClick={onClick} className="no-print inline-flex items-center gap-1 px-2 py-1 mt-2 rounded text-xs font-bold uppercase tracking-wide" style={{ background: C.surface, color: C.inkSoft, border: `1px solid ${C.line}` }}>
       <Plus size={13} />Add row
     </button>
   );
