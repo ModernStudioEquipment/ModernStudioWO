@@ -46,9 +46,11 @@ export const dueSoon = (dueDate, now = Date.now()) => {
 };
 
 // Effective priority used for display + sorting: the more urgent of the manual
-// priority and the due-soon auto-bump. Returns a stored value (RUSH/High/Normal).
+// priority and the due-soon auto-bump. Shopify orders are NOT auto-bumped to
+// urgent by their due date — the urgent lane is for QuickBooks / manually-flagged
+// orders; Shopify orders still show past-due on their pill, just outside Urgent.
 export const effectivePriority = (order, now = Date.now()) =>
-  dueSoon(order.dueDate, now) ? "RUSH" : (order.priority || "Normal");
+  (order.source !== "Shopify" && dueSoon(order.dueDate, now)) ? "RUSH" : (order.priority || "Normal");
 
 // Urgency now comes from the DUE DATE (the Standard/High/Urgent labels are
 // retired). overdue = past due (red), soon = due within 2 days (amber), else null.
