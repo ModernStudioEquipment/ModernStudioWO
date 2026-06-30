@@ -105,7 +105,7 @@ export function Dashboard({ orders = [], workOrders = [], now, onNavigate, onOpe
   const dateStr = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
   const timeStr = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }).toLowerCase().replace(" ", "");
 
-  const card = { background: C.surface, border: `0.5px solid ${C.line}`, borderRadius: 12, boxShadow: C.shadow };
+  const card = { background: C.surface, border: `0.5px solid ${C.line}` };
   const tagStyle = { rush: { c: C.rush, bg: C.rushBg }, high: { c: C.high, bg: C.highBg }, stale: { c: C.rush, bg: C.rushBg }, sitting: { c: C.high, bg: C.highBg }, ship: { c: C.gold, bg: C.goldBg } };
   const sectionLabel = { fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.6 };
 
@@ -147,7 +147,7 @@ export function Dashboard({ orders = [], workOrders = [], now, onNavigate, onOpe
         <Kpi label="Open orders" value={openOrders} accent={C.ink} sub={`${shopify} from Shopify`} to="orders" />
       </div>
 
-      <div className="mb-3" style={{ ...card, padding: "13px 10px" }}>
+      <div className="mb-3 card-pop" style={{ ...card, padding: "13px 10px" }}>
         <div className="flex items-center">
           <Stage n={pNew} label="New orders" to="new" />
           <Arrow />
@@ -162,7 +162,7 @@ export function Dashboard({ orders = [], workOrders = [], now, onNavigate, onOpe
       </div>
 
       <div className="grid mb-3 grid-cols-1 md:grid-cols-[1.5fr_1fr]" style={{ gap: 12, alignItems: "start" }}>
-        <div style={{ ...card, overflow: "hidden" }}>
+        <div className="card-pop" style={{ ...card, overflow: "hidden" }}>
           <div className="flex items-center justify-between" style={{ padding: "10px 14px", borderBottom: `0.5px solid ${C.concrete}` }}>
             <span style={sectionLabel}>Needs attention</span>
             <span style={{ fontSize: 11, color: C.gray }}>{attention.length} flagged</span>
@@ -185,7 +185,7 @@ export function Dashboard({ orders = [], workOrders = [], now, onNavigate, onOpe
         </div>
 
         <div className="flex flex-col" style={{ gap: 12 }}>
-          <div style={{ ...card, padding: "12px 14px" }}>
+          <div className="card-pop" style={{ ...card, padding: "12px 14px" }}>
             <div style={{ ...sectionLabel, marginBottom: 11 }}>Workload by dept</div>
             <div className="flex flex-col" style={{ gap: 10 }}>
               {dept.map((dp) => (
@@ -202,7 +202,7 @@ export function Dashboard({ orders = [], workOrders = [], now, onNavigate, onOpe
             </div>
           </div>
 
-          <div style={{ ...card, padding: "12px 14px" }}>
+          <div className="card-pop" style={{ ...card, padding: "12px 14px" }}>
             <div style={{ ...sectionLabel, marginBottom: 10 }}>Where orders come from</div>
             <div style={{ display: "flex", height: 10, borderRadius: 5, overflow: "hidden", background: C.concrete }}>
               <div style={{ width: `${(shopify / srcTotal) * 100}%`, background: C.blue }} />

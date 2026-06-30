@@ -72,6 +72,11 @@ export default function App() {
   const [newSort, setNewSort] = useState("newest"); // New Orders sort: newest first, or by due date
   const [newSource, setNewSource] = useState("all"); // New Orders filter: all / QuickBooks / Shopify
   const [orderSource, setOrderSource] = useState("all"); // Orders tab filter: all / QuickBooks / Shopify
+  const [orderDrag, setOrderDrag] = useState(null); // order id being dragged in the Orders tab (for the visual dim)
+  const orderDragRef = useRef(null); // synchronous copy so the drop handler never reads a stale value
+  const [manualOrder, setManualOrder] = useState(() => { // per-computer drag-reorder of the Orders tab
+    try { return JSON.parse(localStorage.getItem("mse_orders_manual_v1")) || []; } catch { return []; }
+  });
   // Per-computer collapse memory: which order cards are expanded, scoped per
   // board ('new' / 'pick'). Default = collapsed (absent from the set). Kept in
   // localStorage so it's per-machine and NOT shared across the crew.
@@ -344,6 +349,27 @@ export default function App() {
     : orderView === "pct" ? [...ordersSourced].sort((a, b) => pct(b) - pct(a))
     : orderView === "due" ? [...ordersSourced].sort(byDue)
     : [...ordersSourced].sort((a, b) => b.receivedAt - a.receivedAt);
+  // Orders tab: hold-and-drag to reorder, saved per computer. A manual order
+  // overrides the sort above; "Reset order" clears it back to automatic.
+  const orderedVisible = manualOrder.length
+    ? [...visibleOrders].sort((a, b) => {
+        const ia = manualOrder.indexOf(a.id), ib = manualOrder.indexOf(b.id);
+        return (ia < 0 ? 1e9 : ia) - (ib < 0 ? 1e9 : ib);
+      })
+    : visibleOrders;
+  const dropOrder = (targetId) => {
+    const src = orderDragRef.current;
+    orderDragRef.current = null;
+    if (!src || src === targetId) return setOrderDrag(null);
+    const ids = orderedVisible.map((o) => o.id);
+    const from = ids.indexOf(src), to = ids.indexOf(targetId);
+    if (from < 0 || to < 0) return setOrderDrag(null);
+    ids.splice(to, 0, ids.splice(from, 1)[0]);
+    setManualOrder(ids);
+    try { localStorage.setItem("mse_orders_manual_v1", JSON.stringify(ids)); } catch { /* ignore */ }
+    setOrderDrag(null);
+  };
+  const resetOrder = () => { setManualOrder([]); try { localStorage.removeItem("mse_orders_manual_v1"); } catch { /* ignore */ } };
 
   // New Orders, filtered by source (All / QuickBooks / Shopify), then sorted.
   const newOrdersShown = [...newOrders]
@@ -386,11 +412,17 @@ export default function App() {
     // Urgent (manually Urgent or due within ~2 days) → a loud red card so it
     // can't be missed: red outline, red-tinted background, red URGENT badge.
     const urgent = effectivePriority(o, now) === "RUSH";
+    const dragOn = tab === "orders"; // hold-and-drag to reorder — Orders tab only
     return (
       <div
         key={o.id} id={`order-${o.id}`} onClick={() => setDetailId(o.id)}
+        draggable={dragOn}
+        onDragStart={dragOn ? (e) => { orderDragRef.current = o.id; setOrderDrag(o.id); e.dataTransfer.effectAllowed = "move"; } : undefined}
+        onDragOver={dragOn ? (e) => e.preventDefault() : undefined}
+        onDrop={dragOn ? (e) => { e.preventDefault(); dropOrder(o.id); } : undefined}
+        onDragEnd={dragOn ? () => { orderDragRef.current = null; setOrderDrag(null); } : undefined}
         className="mb-2 card-pop"
-        style={{ background: urgent ? C.rushBg : "#fff", border: `1px solid ${urgent ? C.rush : C.line}`, borderLeft: `4px solid ${urgent ? C.rush : st.c}`, opacity: o.fulfillment ? 0.6 : 1, cursor: "pointer", ...(o.notes ? { boxShadow: `0 0 0 2px ${C.high}` } : null) }}
+        style={{ background: urgent ? C.rushBg : "#fff", border: `1px solid ${urgent ? C.rush : C.line}`, borderLeft: `4px solid ${urgent ? C.rush : st.c}`, opacity: orderDrag === o.id ? 0.4 : (o.fulfillment ? 0.6 : 1), cursor: dragOn ? "grab" : "pointer", ...(o.notes ? { boxShadow: `0 0 0 2px ${C.high}` } : null) }}
       >
         <div className="flex items-center gap-x-3 gap-y-2 px-4 py-3 flex-wrap">
           <span className="font-bold" style={{ fontFamily: "ui-monospace,monospace", fontSize: 15, color: urgent ? C.rush : C.ink }}>#{o.orderNo}</span>
@@ -793,9 +825,12 @@ export default function App() {
                       {f.label}{f.n != null ? ` · ${f.n}` : ""}
                     </button>
                   ))}
+                  {manualOrder.length > 0 && (
+                    <button onClick={resetOrder} title="Back to automatic sorting" className="px-3 py-1.5 rounded text-xs font-bold" style={{ background: "transparent", color: C.gray, border: `1px solid ${C.line}` }}>↺ Reset order</button>
+                  )}
                 </div>
-                {!visibleOrders.length && <Empty>No orders in this view.</Empty>}
-                {visibleOrders.map((o) => renderOrderCard(o))}
+                {!orderedVisible.length && <Empty>No orders in this view.</Empty>}
+                {orderedVisible.map((o) => renderOrderCard(o))}
               </Tabwrap>
             )}
 
