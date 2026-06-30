@@ -18,7 +18,17 @@ import { createClient } from "@supabase/supabase-js";
 import { readdirSync, statSync, readFileSync, existsSync } from "node:fs";
 import { join, basename, extname } from "node:path";
 
-const URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+// The project URL isn't secret — read it from .env so you only pass the key.
+function fromEnvFile(key) {
+  try {
+    for (const line of readFileSync(".env", "utf8").split("\n")) {
+      const m = line.match(new RegExp(`^\\s*${key}\\s*=\\s*(.+?)\\s*$`));
+      if (m) return m[1].replace(/^["']|["']$/g, "");
+    }
+  } catch { /* no .env — fall back to the environment */ }
+  return null;
+}
+const URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || fromEnvFile("VITE_SUPABASE_URL");
 const KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 const FOLDER = process.argv[2];
 const BUCKET = "item-photos";
@@ -72,11 +82,22 @@ const { error: bErr } = await sb.storage.createBucket(BUCKET, { public: true });
 if (bErr && !/exist/i.test(bErr.message)) console.warn(`Bucket: ${bErr.message}`);
 await sb.storage.updateBucket(BUCKET, { public: true }).catch(() => {});
 
+// --- resume: skip SKUs already in item_photos so a re-run only does what's left ---
+const existing = new Set();
+for (let from = 0; ; from += 1000) {
+  const { data, error } = await sb.from("item_photos").select("sku").range(from, from + 999);
+  if (error || !data || !data.length) break;
+  data.forEach((r) => existing.add(r.sku));
+  if (data.length < 1000) break;
+}
+if (existing.size) console.log(`Resuming — ${existing.size} already done; uploading the remaining ${skuToFile.size - existing.size}.`);
+
 // --- 4. upload each unique file once, then point every SKU alias at its URL ---
 const uploaded = new Map(); // file -> public url
-let done = 0, fail = 0, i = 0;
+let done = 0, fail = 0, skipped = 0, i = 0;
 for (const [sku, file] of skuToFile) {
   i++;
+  if (existing.has(sku)) { skipped++; continue; } // already uploaded on a prior run
   try {
     let url = uploaded.get(file);
     if (!url) {
@@ -98,4 +119,4 @@ for (const [sku, file] of skuToFile) {
   }
   if (i % 200 === 0) console.log(`  ...${i}/${skuToFile.size}  (${uploaded.size} files uploaded)`);
 }
-console.log(`\nDone. ${done} SKUs registered (${uploaded.size} files uploaded), ${fail} failed.`);
+console.log(`\nDone. ${done} newly registered (${uploaded.size} files uploaded), ${skipped} already done, ${fail} failed.`);
