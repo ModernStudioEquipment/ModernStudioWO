@@ -18,6 +18,23 @@ function itemSku(it) {
   return m ? m[1] : null;
 }
 
+// item_photos can exceed the API's 1000-row page cap, so page through all of it.
+// Cached after the first non-empty load (the library only changes when photos are
+// uploaded); an empty/missing-table result isn't cached, so it retries next time.
+let _photoBySku = null;
+async function loadPhotoBySku() {
+  if (_photoBySku) return _photoBySku;
+  const map = {};
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabase.from("item_photos").select("sku,image_url").range(from, from + 999);
+    if (error || !Array.isArray(data) || !data.length) break;
+    data.forEach((r) => { if (r.sku) map[String(r.sku).toLowerCase()] = r.image_url; });
+    if (data.length < 1000) break;
+  }
+  if (Object.keys(map).length) _photoBySku = map;
+  return map;
+}
+
 let channelSeq = 0; // unique realtime channel names — one channel per subscriber
 
 // DB row (snake_case) -> the normalized in-memory shape the UI consumes.
@@ -120,10 +137,8 @@ export const supabaseAdapter = {
     const { data: pp } = await supabase.from("product_photos").select("name,image_url");
     if (Array.isArray(pp)) pp.forEach((r) => { productPhotos[r.name] = r.image_url; });
     // SKU-keyed photo library (0034): how QuickBooks items get their photo, matched
-    // by the SKU in their "Item #:" note. Tolerate the table not existing yet.
-    const photoBySku = {};
-    const { data: ip } = await supabase.from("item_photos").select("sku,image_url");
-    if (Array.isArray(ip)) ip.forEach((r) => { if (r.sku) photoBySku[String(r.sku).toLowerCase()] = r.image_url; });
+    // by the SKU in their "Item #:" note. Paged + cached; tolerates the table missing.
+    const photoBySku = await loadPhotoBySku();
     // Partial pickup/shipment log, grouped by order (tolerate the table missing).
     const fulfillmentsByOrder = {};
     const { data: ff } = await supabase.from("fulfillments").select("*").order("created_at", { ascending: true });
