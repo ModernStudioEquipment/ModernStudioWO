@@ -162,6 +162,12 @@ export default function App() {
     }
     setFlashOrderId(id);
   };
+  // From a search result's location chip: jump to that tab and flash the order there.
+  const goToTab = (id, tabKey) => {
+    setTab(tabKey);
+    if (tabKey === "orders") setOrderView("all");
+    setFlashOrderId(id);
+  };
 
   // ---- triage / workflow handlers ----
   const triage = (itemId, decision) => {
@@ -392,17 +398,23 @@ export default function App() {
     .filter((o) => effectivePriority(o, now) === "RUSH")
     .sort((a, b) => (oDone(a) ? 1 : 0) - (oDone(b) ? 1 : 0) || byUrgency(a, b));
 
-  // Search is scoped to whatever tab you're in — it only finds orders shown in
-  // that tab. (Orders tab and Dashboard search across everything.)
-  const searchScope =
-    tab === "new" ? newOrders
-    : tab === "pick" ? pickOrders
-    : tab === "work" ? workOrders
-    : tab === "buy" ? buyOrders
-    : tab === "willcall" ? willCallOrders
-    : tab === "shipping" ? shippingOrders
-    : tab === "completed" ? completedOrders
-    : orders;
+  // Which tabs an order currently lives in — the stage/fulfillment lists that
+  // hold it (its items can span several). Powers the global search: you can find
+  // an order from any tab, see where it is, and jump straight to it. Falls back
+  // to the Orders master list when it's ready-to-fulfill / not in a stage tab.
+  const SEARCH_TABS = [
+    { k: "new", label: "New Orders", list: newOrders },
+    { k: "pick", label: "Pick List", list: pickOrders },
+    { k: "work", label: "Work Order", list: workOrders },
+    { k: "buy", label: "Purchasing", list: buyOrders },
+    { k: "willcall", label: "Will Call", list: willCallOrders },
+    { k: "shipping", label: "Shipping", list: shippingOrders },
+    { k: "completed", label: "Completed", list: completedOrders },
+  ];
+  const orderLocations = (o) => {
+    const hits = SEARCH_TABS.filter((t) => t.list.some((x) => x.id === o.id)).map(({ k, label }) => ({ k, label }));
+    return hits.length ? hits : [{ k: "orders", label: "Orders" }];
+  };
 
   const orderStatus = (o) => {
     if (o.fulfillment === "shipping")
@@ -536,7 +548,7 @@ export default function App() {
             </button>
           ))}
         </div>
-        <GlobalSearch orders={searchScope} onOpen={goToOrder} key={tab} />
+        <GlobalSearch orders={orders} locate={orderLocations} onOpen={(id) => setDetailId(id)} onGoToTab={goToTab} key={tab} />
         <button
           onClick={() => setDark((d) => !d)}
           title={dark ? "Switch to light mode" : "Switch to dark mode"}

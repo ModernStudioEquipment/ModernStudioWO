@@ -3,10 +3,11 @@ import { Search, X } from "lucide-react";
 import { C } from "../theme.js";
 
 // Global order search that lives in the top bar. Matches across order number,
-// customer, the person who ordered (contact), and product (line-item) names —
-// across every order regardless of which stage/tab it's in. Picking a result
-// opens that order's detail, so you never have to scroll a list to find one.
-export function GlobalSearch({ orders, onOpen }) {
+// customer, the person who ordered (contact), ship-to, and product (line-item)
+// names — across EVERY order, no matter which tab you're in. Each result shows
+// which tabs the order lives in (its items can span several); click the order to
+// open its detail, or a tab chip to jump straight there and flash the card.
+export function GlobalSearch({ orders, onOpen, locate, onGoToTab }) {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -47,11 +48,9 @@ export function GlobalSearch({ orders, onOpen }) {
         .slice(0, 12)
     : [];
 
-  const pick = (o) => {
-    onOpen(o.id);
-    setOpen(false);
-    setQ("");
-  };
+  const close = () => { setOpen(false); setQ(""); };
+  const pick = (o) => { onOpen(o.id); close(); };            // open the order's detail
+  const goTab = (o, tabKey) => { onGoToTab?.(o.id, tabKey); close(); }; // jump to a tab + flash
 
   return (
     <div ref={ref} className="shrink-0" style={{ position: "relative" }}>
@@ -98,23 +97,42 @@ export function GlobalSearch({ orders, onOpen }) {
           {results.map((o) => {
             const matchItem = (o.items || []).find((it) => (it.name || "").toLowerCase().includes(query));
             const extra = (o.items || []).length - 1;
+            const locs = locate ? locate(o) : [];
             return (
-              <button
+              <div
                 key={o.id}
-                onClick={() => pick(o)}
-                className="flex flex-col w-full hover:bg-gray-100"
-                style={{ textAlign: "left", padding: "10px 14px", borderBottom: `1px solid ${C.line}` }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = C.grayBg)}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                style={{ padding: "9px 14px", borderBottom: `1px solid ${C.line}`, transition: "background 0.1s" }}
               >
-                <div className="flex items-center gap-2 w-full">
-                  <span className="font-bold" style={{ fontFamily: "ui-monospace,monospace", fontSize: 13 }}>#{o.orderNo}</span>
-                  <span className="font-bold truncate" style={{ fontSize: 13 }}>{o.customer}</span>
-                  <span className="ml-auto shrink-0" style={{ fontSize: 11, color: C.gray }}>{o.source}</span>
+                <div onClick={() => pick(o)} style={{ cursor: "pointer" }} title="Open order details">
+                  <div className="flex items-center gap-2 w-full">
+                    <span className="font-bold" style={{ fontFamily: "ui-monospace,monospace", fontSize: 13 }}>#{o.orderNo}</span>
+                    <span className="font-bold truncate" style={{ fontSize: 13 }}>{o.customer}</span>
+                    <span className="ml-auto shrink-0" style={{ fontSize: 11, color: C.gray }}>{o.source}</span>
+                  </div>
+                  <div className="truncate" style={{ fontSize: 12, color: C.gray, marginTop: 2, maxWidth: 350 }}>
+                    {matchItem ? matchItem.name : `${o.items.length} item${o.items.length === 1 ? "" : "s"}`}
+                    {matchItem && extra > 0 ? ` · +${extra} more` : ""}
+                  </div>
                 </div>
-                <div className="truncate" style={{ fontSize: 12, color: C.gray, marginTop: 2, maxWidth: 350 }}>
-                  {matchItem ? matchItem.name : `${o.items.length} item${o.items.length === 1 ? "" : "s"}`}
-                  {matchItem && extra > 0 ? ` · +${extra} more` : ""}
-                </div>
-              </button>
+                {locs.length > 0 && (
+                  <div className="flex items-center flex-wrap gap-1" style={{ marginTop: 6 }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: C.gray, textTransform: "uppercase", letterSpacing: 0.4, marginRight: 1 }}>In</span>
+                    {locs.map((loc) => (
+                      <button
+                        key={loc.k}
+                        className="btn-pop"
+                        onClick={() => goTab(o, loc.k)}
+                        title={`Go to ${loc.label} and flash this order`}
+                        style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.3, padding: "2px 8px", borderRadius: 5, background: C.surface, color: C.inkSoft, border: `1px solid ${C.line}`, cursor: "pointer", whiteSpace: "nowrap" }}
+                      >
+                        {loc.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             );
           })}
         </div>
