@@ -177,7 +177,9 @@ async function run({ commit, shipToBackfillDays }) {
   // backfilled onto the board — only invoices from the switch-over date forward
   // should sync. Floor the invoice window here. max(since, floor) means it quietly
   // reverts to the normal rolling 16-day window once `since` passes the floor.
-  const INVOICE_FLOOR = "2026-06-19";
+  // Bumped 2026-07-04 after a duplicate-invoice backlog flooded the board (an
+  // offline stretch let ~2 weeks of invoices sync at once). Go forward-only.
+  const INVOICE_FLOOR = "2026-07-04";
   const invoiceSince = since > INVOICE_FLOOR ? since : INVOICE_FLOOR;
   let soList, invList;
   try {
@@ -241,10 +243,14 @@ async function run({ commit, shipToBackfillDays }) {
   const sosToAdd = sos.filter((m) => !existing[m.orderNo]);
   // Every sales-order number that is (or is about to be) on the board:
   const soNumbersOnBoard = new Set([...Object.keys(existing), ...sosToAdd.map((m) => m.orderNo)]);
-  // Skip invoices whose own number is on the board, OR whose originating sales
-  // order is on the board (the sales-order card already represents that job).
-  const invLinkedDup = invs.filter((m) => !existing[m.orderNo] && m.linkedSo.some((n) => soNumbersOnBoard.has(n)));
-  const invsToAdd = invs.filter((m) => !existing[m.orderNo] && !m.linkedSo.some((n) => soNumbersOnBoard.has(n)));
+  // Skip ANY invoice that originated from a sales order — whether or not that SO
+  // is still on the board. The sales order already represents the job; a finished
+  // SO that's cleared off must NOT reappear as a brand-new invoice. (That was the
+  // duplicate flood: a backlog of invoices for already-made orders synced at once.)
+  // Only genuine direct invoices — no linked sales order, e.g. card payments —
+  // come in on their own.
+  const invLinkedDup = invs.filter((m) => !existing[m.orderNo] && m.linkedSo.length > 0);
+  const invsToAdd = invs.filter((m) => !existing[m.orderNo] && m.linkedSo.length === 0);
   const toAdd = [...sosToAdd, ...invsToAdd];
 
   // --- Preview (no writes) ---
