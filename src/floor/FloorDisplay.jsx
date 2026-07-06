@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { FLOOR_DEPTS, exitMonitor } from "./depts.js";
-import { fetchFloorQueue, fetchFloorPhotos, fetchFloorArrangement, fetchCncParts, matchCncPart, fetchFloorNotes } from "./floorData.js";
+import { fetchFloorQueue, fetchFloorPhotos, fetchFloorArrangement, fetchCncParts, matchCncPart, fetchFloorNotes, completeItem } from "./floorData.js";
 
 // Order the queue the way the office set it: items in the arrangement come
 // first, in the dragged order. Anything not yet arranged (a brand-new arrival)
@@ -18,7 +18,8 @@ function applyOrder(items, arrangement) {
   });
 }
 
-const POLL_MS = 12000; // monitors refresh every 12s; anon can't use realtime on base tables
+const POLL_MS = 25000; // refresh every 25s — plenty for a shop wall, and easy on the free tier
+const STATIC_EVERY = 12; // re-fetch photos / CNC parts only every ~5 min (they rarely change)
 const MAX_QUEUE = 6; // rows visible under the NOW card
 
 function useClock() {
@@ -47,24 +48,47 @@ export default function FloorDisplay({ deptKey }) {
   const [cncParts, setCncParts] = useState({ bySku: {}, byName: {} });
   const [notes, setNotes] = useState({});
   const [loaded, setLoaded] = useState(false);
+  const [online, setOnline] = useState(true);
   const clock = useClock();
 
   useEffect(() => {
     let alive = true;
+    let tick = 0;
+    const startedAt = Date.now();
     async function load() {
-      const [q, p, arr, cnc, nts] = await Promise.all([
+      // Only pull the heavy, rarely-changing data (photos, CNC parts) every ~5 min;
+      // the queue / order / notes ride every poll. Cuts request volume by more than half.
+      const refreshStatic = tick % STATIC_EVERY === 0;
+      tick += 1;
+      const [q, arr, nts, p, cnc] = await Promise.all([
         fetchFloorQueue(dept.db),
-        fetchFloorPhotos(),
         fetchFloorArrangement(deptKey),
-        deptKey === "cnc" ? fetchCncParts() : Promise.resolve({ bySku: {}, byName: {} }),
         fetchFloorNotes(),
+        refreshStatic ? fetchFloorPhotos() : Promise.resolve(null),
+        refreshStatic && deptKey === "cnc" ? fetchCncParts() : Promise.resolve(null),
       ]);
       if (!alive) return;
-      setQueue(applyOrder(q, arr));
-      setPhotos(p);
-      setCncParts(cnc);
-      setNotes(nts);
+      if (p) setPhotos(p);
+      if (cnc) setCncParts(cnc);
+      if (q === null) {
+        setOnline(false); // fetch failed — keep the last-good queue on screen, flag "reconnecting"
+        return;
+      }
+      setQueue(applyOrder(q, arr || []));
+      setNotes(nts || {});
+      setOnline(true);
       setLoaded(true);
+      // Nightly self-reload (~3am, once/day) so a monitor left on for weeks
+      // picks up new deploys and clears memory. Guarded via localStorage.
+      try {
+        const today = new Date().toDateString();
+        if (new Date().getHours() === 3 && Date.now() - startedAt > 3600000 && localStorage.getItem("mse_floor_reload") !== today) {
+          localStorage.setItem("mse_floor_reload", today);
+          window.location.reload();
+        }
+      } catch {
+        /* ignore */
+      }
     }
     load();
     const id = setInterval(load, POLL_MS);
@@ -84,6 +108,11 @@ export default function FloorDisplay({ deptKey }) {
 
   const stageStyle = useMemo(() => ({ "--accent": dept.accent, "--draw": dept.draw }), [dept]);
   const qtyLabel = deptKey === "saw" ? "Cuts" : "Pieces";
+
+  const handleDone = async (id) => {
+    setQueue((q) => q.filter((i) => i.item_id !== id)); // optimistic — the next job slides up to NOW
+    await completeItem(id);
+  };
 
   const now = queue[0] || null;
   const rest = queue.slice(1, 1 + MAX_QUEUE);
@@ -117,9 +146,9 @@ export default function FloorDisplay({ deptKey }) {
           <div className="floor-clock">
             <div className="t">{clock.t}</div>
             <div className="d">{clock.d}</div>
-            <div className="floor-live">
+            <div className={`floor-live${online ? "" : " off"}`}>
               <i />
-              LIVE
+              {online ? "LIVE" : "RECONNECTING"}
             </div>
           </div>
         </header>
@@ -127,7 +156,7 @@ export default function FloorDisplay({ deptKey }) {
         {now ? (
           <>
             <div className="floor-main">
-              <NowCard item={now} photos={photos} qtyLabel={qtyLabel} deptLabel={dept.label} part={matchCncPart(cncParts, now)} note={notes[now.item_id]} />
+              <NowCard key={now.item_id} item={now} photos={photos} qtyLabel={qtyLabel} deptLabel={dept.label} part={matchCncPart(cncParts, now)} note={notes[now.item_id]} onDone={handleDone} />
               <aside className="floor-queue">
                 <h2>
                   <i className="c" />
@@ -151,14 +180,38 @@ export default function FloorDisplay({ deptKey }) {
             </footer>
           </>
         ) : (
-          <IdleCard dept={dept} loaded={loaded} />
+          <IdleCard dept={dept} loaded={loaded} online={online} />
         )}
       </div>
     </div>
   );
 }
 
-function NowCard({ item, photos, qtyLabel, deptLabel, part, note }) {
+function DoneButton({ onDone }) {
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    if (!armed) return undefined;
+    const t = setTimeout(() => setArmed(false), 4000); // disarm if not confirmed
+    return () => clearTimeout(t);
+  }, [armed]);
+  return (
+    <button
+      className={`floor-done${armed ? " armed" : ""}`}
+      onClick={() => {
+        if (armed) {
+          setArmed(false);
+          onDone();
+        } else {
+          setArmed(true);
+        }
+      }}
+    >
+      {armed ? "Tap to confirm ✓" : "Mark done"}
+    </button>
+  );
+}
+
+function NowCard({ item, photos, qtyLabel, deptLabel, part, note, onDone }) {
   const hasSteps = part && part.steps && part.steps.length > 0;
   const hasNotes = !!(part && part.notes);
   const rich = hasSteps || hasNotes || !!(part && part.blueprint);
@@ -181,6 +234,7 @@ function NowCard({ item, photos, qtyLabel, deptLabel, part, note }) {
         <div className="floor-qty">
           <div className="n">{item.qty}</div>
           <div className="l">{qtyLabel}</div>
+          {onDone && <DoneButton onDone={() => onDone(item.item_id)} />}
         </div>
       </div>
       <div className="floor-nowbody">
@@ -283,12 +337,30 @@ function QueueRow({ item, pos, photos, qtyLabel }) {
   );
 }
 
-function IdleCard({ dept, loaded }) {
+function IdleCard({ dept, loaded, online }) {
+  if (!loaded && !online) {
+    return (
+      <div className="floor-idle">
+        <div className="ring err">!</div>
+        <div className="big">Can’t reach the board</div>
+        <div className="sub">Trying to reconnect…</div>
+      </div>
+    );
+  }
+  if (!loaded) {
+    return (
+      <div className="floor-idle">
+        <div className="ring">…</div>
+        <div className="big">Loading…</div>
+        <div className="sub">Fetching the {dept.label} queue…</div>
+      </div>
+    );
+  }
   return (
     <div className="floor-idle">
       <div className="ring">✓</div>
-      <div className="big">{loaded ? "All caught up" : "Loading…"}</div>
-      <div className="sub">{loaded ? `Nothing queued for ${dept.label} right now.` : "Fetching the queue…"}</div>
+      <div className="big">All caught up</div>
+      <div className="sub">Nothing queued for {dept.label} right now.</div>
     </div>
   );
 }

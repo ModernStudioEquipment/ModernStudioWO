@@ -45,6 +45,8 @@ html:has(.floor-root), body:has(.floor-root) { background: #0D0F12; }
 .floor-clock .d{font-size:10px;letter-spacing:.16em;color:var(--muted);text-transform:uppercase;margin-top:2px}
 .floor-live{display:inline-flex;align-items:center;gap:7px;font-size:10px;letter-spacing:.16em;color:#34D399;font-weight:600;margin-top:5px}
 .floor-live i{width:7px;height:7px;border-radius:50%;background:#34D399;box-shadow:0 0 9px 1px #34D399;animation:floorblink 2.4s ease-in-out infinite}
+.floor-live.off{color:#F5A623}
+.floor-live.off i{background:#F5A623;box-shadow:0 0 9px 1px #F5A623;animation:floorblink 1s ease-in-out infinite}
 
 .floor-main{display:grid;grid-template-columns:1.55fr 1fr;gap:16px;min-height:0}
 
@@ -70,6 +72,11 @@ html:has(.floor-root), body:has(.floor-root) { background: #0D0F12; }
 .floor-qty{margin-left:auto;text-align:center;flex:none;padding-left:18px}
 .floor-qty .n{font-size:62px;font-weight:800;line-height:.85;letter-spacing:-.02em}
 .floor-qty .l{font-size:11px;letter-spacing:.20em;color:var(--muted);text-transform:uppercase;margin-top:4px}
+.floor-done{margin-top:14px;background:transparent;border:1px solid var(--line2);color:var(--muted);
+  font:inherit;font-size:13px;font-weight:800;letter-spacing:.04em;padding:9px 15px;border-radius:11px;cursor:pointer;
+  white-space:nowrap;transition:all .15s}
+.floor-done:hover{border-color:var(--accent);color:var(--accent)}
+.floor-done.armed{background:#34D399;border-color:#34D399;color:#08301f;animation:floorblink 1s ease-in-out infinite}
 
 .floor-nowbody{display:grid;grid-template-columns:1fr 1.05fr;gap:22px;min-height:0}
 .floor-photo{background:var(--panel2);border:1px solid var(--line2);border-radius:14px;overflow:hidden;display:flex;align-items:center;justify-content:center;position:relative}
@@ -129,6 +136,7 @@ html:has(.floor-root), body:has(.floor-root) { background: #0D0F12; }
 .floor-idle .big{font-size:44px;font-weight:800;letter-spacing:-.01em}
 .floor-idle .sub{font-size:16px;color:var(--muted)}
 .floor-idle .ring{width:96px;height:96px;border-radius:50%;border:3px solid color-mix(in srgb,var(--accent) 40%,var(--panel));display:flex;align-items:center;justify-content:center;font-size:40px;color:var(--accent);font-weight:800}
+.floor-idle .ring.err{border-color:rgba(255,92,92,.5);color:#FF5C5C}
 
 /* picker (no dept in URL) */
 .floor-picker{position:relative;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;background:var(--ground,#0D0F12);color:#F3F6F8;

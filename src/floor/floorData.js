@@ -14,7 +14,7 @@ export async function fetchFloorQueue(dbDept) {
     .eq("dept", dbDept);
   if (error) {
     console.error("floor_queue read failed:", error.message);
-    return [];
+    return null; // null = fetch failed (vs [] = genuinely empty), so the monitor can show "reconnecting"
   }
   return (data || []).slice().sort(
     (a, b) =>
@@ -35,6 +35,14 @@ export async function fetchFloorArrangement(deptKey) {
     .maybeSingle();
   if (error) return [];
   return Array.isArray(data?.value) ? data.value : [];
+}
+
+// Mark the current job done — the floor's one allowed write (RPC 0043).
+export async function completeItem(itemId) {
+  if (!floorClient) return { ok: true };
+  const { error } = await floorClient.rpc("floor_complete_item", { p_item_id: itemId });
+  if (error) console.error("floor_complete_item failed:", error.message);
+  return { ok: !error };
 }
 
 const norm = (s) => (s || "").toLowerCase().replace(/\s+/g, " ").trim();
