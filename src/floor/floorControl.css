@@ -43,8 +43,9 @@
 .fc-hint{font-size:14px; color:var(--muted)}
 
 .fc-list{display:flex; flex-direction:column; gap:10px}
-.fc-row{display:flex; align-items:center; gap:14px; background:var(--rail); border:1px solid var(--line);
+.fc-row{display:flex; flex-direction:column; background:var(--rail); border:1px solid var(--line);
   border-radius:14px; padding:12px 14px 12px 12px; cursor:grab; transition:border-color .12s, transform .06s, opacity .12s}
+.fc-rowmain{display:flex; align-items:center; gap:14px}
 .fc-row:hover{border-color:var(--line2)}
 .fc-row:active{cursor:grabbing}
 .fc-row.drag{opacity:.35}
@@ -68,9 +69,16 @@
 .fc-chip{font-size:10px; font-weight:800; letter-spacing:.1em; padding:4px 9px; border-radius:999px; text-transform:uppercase}
 .fc-chip.rush{background:rgba(255,92,92,.14); color:var(--red); border:1px solid rgba(255,92,92,.45)}
 .fc-chip.prog{background:color-mix(in srgb,var(--accent) 16%,transparent); color:var(--accent); border:1px solid color-mix(in srgb,var(--accent) 40%,transparent)}
-.fc-totop{display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; border-radius:9px;
+.fc-totop, .fc-notebtn{display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; border-radius:9px;
   background:var(--panel); border:1px solid var(--line); color:var(--muted); cursor:pointer; transition:all .13s}
-.fc-totop:hover{border-color:var(--accent); color:var(--accent)}
+.fc-totop:hover, .fc-notebtn:hover{border-color:var(--accent); color:var(--accent)}
+.fc-jobnote-row{display:block; font-size:12.5px; color:var(--accent); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:340px}
+.fc-noteedit{display:flex; gap:8px; margin-top:10px; padding-top:10px; border-top:1px solid var(--line)}
+.fc-noteinput{flex:1; background:var(--panel2); border:1px solid var(--line2); color:#F3F6F8; font:inherit; font-size:14px; padding:8px 12px; border-radius:9px; outline:none}
+.fc-noteinput:focus{border-color:var(--accent)}
+.fc-notesave{background:var(--accent); color:#20160a; border:none; font:inherit; font-size:13px; font-weight:800; padding:8px 15px; border-radius:9px; cursor:pointer}
+.fc-notecancel{background:transparent; border:1px solid var(--line); color:var(--muted); font:inherit; font-size:13px; padding:8px 13px; border-radius:9px; cursor:pointer}
+.fc-notecancel:hover{color:#F3F6F8; border-color:var(--line2)}
 .fc-qty{text-align:right}
 .fc-qty .q{display:block; font-size:22px; font-weight:800; line-height:.9}
 .fc-qty .ql{display:block; font-size:9px; letter-spacing:.14em; color:var(--muted); text-transform:uppercase; margin-top:2px}

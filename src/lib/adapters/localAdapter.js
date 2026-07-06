@@ -136,6 +136,18 @@ export const localAdapter = {
     channel?.postMessage("changed");
   },
 
+  // ---- Per-job floor notes (single-machine, localStorage) ----
+  async getFloorNotes() {
+    try { return JSON.parse(localStorage.getItem("mse_floor_notes_v1")) || {}; } catch { return {}; }
+  },
+  async setFloorNote(itemId, note) {
+    const m = await this.getFloorNotes();
+    const t = (note || "").trim();
+    if (t) m[itemId] = t; else delete m[itemId];
+    try { localStorage.setItem("mse_floor_notes_v1", JSON.stringify(m)); } catch { /* ignore */ }
+    channel?.postMessage("changed");
+  },
+
   // ---- CNC parts library (single-machine, localStorage) ----
   async getCncParts() {
     try { return JSON.parse(localStorage.getItem("mse_cnc_parts_v1")) || []; } catch { return []; }

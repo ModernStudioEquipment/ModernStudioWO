@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { FLOOR_DEPTS, exitMonitor } from "./depts.js";
-import { fetchFloorQueue, fetchFloorPhotos, fetchFloorArrangement, fetchCncParts, matchCncPart } from "./floorData.js";
+import { fetchFloorQueue, fetchFloorPhotos, fetchFloorArrangement, fetchCncParts, matchCncPart, fetchFloorNotes } from "./floorData.js";
 
 // Order the queue the way the office set it: items in the arrangement come
 // first, in the dragged order. Anything not yet arranged (a brand-new arrival)
@@ -45,22 +45,25 @@ export default function FloorDisplay({ deptKey }) {
   const [queue, setQueue] = useState([]);
   const [photos, setPhotos] = useState({});
   const [cncParts, setCncParts] = useState({ bySku: {}, byName: {} });
+  const [notes, setNotes] = useState({});
   const [loaded, setLoaded] = useState(false);
   const clock = useClock();
 
   useEffect(() => {
     let alive = true;
     async function load() {
-      const [q, p, arr, cnc] = await Promise.all([
+      const [q, p, arr, cnc, nts] = await Promise.all([
         fetchFloorQueue(dept.db),
         fetchFloorPhotos(),
         fetchFloorArrangement(deptKey),
         deptKey === "cnc" ? fetchCncParts() : Promise.resolve({ bySku: {}, byName: {} }),
+        fetchFloorNotes(),
       ]);
       if (!alive) return;
       setQueue(applyOrder(q, arr));
       setPhotos(p);
       setCncParts(cnc);
+      setNotes(nts);
       setLoaded(true);
     }
     load();
@@ -124,7 +127,7 @@ export default function FloorDisplay({ deptKey }) {
         {now ? (
           <>
             <div className="floor-main">
-              <NowCard item={now} photos={photos} qtyLabel={qtyLabel} deptLabel={dept.label} part={matchCncPart(cncParts, now)} />
+              <NowCard item={now} photos={photos} qtyLabel={qtyLabel} deptLabel={dept.label} part={matchCncPart(cncParts, now)} note={notes[now.item_id]} />
               <aside className="floor-queue">
                 <h2>
                   <i className="c" />
@@ -155,7 +158,7 @@ export default function FloorDisplay({ deptKey }) {
   );
 }
 
-function NowCard({ item, photos, qtyLabel, deptLabel, part }) {
+function NowCard({ item, photos, qtyLabel, deptLabel, part, note }) {
   const hasSteps = part && part.steps && part.steps.length > 0;
   const hasNotes = !!(part && part.notes);
   const rich = hasSteps || hasNotes || !!(part && part.blueprint);
@@ -187,6 +190,12 @@ function NowCard({ item, photos, qtyLabel, deptLabel, part }) {
         </div>
         {rich ? (
           <div className="floor-detail">
+            {note && (
+              <div className="floor-jobnote">
+                <span className="k">Note</span>
+                <span className="v">{note}</span>
+              </div>
+            )}
             {hasSteps && (
               <>
                 <div className="h">How to make it</div>
@@ -211,6 +220,12 @@ function NowCard({ item, photos, qtyLabel, deptLabel, part }) {
           </div>
         ) : (
           <div className="floor-detail">
+            {note && (
+              <div className="floor-jobnote">
+                <span className="k">Note</span>
+                <span className="v">{note}</span>
+              </div>
+            )}
             <div className="h">Details</div>
             <div className="floor-facts">
               <div className="floor-fact">

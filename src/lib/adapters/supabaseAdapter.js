@@ -313,6 +313,29 @@ export const supabaseAdapter = {
     return url;
   },
 
+  // ---- Per-job floor notes (typed on the queue page, shown on the monitor) ----
+  async getFloorNotes() {
+    const { data, error } = await supabase.from("floor_notes").select("item_id, note");
+    if (error) return {};
+    const m = {};
+    (data || []).forEach((r) => {
+      if (r.note) m[r.item_id] = r.note;
+    });
+    return m;
+  },
+  async setFloorNote(itemId, note) {
+    const t = (note || "").trim();
+    if (!t) {
+      const { error } = await supabase.from("floor_notes").delete().eq("item_id", itemId);
+      if (error && error.code !== "42P01") fail(error);
+      return;
+    }
+    const { error } = await supabase
+      .from("floor_notes")
+      .upsert({ item_id: itemId, note: t, updated_at: new Date().toISOString() }, { onConflict: "item_id" });
+    if (error && error.code !== "42P01") fail(error);
+  },
+
   // ---- CNC parts library (how-to-make steps + blueprints) ----
   async getCncParts() {
     const { data, error } = await supabase.from("cnc_parts").select("*").order("name");

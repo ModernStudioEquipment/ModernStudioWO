@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, GripVertical, ExternalLink, Flame, ChevronsUp } from "lucide-react";
+import { ArrowLeft, GripVertical, ExternalLink, Flame, ChevronsUp, StickyNote } from "lucide-react";
 import Sortable from "sortablejs";
 import { db } from "../lib/db.js";
 import CncLibrary from "./CncLibrary.jsx";
@@ -58,7 +58,30 @@ export default function FloorControl({ orders, onClose }) {
   const [active, setActive] = useState("cnc");
   const [order, setOrder] = useState({}); // { deptKey: [ids] }
   const [libOpen, setLibOpen] = useState(false);
+  const [notes, setNotes] = useState({}); // itemId -> note (shows on the monitor)
+  const [editingId, setEditingId] = useState(null);
+  const [noteDraft, setNoteDraft] = useState("");
   const dept = DEPTS.find((d) => d.key === active);
+
+  useEffect(() => {
+    db.getFloorNotes().then(setNotes);
+  }, []);
+
+  function startEditNote(id) {
+    setNoteDraft(notes[id] || "");
+    setEditingId(id);
+  }
+  async function saveNote(id) {
+    const t = noteDraft;
+    setNotes((m) => {
+      const n = { ...m };
+      if (t.trim()) n[id] = t.trim();
+      else delete n[id];
+      return n;
+    });
+    setEditingId(null);
+    await db.setFloorNote(id, t);
+  }
 
   // Load every department's saved order once.
   useEffect(() => {
@@ -107,7 +130,7 @@ export default function FloorControl({ orders, onClose }) {
     const s = Sortable.create(listRef.current, {
       animation: 170,
       easing: "cubic-bezier(0.22, 1, 0.36, 1)",
-      filter: ".fc-totop",
+      filter: ".fc-totop, .fc-notebtn, .fc-noteedit, .fc-noteinput, .fc-notesave, .fc-notecancel",
       preventOnFilter: false,
       ghostClass: "fc-ghost",
       chosenClass: "fc-chosen",
@@ -184,42 +207,68 @@ export default function FloorControl({ orders, onClose }) {
             <div className="fc-list" ref={listRef}>
               {items.map((it, idx) => (
                 <div key={it.id} className={`fc-row${idx === 0 ? " now" : ""}`} data-id={it.id}>
-                  <span className="fc-grip">
-                    <GripVertical size={18} />
-                  </span>
-                  <span className="fc-rank">{idx + 1}</span>
-                  <span className="fc-thumb">
-                    {it.image ? <img src={it.image} alt="" /> : <span className="mono">{initials(it.name)}</span>}
-                  </span>
-                  <span className="fc-meta">
-                    <span className="no">WO&nbsp;#{it.orderNo}</span>
-                    <span className="nm">{it.name}</span>
-                    {it.color && <span className="mt">{it.color}</span>}
-                    {idx === 0 && <span className="fc-nowtag">On the monitor now</span>}
-                  </span>
-                  <span className="fc-right">
-                    {idx > 0 && (
-                      <button
-                        className="fc-totop"
-                        title="Make this next up"
-                        onClick={() => moveToTop(it.id)}
-                        onDragStart={(e) => e.preventDefault()}
-                      >
-                        <ChevronsUp size={16} />
-                      </button>
-                    )}
-                    {it.inProgress && <span className="fc-chip prog">On floor</span>}
-                    {it.rush && (
-                      <span className="fc-chip rush">
-                        <Flame size={11} style={{ verticalAlign: -1, marginRight: 3 }} />
-                        Rush
-                      </span>
-                    )}
-                    <span className="fc-qty">
-                      <span className="q">{it.qty}</span>
-                      <span className="ql">{active === "saw" ? "cuts" : "pcs"}</span>
+                  <div className="fc-rowmain">
+                    <span className="fc-grip">
+                      <GripVertical size={18} />
                     </span>
-                  </span>
+                    <span className="fc-rank">{idx + 1}</span>
+                    <span className="fc-thumb">
+                      {it.image ? <img src={it.image} alt="" /> : <span className="mono">{initials(it.name)}</span>}
+                    </span>
+                    <span className="fc-meta">
+                      <span className="no">WO&nbsp;#{it.orderNo}</span>
+                      <span className="nm">{it.name}</span>
+                      {it.color && <span className="mt">{it.color}</span>}
+                      {notes[it.id] && editingId !== it.id && <span className="fc-jobnote-row">Note: {notes[it.id]}</span>}
+                      {idx === 0 && <span className="fc-nowtag">On the monitor now</span>}
+                    </span>
+                    <span className="fc-right">
+                      <button
+                        className="fc-notebtn"
+                        title={notes[it.id] ? "Edit note" : "Add note"}
+                        onClick={() => startEditNote(it.id)}
+                      >
+                        <StickyNote size={16} />
+                      </button>
+                      {idx > 0 && (
+                        <button className="fc-totop" title="Make this next up" onClick={() => moveToTop(it.id)}>
+                          <ChevronsUp size={16} />
+                        </button>
+                      )}
+                      {it.inProgress && <span className="fc-chip prog">On floor</span>}
+                      {it.rush && (
+                        <span className="fc-chip rush">
+                          <Flame size={11} style={{ verticalAlign: -1, marginRight: 3 }} />
+                          Rush
+                        </span>
+                      )}
+                      <span className="fc-qty">
+                        <span className="q">{it.qty}</span>
+                        <span className="ql">{active === "saw" ? "cuts" : "pcs"}</span>
+                      </span>
+                    </span>
+                  </div>
+                  {editingId === it.id && (
+                    <div className="fc-noteedit">
+                      <input
+                        className="fc-noteinput"
+                        autoFocus
+                        value={noteDraft}
+                        placeholder="Note for the floor — shows on the monitor next to the photo"
+                        onChange={(e) => setNoteDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") saveNote(it.id);
+                          if (e.key === "Escape") setEditingId(null);
+                        }}
+                      />
+                      <button className="fc-notesave" onClick={() => saveNote(it.id)}>
+                        Save
+                      </button>
+                      <button className="fc-notecancel" onClick={() => setEditingId(null)}>
+                        Cancel
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

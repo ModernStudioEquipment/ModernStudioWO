@@ -68,6 +68,18 @@ export function matchCncPart(parts, item) {
   return (item.sku && parts.bySku[item.sku]) || parts.byName[norm(item.product)] || null;
 }
 
+// Per-item floor notes (typed on the queue page), keyed by item_id.
+export async function fetchFloorNotes() {
+  if (!floorClient) return {};
+  const { data, error } = await floorClient.from("floor_item_notes").select("item_id, note");
+  if (error) return {};
+  const m = {};
+  (data || []).forEach((r) => {
+    if (r.note) m[r.item_id] = r.note;
+  });
+  return m;
+}
+
 // SKU -> product photo, for items that don't carry their own image_url.
 export async function fetchFloorPhotos() {
   if (!floorClient) return {};
