@@ -313,6 +313,41 @@ export const supabaseAdapter = {
     return url;
   },
 
+  // ---- CNC parts library (how-to-make steps + blueprints) ----
+  async getCncParts() {
+    const { data, error } = await supabase.from("cnc_parts").select("*").order("name");
+    if (error) return [];
+    return (data || []).map((r) => ({
+      id: r.id, sku: r.sku || "", name: r.name || "", steps: Array.isArray(r.steps) ? r.steps : [],
+      blueprintUrl: r.blueprint_url || null, material: r.material || "", notes: r.notes || "",
+    }));
+  },
+  async saveCncPart(p) {
+    const row = {
+      name: (p.name || "").trim(), sku: (p.sku || "").trim() || null,
+      steps: (p.steps || []).filter((s) => s && s.trim()),
+      blueprint_url: p.blueprintUrl || null, material: (p.material || "").trim() || null,
+      notes: (p.notes || "").trim() || null, updated_at: new Date().toISOString(),
+    };
+    if (p.id) {
+      const { data, error } = await supabase.from("cnc_parts").update(row).eq("id", p.id).select("id").single();
+      fail(error); return data?.id;
+    }
+    const { data, error } = await supabase.from("cnc_parts").insert(row).select("id").single();
+    fail(error); return data?.id;
+  },
+  async deleteCncPart(id) {
+    const { error } = await supabase.from("cnc_parts").delete().eq("id", id);
+    fail(error);
+  },
+  async uploadBlueprint(partId, file) {
+    const ext = (file.name && file.name.split(".").pop() || "png").toLowerCase().replace(/[^a-z0-9]/g, "") || "png";
+    const path = `cnc/${partId || "new"}/${Date.now()}.${ext}`;
+    const { error: upErr } = await supabase.storage.from("item-photos").upload(path, file, { upsert: true, contentType: file.type || undefined });
+    fail(upErr);
+    return supabase.storage.from("item-photos").getPublicUrl(path).data.publicUrl;
+  },
+
   // Undo a pick: send a finished item back to the pick list.
   async unpickItem(itemId) {
     const { error } = await supabase.from("items").update({ stage: "picklist" }).eq("id", itemId);

@@ -1,7 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   Clock, Printer, Plus, Truck, CheckCircle2, AlertTriangle, Hammer,
-  Flag, Check, ArrowRight, ShoppingCart, LogOut, Store, MapPin, Package, X, Bell, ExternalLink, RefreshCw, Pencil, RotateCcw, ChevronsDownUp, ChevronsUpDown, Sun, Moon,
+  Flag, Check, ArrowRight, ShoppingCart, LogOut, Store, MapPin, Package, X, Bell, ExternalLink, RefreshCw, Pencil, RotateCcw, ChevronsDownUp, ChevronsUpDown, Sun, Moon, MonitorPlay,
 } from "lucide-react";
 import { C, PRI, PRI_CYCLE, PRI_RANK, elapsed, blocked, pct, dueLabel, priLabel, effectivePriority, trackingUrl, stagedTooLong, stagedDwellMs, STAGE_LABELS } from "./theme.js";
 import { backendMode } from "./lib/db.js";
@@ -15,6 +15,7 @@ import { Auth } from "./components/Auth.jsx";
 import { Logo } from "./components/Logo.jsx";
 import { Dashboard } from "./components/Dashboard.jsx";
 import { GlobalSearch } from "./components/GlobalSearch.jsx";
+import FloorControl from "./floor/FloorControl.jsx";
 import { SyncButton } from "./components/SyncButton.jsx";
 import { MaterialModal } from "./components/modals/MaterialModal.jsx";
 import { OrderDetail } from "./components/modals/OrderDetail.jsx";
@@ -103,6 +104,7 @@ export default function App() {
   const [syncing, setSyncing] = useState(false); // QuickBooks sync in progress
   const [customDoc, setCustomDoc] = useState(null); // work order sheet open for edit ({type} = new, or a saved WO)
   const [workCombined, setWorkCombined] = useState(false); // Work Order tab: combine like items across orders
+  const [floorOpen, setFloorOpen] = useState(false); // full-screen dark "Floor Control" world
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 30000);
@@ -550,6 +552,14 @@ export default function App() {
         </div>
         <GlobalSearch orders={orders} locate={orderLocations} onOpen={(id) => setDetailId(id)} onGoToTab={goToTab} key={tab} />
         <button
+          onClick={() => setFloorOpen(true)}
+          title="Open Floor Control — arrange the shop-floor monitors"
+          className="inline-flex items-center gap-1.5 shrink-0"
+          style={{ color: "rgba(255,255,255,0.7)", background: "transparent", border: "none", cursor: "pointer", padding: 4, fontSize: 12, fontWeight: 700 }}
+        >
+          <MonitorPlay size={16} /> Floor
+        </button>
+        <button
           onClick={() => setDark((d) => !d)}
           title={dark ? "Switch to light mode" : "Switch to dark mode"}
           className="inline-flex items-center shrink-0"
@@ -563,6 +573,8 @@ export default function App() {
           </button>
         )}
       </div>
+
+      {floorOpen && <FloorControl orders={orders} onClose={() => setFloorOpen(false)} />}
 
       {backendMode === "local" && <LocalBanner />}
       {board.error && (

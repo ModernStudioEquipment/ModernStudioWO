@@ -1,0 +1,291 @@
+import { useEffect, useMemo, useState } from "react";
+import { FLOOR_DEPTS, exitMonitor } from "./depts.js";
+import { fetchFloorQueue, fetchFloorPhotos, fetchFloorArrangement, fetchCncParts, matchCncPart } from "./floorData.js";
+
+// Order the queue the way the office set it: items in the arrangement come
+// first, in the dragged order. Anything not yet arranged (a brand-new arrival)
+// falls in behind, rush-first, then oldest.
+function applyOrder(items, arrangement) {
+  const rank = new Map(arrangement.map((id, i) => [id, i]));
+  return items.slice().sort((a, b) => {
+    const ai = rank.has(a.item_id) ? rank.get(a.item_id) : Infinity;
+    const bi = rank.has(b.item_id) ? rank.get(b.item_id) : Infinity;
+    if (ai !== bi) return ai - bi;
+    return (
+      Number(b.is_rush) - Number(a.is_rush) ||
+      new Date(a.received_at) - new Date(b.received_at)
+    );
+  });
+}
+
+const POLL_MS = 12000; // monitors refresh every 12s; anon can't use realtime on base tables
+const MAX_QUEUE = 6; // rows visible under the NOW card
+
+function useClock() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 15000);
+    return () => clearInterval(id);
+  }, []);
+  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const mos = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  let h = now.getHours();
+  const ap = h >= 12 ? "PM" : "AM";
+  h = h % 12 || 12;
+  const m = String(now.getMinutes()).padStart(2, "0");
+  return { t: `${h}:${m} ${ap}`, d: `${days[now.getDay()]} · ${mos[now.getMonth()]} ${now.getDate()}` };
+}
+
+function photoFor(item, photos) {
+  return item.image_url || (item.sku ? photos[item.sku] : null) || null;
+}
+
+export default function FloorDisplay({ deptKey }) {
+  const dept = FLOOR_DEPTS[deptKey];
+  const [queue, setQueue] = useState([]);
+  const [photos, setPhotos] = useState({});
+  const [cncParts, setCncParts] = useState({ bySku: {}, byName: {} });
+  const [loaded, setLoaded] = useState(false);
+  const clock = useClock();
+
+  useEffect(() => {
+    let alive = true;
+    async function load() {
+      const [q, p, arr, cnc] = await Promise.all([
+        fetchFloorQueue(dept.db),
+        fetchFloorPhotos(),
+        fetchFloorArrangement(deptKey),
+        deptKey === "cnc" ? fetchCncParts() : Promise.resolve({ bySku: {}, byName: {} }),
+      ]);
+      if (!alive) return;
+      setQueue(applyOrder(q, arr));
+      setPhotos(p);
+      setCncParts(cnc);
+      setLoaded(true);
+    }
+    load();
+    const id = setInterval(load, POLL_MS);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, [dept.db, deptKey]);
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "Escape") exitMonitor();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const stageStyle = useMemo(() => ({ "--accent": dept.accent, "--draw": dept.draw }), [dept]);
+  const qtyLabel = deptKey === "saw" ? "Cuts" : "Pieces";
+
+  const now = queue[0] || null;
+  const rest = queue.slice(1, 1 + MAX_QUEUE);
+  const overflow = Math.max(0, queue.length - 1 - rest.length);
+  const rushCount = queue.filter((i) => i.is_rush).length;
+
+  return (
+    <div className="floor-root">
+      <div className="floor-stage" style={stageStyle}>
+        <button className="floor-exit" onClick={exitMonitor} title="Exit monitor (Esc)">
+          ✕ Exit
+        </button>
+        <header className="floor-top">
+          <div className="floor-brand">
+            <b>MODERN</b>
+            <span>STUDIO&nbsp;EQUIPMENT</span>
+          </div>
+          <div className="floor-dept">
+            <i className="dot" />
+            <b>{dept.label.toUpperCase()}</b>
+          </div>
+          <div className="spacer" />
+          <div className="floor-stat">
+            <div className="n">{queue.length}</div>
+            <div className="l">In queue</div>
+          </div>
+          <div className="floor-stat">
+            <div className="n">{rushCount}</div>
+            <div className="l">Rush</div>
+          </div>
+          <div className="floor-clock">
+            <div className="t">{clock.t}</div>
+            <div className="d">{clock.d}</div>
+            <div className="floor-live">
+              <i />
+              LIVE
+            </div>
+          </div>
+        </header>
+
+        {now ? (
+          <>
+            <div className="floor-main">
+              <NowCard item={now} photos={photos} qtyLabel={qtyLabel} deptLabel={dept.label} part={matchCncPart(cncParts, now)} />
+              <aside className="floor-queue">
+                <h2>
+                  <i className="c" />
+                  Up next · {Math.max(0, queue.length - 1)} waiting
+                </h2>
+                <div className="floor-qlist">
+                  {rest.map((it, idx) => (
+                    <QueueRow key={it.item_id} item={it} pos={idx + 2} photos={photos} qtyLabel={qtyLabel} />
+                  ))}
+                  {rest.length === 0 && <div className="floor-qmore">Nothing else queued.</div>}
+                </div>
+                {overflow > 0 && <div className="floor-qmore">+ {overflow} more waiting</div>}
+              </aside>
+            </div>
+            <footer className="floor-ticker">
+              <span className="badge">Work top → bottom</span>
+              <span>
+                Queue order is set by the <b>production office</b> — the top card is always next up.
+              </span>
+              <span className="grip">No customer data on this display · synced live from work orders</span>
+            </footer>
+          </>
+        ) : (
+          <IdleCard dept={dept} loaded={loaded} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function NowCard({ item, photos, qtyLabel, deptLabel, part }) {
+  const hasSteps = part && part.steps && part.steps.length > 0;
+  const hasNotes = !!(part && part.notes);
+  const rich = hasSteps || hasNotes || !!(part && part.blueprint);
+  const src = (part && part.blueprint) || photoFor(item, photos);
+  return (
+    <section className="floor-now">
+      <div className="floor-nowhead">
+        <div className="floor-rank">
+          <span className="lab">NEXT UP</span>
+          <span className="num">1</span>
+        </div>
+        <div className="floor-wo">
+          <div className="floor-tagrow">
+            <span className="floor-no">WO&nbsp;#{item.order_no}</span>
+            {item.in_progress && <span className="floor-chip floor">On the floor</span>}
+            {item.is_rush && <span className="floor-chip rush">Rush</span>}
+          </div>
+          <h1>{item.product}</h1>
+        </div>
+        <div className="floor-qty">
+          <div className="n">{item.qty}</div>
+          <div className="l">{qtyLabel}</div>
+        </div>
+      </div>
+      <div className="floor-nowbody">
+        <div className="floor-photo">
+          <span className="tag">{part && part.blueprint ? "Blueprint" : src ? "Product photo" : "No photo"}</span>
+          {src ? <img src={src} alt={item.product} /> : <span className="mono">{initials(item.product)}</span>}
+        </div>
+        {rich ? (
+          <div className="floor-detail">
+            {hasSteps && (
+              <>
+                <div className="h">How to make it</div>
+                <ol className="floor-mksteps">
+                  {part.steps.slice(0, 6).map((s, i) => (
+                    <li key={i}>
+                      <span>{s}</span>
+                    </li>
+                  ))}
+                </ol>
+              </>
+            )}
+            {hasNotes && (
+              <div className="floor-heads">
+                <span className="k">Before you start</span>
+                <span className="v">{part.notes}</span>
+              </div>
+            )}
+            <div className="floor-note">
+              {part.material ? `Material: ${part.material}` : "Full spec in the CNC library."}
+            </div>
+          </div>
+        ) : (
+          <div className="floor-detail">
+            <div className="h">Details</div>
+            <div className="floor-facts">
+              <div className="floor-fact">
+                <span className="k">Department</span>
+                <span className="v">{deptLabel}</span>
+              </div>
+              {item.color && (
+                <div className="floor-fact">
+                  <span className="k">Color</span>
+                  <span className="v">{item.color}</span>
+                </div>
+              )}
+              <div className="floor-fact">
+                <span className="k">Quantity</span>
+                <span className="v">
+                  {item.qty} {qtyLabel.toLowerCase()}
+                </span>
+              </div>
+              {item.due_date && (
+                <div className="floor-fact">
+                  <span className="k">Due</span>
+                  <span className="v">{fmtDue(item.due_date)}</span>
+                </div>
+              )}
+            </div>
+            <div className="floor-note">
+              {deptLabel === "CNC" ? "Add steps & a blueprint in the CNC library." : "Build steps come from the work-order sheet."}
+            </div>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function QueueRow({ item, pos, photos, qtyLabel }) {
+  const src = photoFor(item, photos);
+  return (
+    <div className="floor-qrow">
+      <div className="pos">{pos}</div>
+      <div className="floor-qthumb">
+        {src ? <img src={src} alt="" /> : <span className="mono">{initials(item.product)}</span>}
+      </div>
+      <div className="floor-qmeta">
+        <div className="no">WO&nbsp;#{item.order_no}</div>
+        <div className="nm">{item.product}</div>
+        {item.color && <div className="mt">{item.color}</div>}
+      </div>
+      <div className="floor-qright">
+        <div className="q">{item.qty}</div>
+        <div className="ql">{qtyLabel.toLowerCase()}</div>
+        {item.is_rush && <span className="floor-chip rush">Rush</span>}
+      </div>
+    </div>
+  );
+}
+
+function IdleCard({ dept, loaded }) {
+  return (
+    <div className="floor-idle">
+      <div className="ring">✓</div>
+      <div className="big">{loaded ? "All caught up" : "Loading…"}</div>
+      <div className="sub">{loaded ? `Nothing queued for ${dept.label} right now.` : "Fetching the queue…"}</div>
+    </div>
+  );
+}
+
+function initials(name = "") {
+  const words = name.replace(/[^A-Za-z0-9 ]/g, " ").trim().split(/\s+/);
+  return (words[0]?.[0] || "?").toUpperCase() + (words[1]?.[0] || "").toUpperCase();
+}
+
+function fmtDue(d) {
+  const dt = new Date(d + "T00:00:00");
+  if (isNaN(dt)) return d;
+  const mos = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return `${mos[dt.getMonth()]} ${dt.getDate()}`;
+}

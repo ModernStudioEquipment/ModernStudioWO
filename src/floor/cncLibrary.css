@@ -1,0 +1,88 @@
+/* CNC Library — the authoring "spot" for how-to-make steps + blueprints.
+   Sits above Floor Control in the same dark world. */
+
+.cl-overlay{
+  position:fixed; inset:0; z-index:2100; overflow:auto;
+  background:radial-gradient(120% 80% at 85% -10%, #1c2410 0%, rgba(28,36,16,0) 55%), #0D0F12;
+  color:#F3F6F8;
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  -webkit-font-smoothing:antialiased;
+  --accent:#FFB224; --line:#29313A; --line2:#374250; --panel:#14181D; --panel2:#1B2127; --rail:#10141A;
+  --muted:#7C868F; --dim:#565F68;
+}
+.cl-wrap{max-width:1080px; margin:0 auto; padding:22px 26px 60px; display:flex; flex-direction:column; gap:20px}
+
+.cl-top{display:flex; align-items:center; gap:16px}
+.cl-brand{display:flex; flex-direction:column; line-height:1}
+.cl-brand b{font-size:20px; font-weight:800; letter-spacing:.26em; padding-left:.26em; color:var(--accent)}
+.cl-brand span{font-size:10px; font-weight:600; letter-spacing:.16em; color:var(--muted); margin-top:6px}
+.cl-spacer{flex:1}
+.cl-back{display:inline-flex; align-items:center; gap:8px; background:var(--panel); border:1px solid var(--line);
+  color:#F3F6F8; font:inherit; font-size:14px; font-weight:600; padding:9px 15px; border-radius:11px; cursor:pointer}
+.cl-back:hover{border-color:var(--line2)}
+
+.cl-body{display:grid; grid-template-columns:300px 1fr; gap:18px; align-items:start}
+
+/* part list */
+.cl-list{display:flex; flex-direction:column; gap:10px; background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:14px}
+.cl-search{background:var(--rail); border:1px solid var(--line); color:#F3F6F8; font:inherit; font-size:14px; padding:9px 12px; border-radius:10px; outline:none}
+.cl-search:focus{border-color:var(--accent)}
+.cl-new{display:inline-flex; align-items:center; justify-content:center; gap:7px; background:color-mix(in srgb,var(--accent) 16%,transparent);
+  border:1px solid color-mix(in srgb,var(--accent) 45%,transparent); color:var(--accent); font:inherit; font-size:13px; font-weight:700; padding:9px; border-radius:10px; cursor:pointer}
+.cl-new:hover{background:color-mix(in srgb,var(--accent) 24%,transparent)}
+.cl-items{display:flex; flex-direction:column; gap:6px; max-height:60vh; overflow:auto}
+.cl-item{display:flex; flex-direction:column; gap:2px; text-align:left; background:var(--rail); border:1px solid var(--line);
+  border-radius:10px; padding:10px 12px; cursor:pointer; font:inherit; color:#F3F6F8}
+.cl-item:hover{border-color:var(--line2)}
+.cl-item.on{border-color:var(--accent); background:color-mix(in srgb,var(--accent) 10%,var(--rail))}
+.cl-item .nm{font-size:14px; font-weight:700; line-height:1.2}
+.cl-item .sub{font-size:11px; color:var(--dim); letter-spacing:.02em}
+.cl-none{font-size:12px; color:var(--dim); padding:14px 6px; line-height:1.5}
+
+/* editor */
+.cl-editor{background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:20px 22px; display:flex; flex-direction:column; gap:18px}
+.cl-row2{display:grid; grid-template-columns:1fr 200px; gap:14px}
+.cl-field{display:flex; flex-direction:column; gap:6px}
+.cl-field.grow{flex:1}
+.cl-lab{font-size:10px; font-weight:800; letter-spacing:.16em; text-transform:uppercase; color:var(--muted)}
+.cl-editor input, .cl-editor textarea{background:var(--rail); border:1px solid var(--line); color:#F3F6F8; font:inherit; font-size:15px;
+  padding:10px 12px; border-radius:10px; outline:none; width:100%}
+.cl-editor input:focus, .cl-editor textarea:focus{border-color:var(--accent)}
+.cl-editor textarea{resize:vertical; line-height:1.5}
+
+.cl-grid{display:grid; grid-template-columns:300px 1fr; gap:20px; align-items:start}
+.cl-bp{display:flex; flex-direction:column; gap:8px}
+.cl-bpbox{background:#0a1218; border:1px solid var(--line2); border-radius:12px; height:200px; overflow:hidden; display:flex; align-items:center; justify-content:center}
+.cl-bpbox img{width:100%; height:100%; object-fit:contain}
+.cl-bpempty{display:flex; flex-direction:column; align-items:center; gap:8px; color:var(--dim); font-size:12px}
+.cl-bpbtns{display:flex; gap:8px}
+.cl-btn{display:inline-flex; align-items:center; gap:7px; background:var(--panel2); border:1px solid var(--line2); color:#F3F6F8; font:inherit; font-size:13px; font-weight:600; padding:8px 13px; border-radius:9px; cursor:pointer}
+.cl-btn:hover{border-color:var(--accent)}
+.cl-btn.ghost{background:transparent; color:var(--muted)}
+.cl-btn:disabled{opacity:.6; cursor:default}
+
+.cl-steps{display:flex; flex-direction:column; gap:8px; min-width:0}
+.cl-steplist{display:flex; flex-direction:column; gap:8px}
+.cl-step{display:flex; align-items:center; gap:10px}
+.cl-step .n{flex:none; width:26px; height:26px; border-radius:8px; background:var(--panel2); border:1px solid var(--line2);
+  color:var(--accent); font-size:13px; font-weight:800; display:flex; align-items:center; justify-content:center}
+.cl-step input{flex:1}
+.cl-x{flex:none; width:34px; height:34px; border-radius:9px; background:transparent; border:1px solid var(--line); color:var(--dim); cursor:pointer; display:inline-flex; align-items:center; justify-content:center}
+.cl-x:hover{border-color:var(--red,#FF5C5C); color:var(--red,#FF5C5C)}
+.cl-addstep{align-self:flex-start; display:inline-flex; align-items:center; gap:7px; background:transparent; border:1px dashed var(--line2);
+  color:var(--muted); font:inherit; font-size:13px; font-weight:600; padding:8px 13px; border-radius:9px; cursor:pointer; margin-top:2px}
+.cl-addstep:hover{border-color:var(--accent); color:var(--accent)}
+
+.cl-foot{display:flex; align-items:center; gap:14px; border-top:1px solid var(--line); padding-top:16px}
+.cl-save{background:var(--accent); color:#20160a; border:none; font:inherit; font-size:14px; font-weight:800; padding:11px 22px; border-radius:11px; cursor:pointer}
+.cl-save:disabled{opacity:.5; cursor:default}
+.cl-saved{display:inline-flex; align-items:center; gap:6px; color:#34D399; font-size:13px; font-weight:600}
+.cl-err{color:#FF7A7A; font-size:13px; font-weight:600}
+.cl-del{display:inline-flex; align-items:center; gap:7px; background:transparent; border:1px solid var(--line); color:var(--muted); font:inherit; font-size:13px; padding:9px 14px; border-radius:10px; cursor:pointer}
+.cl-del:hover{border-color:#FF5C5C; color:#FF5C5C}
+
+@media (max-width:860px){
+  .cl-body{grid-template-columns:1fr}
+  .cl-grid{grid-template-columns:1fr}
+  .cl-row2{grid-template-columns:1fr}
+}

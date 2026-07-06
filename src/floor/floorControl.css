@@ -1,0 +1,84 @@
+/* Floor Control — the dark, full-screen "other app" the office enters to arrange
+   each department's monitor queue. Full takeover over the office UI. */
+
+.fc-overlay{
+  position:fixed; inset:0; z-index:2000; overflow:auto;
+  background:
+    radial-gradient(120% 80% at 85% -10%, #17222e 0%, rgba(23,34,46,0) 55%),
+    #0D0F12;
+  color:#F3F6F8;
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  -webkit-font-smoothing:antialiased;
+  --line:#29313A; --line2:#374250; --panel:#14181D; --rail:#10141A;
+  --muted:#7C868F; --dim:#565F68; --red:#FF5C5C;
+}
+.fc-wrap{max-width:1080px; margin:0 auto; padding:22px 26px 60px; display:flex; flex-direction:column; gap:22px}
+
+.fc-top{display:flex; align-items:center; gap:20px}
+.fc-brand{display:flex; flex-direction:column; line-height:1}
+.fc-brand b{font-size:22px; font-weight:800; letter-spacing:.30em; padding-left:.30em}
+.fc-brand span{font-size:9px; font-weight:700; letter-spacing:.34em; color:var(--accent,#FFB224); margin-top:6px; padding-left:.34em}
+.fc-spacer{flex:1}
+.fc-back{display:inline-flex; align-items:center; gap:8px; background:var(--panel); border:1px solid var(--line);
+  color:#F3F6F8; font:inherit; font-size:14px; font-weight:600; padding:9px 15px; border-radius:11px; cursor:pointer; transition:border-color .15s}
+.fc-back:hover{border-color:var(--line2)}
+.fc-open{display:inline-flex; align-items:center; gap:8px; background:transparent; border:1px solid color-mix(in srgb,var(--accent) 45%,#0d0f12);
+  color:var(--accent); font:inherit; font-size:13px; font-weight:700; padding:9px 14px; border-radius:11px; cursor:pointer; transition:background .15s; text-decoration:none}
+.fc-open:hover{background:color-mix(in srgb,var(--accent) 14%,transparent)}
+
+.fc-tabs{display:flex; gap:9px}
+.fc-tab{display:flex; align-items:center; gap:9px; background:var(--panel); border:1px solid var(--line);
+  border-radius:12px; padding:10px 16px; cursor:pointer; font:inherit; color:var(--muted); transition:all .15s}
+.fc-tab:hover{border-color:var(--line2); color:#F3F6F8}
+.fc-tab .dot{width:9px; height:9px; border-radius:50%; background:var(--c)}
+.fc-tab b{font-size:15px; font-weight:700; letter-spacing:.05em}
+.fc-tab .ct{font-size:12px; font-weight:700; color:var(--dim)}
+.fc-tab.on{color:#0c1014; border-color:var(--c); background:var(--c)}
+.fc-tab.on .dot{background:rgba(0,0,0,.5)}
+.fc-tab.on .ct{color:rgba(0,0,0,.55)}
+
+.fc-head{display:flex; align-items:baseline; gap:12px}
+.fc-head h1{font-size:26px; font-weight:800; letter-spacing:-.01em}
+.fc-head h1 em{font-style:normal; color:var(--accent)}
+.fc-hint{font-size:14px; color:var(--muted)}
+
+.fc-list{display:flex; flex-direction:column; gap:10px}
+.fc-row{display:flex; align-items:center; gap:14px; background:var(--rail); border:1px solid var(--line);
+  border-radius:14px; padding:12px 14px 12px 12px; cursor:grab; transition:border-color .12s, transform .06s, opacity .12s}
+.fc-row:hover{border-color:var(--line2)}
+.fc-row:active{cursor:grabbing}
+.fc-row.drag{opacity:.35}
+.fc-row.now{border-color:color-mix(in srgb,var(--accent) 55%,#0d0f12); background:color-mix(in srgb,var(--accent) 9%,var(--rail))}
+/* drag states (SortableJS) */
+.fc-row.fc-ghost{opacity:.25; background:color-mix(in srgb,var(--accent) 12%,var(--rail)); border-style:dashed; border-color:var(--accent)}
+.fc-row.fc-chosen{cursor:grabbing}
+.fc-row.fc-dragging{border-color:var(--accent); box-shadow:0 14px 34px rgba(0,0,0,.5); transform:scale(1.015); background:var(--panel)}
+.fc-grip{color:var(--dim); display:flex; flex:none}
+.fc-rank{width:30px; text-align:center; font-size:20px; font-weight:800; color:var(--dim); flex:none; font-variant-numeric:tabular-nums}
+.fc-row.now .fc-rank{color:var(--accent)}
+.fc-thumb{width:46px; height:46px; border-radius:10px; background:#0a1218; border:1px solid var(--line2); flex:none; overflow:hidden; display:flex; align-items:center; justify-content:center}
+.fc-thumb img{width:100%; height:100%; object-fit:cover}
+.fc-thumb .mono{font-size:17px; font-weight:800; color:color-mix(in srgb,var(--accent) 55%,#14181D)}
+.fc-meta{flex:1; min-width:0; display:flex; flex-direction:column}
+.fc-meta .no{display:block; font-size:11px; font-weight:800; letter-spacing:.08em; color:var(--muted)}
+.fc-meta .nm{display:block; font-size:17px; font-weight:700; line-height:1.15; margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.fc-meta .mt{display:block; font-size:12px; color:var(--dim); margin-top:2px}
+.fc-nowtag{display:block; font-size:9px; font-weight:800; letter-spacing:.12em; color:var(--accent); text-transform:uppercase; margin-top:3px}
+.fc-right{display:flex; align-items:center; gap:12px; flex:none}
+.fc-chip{font-size:10px; font-weight:800; letter-spacing:.1em; padding:4px 9px; border-radius:999px; text-transform:uppercase}
+.fc-chip.rush{background:rgba(255,92,92,.14); color:var(--red); border:1px solid rgba(255,92,92,.45)}
+.fc-chip.prog{background:color-mix(in srgb,var(--accent) 16%,transparent); color:var(--accent); border:1px solid color-mix(in srgb,var(--accent) 40%,transparent)}
+.fc-totop{display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; border-radius:9px;
+  background:var(--panel); border:1px solid var(--line); color:var(--muted); cursor:pointer; transition:all .13s}
+.fc-totop:hover{border-color:var(--accent); color:var(--accent)}
+.fc-qty{text-align:right}
+.fc-qty .q{display:block; font-size:22px; font-weight:800; line-height:.9}
+.fc-qty .ql{display:block; font-size:9px; letter-spacing:.14em; color:var(--muted); text-transform:uppercase; margin-top:2px}
+
+.fc-empty{border:1px dashed var(--line2); border-radius:16px; padding:48px; text-align:center; color:var(--muted)}
+.fc-empty .big{font-size:22px; font-weight:800; color:#F3F6F8; margin-bottom:6px}
+
+.fc-note{font-size:12px; color:var(--dim); letter-spacing:.03em; margin-top:2px}
+.fc-savebar{display:flex; align-items:center; gap:10px; font-size:12px; color:var(--muted)}
+.fc-savebar .reset{background:transparent; border:1px solid var(--line); color:var(--muted); font:inherit; font-size:12px; padding:6px 12px; border-radius:9px; cursor:pointer}
+.fc-savebar .reset:hover{border-color:var(--line2); color:#F3F6F8}

@@ -124,14 +124,47 @@ export const localAdapter = {
     return orders;
   },
 
-  // Shared manual order of the Orders tab. Local mode is single-machine, so this
-  // lives in localStorage; cross-tab sync rides the same BroadcastChannel.
-  async getArrangement() {
-    try { return JSON.parse(localStorage.getItem("mse_orders_manual_v1")) || []; } catch { return []; }
+  // Shared manual order of the Orders tab (key "orders_manual") and the per-
+  // department floor queues (keys "floor_shop" / "floor_cnc" / ...). Local mode
+  // is single-machine, so these live in localStorage, one entry per key;
+  // cross-tab sync rides the same BroadcastChannel.
+  async getArrangement(key = "orders_manual") {
+    try { return JSON.parse(localStorage.getItem(`mse_arr_${key}_v1`)) || []; } catch { return []; }
   },
-  async setArrangement(ids) {
-    try { localStorage.setItem("mse_orders_manual_v1", JSON.stringify(ids || [])); } catch { /* ignore */ }
+  async setArrangement(ids, key = "orders_manual") {
+    try { localStorage.setItem(`mse_arr_${key}_v1`, JSON.stringify(ids || [])); } catch { /* ignore */ }
     channel?.postMessage("changed");
+  },
+
+  // ---- CNC parts library (single-machine, localStorage) ----
+  async getCncParts() {
+    try { return JSON.parse(localStorage.getItem("mse_cnc_parts_v1")) || []; } catch { return []; }
+  },
+  async saveCncPart(p) {
+    const list = await this.getCncParts();
+    const id = p.id || `cnc_${Date.now()}`;
+    const rec = {
+      id, sku: (p.sku || "").trim(), name: (p.name || "").trim(),
+      steps: (p.steps || []).filter((s) => s && s.trim()),
+      blueprintUrl: p.blueprintUrl || null, material: (p.material || "").trim(), notes: (p.notes || "").trim(),
+    };
+    const i = list.findIndex((x) => x.id === id);
+    if (i >= 0) list[i] = rec; else list.push(rec);
+    try { localStorage.setItem("mse_cnc_parts_v1", JSON.stringify(list)); } catch { /* ignore */ }
+    channel?.postMessage("changed");
+    return id;
+  },
+  async deleteCncPart(id) {
+    const list = (await this.getCncParts()).filter((x) => x.id !== id);
+    try { localStorage.setItem("mse_cnc_parts_v1", JSON.stringify(list)); } catch { /* ignore */ }
+    channel?.postMessage("changed");
+  },
+  async uploadBlueprint(_partId, file) {
+    return await new Promise((res) => {
+      const r = new FileReader();
+      r.onload = () => res(r.result);
+      r.readAsDataURL(file);
+    });
   },
 
   subscribe(cb) {
