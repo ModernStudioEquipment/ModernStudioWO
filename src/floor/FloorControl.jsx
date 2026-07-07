@@ -153,8 +153,8 @@ export default function FloorControl({ orders, onClose }) {
       <div className="fc-wrap">
         <header className="fc-top">
           <div className="fc-brand">
-            <b>MODERN</b>
-            <span>FLOOR&nbsp;CONTROL</span>
+            <div className="fc-logo" role="img" aria-label="Modern Studio Equipment" />
+            <span className="fc-brandtag">FLOOR&nbsp;CONTROL</span>
           </div>
           <nav className="fc-tabs" style={{ marginLeft: 8 }}>
             {DEPTS.map((d) => (

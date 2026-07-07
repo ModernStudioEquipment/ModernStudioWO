@@ -27,7 +27,7 @@ function FloorPicker() {
   return (
     <div className="floor-picker">
       <button className="pk-exit" onClick={exitMonitor}>← Back to office</button>
-      <div className="pk-brand">MODERN</div>
+      <div className="pk-brand" role="img" aria-label="Modern Studio Equipment" />
       <div className="pk-sub">Floor displays</div>
       <div className="pk-grid">
         {DEPT_ORDER.map((k) => {

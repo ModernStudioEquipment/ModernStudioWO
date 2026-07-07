@@ -126,10 +126,7 @@ export default function FloorDisplay({ deptKey }) {
           ✕ Exit
         </button>
         <header className="floor-top">
-          <div className="floor-brand">
-            <b>MODERN</b>
-            <span>STUDIO&nbsp;EQUIPMENT</span>
-          </div>
+          <div className="floor-logo" role="img" aria-label="Modern Studio Equipment" />
           <div className="floor-dept">
             <i className="dot" />
             <b>{dept.label.toUpperCase()}</b>

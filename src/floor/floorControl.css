@@ -15,9 +15,12 @@
 .fc-wrap{max-width:1080px; margin:0 auto; padding:22px 26px 60px; display:flex; flex-direction:column; gap:22px}
 
 .fc-top{display:flex; align-items:center; gap:20px}
-.fc-brand{display:flex; flex-direction:column; line-height:1}
-.fc-brand b{font-size:22px; font-weight:800; letter-spacing:.30em; padding-left:.30em}
-.fc-brand span{font-size:9px; font-weight:700; letter-spacing:.34em; color:var(--accent,#FFB224); margin-top:6px; padding-left:.34em}
+.fc-brand{display:flex; align-items:center; gap:14px}
+.fc-logo{width:184px; height:48px; background-color:var(--accent);
+  -webkit-mask:url(../assets/modern-logo.png) no-repeat left center / contain;
+  mask:url(../assets/modern-logo.png) no-repeat left center / contain;
+  filter:drop-shadow(0 0 4px color-mix(in srgb,var(--accent) 65%,transparent)) drop-shadow(0 0 12px color-mix(in srgb,var(--accent) 40%,transparent))}
+.fc-brandtag{font-size:11px; font-weight:800; letter-spacing:.22em; color:var(--muted); text-transform:uppercase; border-left:1px solid var(--line); padding-left:14px}
 .fc-spacer{flex:1}
 .fc-back{display:inline-flex; align-items:center; gap:8px; background:var(--panel); border:1px solid var(--line);
   color:#F3F6F8; font:inherit; font-size:14px; font-weight:600; padding:9px 15px; border-radius:11px; cursor:pointer; transition:border-color .15s}
