@@ -24,8 +24,51 @@ export const maxDuration = 60;
 // ?shiptoBackfillDays=N runs a one-time pass that fills the ship_to (drop-ship
 // recipient) on EXISTING orders from the last N days — no inserts.
 export async function GET(request) {
-  const days = Number(new URL(request.url).searchParams.get("shiptoBackfillDays") || 0);
+  const params = new URL(request.url).searchParams;
+  const inspect = params.get("inspect");
+  if (inspect) return inspectInvoice(inspect); // ?inspect=<number> → diagnose why one order isn't syncing
+  const days = Number(params.get("shiptoBackfillDays") || 0);
   return run({ commit: false, shipToBackfillDays: days });
+}
+
+// Diagnostic: pull one invoice/sales-order straight from QuickBooks and report
+// its raw lines + the exact verdict for why the sync keeps or drops it.
+async function inspectInvoice(wanted) {
+  const conductorKey = process.env.CONDUCTOR_SECRET_KEY;
+  const endUserId = process.env.CONDUCTOR_END_USER_ID;
+  if (!conductorKey || !endUserId) return json(500, { error: "Not configured" });
+  const want = String(wanted).trim();
+  const since = new Date(Date.now() - 25 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  let invList, soList;
+  try {
+    [invList, soList] = await Promise.all([
+      fetchTxns("invoices", conductorKey, endUserId, since, "&includeLinkedTransactions=true"),
+      fetchTxns("sales-orders", conductorKey, endUserId, since),
+    ]);
+  } catch (e) {
+    return json(e.status ? 502 : 504, { error: "Conductor request failed", status: e.status, detail: (e.detail || String(e)).slice(0, 300) });
+  }
+  const inv = invList.find((t) => refNo(t) === want);
+  const so = soList.find((t) => refNo(t) === want);
+  const t = inv || so;
+  if (!t) return json(200, { found: false, wanted: want, note: `Not in the last 25 days of QuickBooks (invoices pulled ${invList.length}, sales orders ${soList.length}). Check the number/date + that the office PC, QuickBooks, and the Web Connector are running.` });
+  const kind = inv ? "invoice" : "sales-order";
+  const num = refNo(t);
+  const rawLines = (t.lines || t.salesOrderLines || t.invoiceLines || t.lineItems || []).map((ln) => ({
+    itemCode: ln.item?.fullName || ln.item?.name || null,
+    description: ln.description || ln.memo || null,
+    qty: ln.quantity ?? ln.quantityOrdered ?? ln.qty ?? null,
+  }));
+  const mapped = mapItems(t);
+  const linked = kind === "invoice" ? linkedSalesOrders(t) : [];
+  const online = fromOnlineStore(t);
+  const VERDICT =
+    online ? "SKIPPED — tagged as an online-store order (treated as a Shopify duplicate)"
+    : (kind === "invoice" && !num.startsWith("4")) ? "SKIPPED — invoice number doesn't start with 4"
+    : mapped.length === 0 ? "SKIPPED — no product lines survive the filter (every line is labor / fee / shipping / discount / payment)"
+    : (kind === "invoice" && linked.length > 0) ? `SKIPPED — came from sales order(s) ${linked.join(", ")} (the sales order is the real order; the invoice is a duplicate)`
+    : "ELIGIBLE — would be added on the next sync (unless already on the board)";
+  return json(200, { found: true, kind, number: num, customer: customerOf(t), rawLines, mappedProductLines: mapped.map((m) => m.name), mappedCount: mapped.length, linkedSalesOrders: linked, fromOnlineStore: online, VERDICT });
 }
 export async function POST(request) {
   const days = Number(new URL(request.url).searchParams.get("shiptoBackfillDays") || 0);
