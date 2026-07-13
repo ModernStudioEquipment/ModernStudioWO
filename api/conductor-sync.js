@@ -25,54 +25,18 @@ export const maxDuration = 60;
 // recipient) on EXISTING orders from the last N days — no inserts.
 export async function GET(request) {
   const params = new URL(request.url).searchParams;
-  const inspect = params.get("inspect");
-  if (inspect) return inspectInvoice(inspect); // ?inspect=<number> → diagnose why one order isn't syncing
   const days = Number(params.get("shiptoBackfillDays") || 0);
   return run({ commit: false, shipToBackfillDays: days });
 }
 
-// Diagnostic: pull one invoice/sales-order straight from QuickBooks and report
-// its raw lines + the exact verdict for why the sync keeps or drops it.
-async function inspectInvoice(wanted) {
-  const conductorKey = process.env.CONDUCTOR_SECRET_KEY;
-  const endUserId = process.env.CONDUCTOR_END_USER_ID;
-  if (!conductorKey || !endUserId) return json(500, { error: "Not configured" });
-  const want = String(wanted).trim();
-  const since = new Date(Date.now() - 25 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  let invList, soList;
-  try {
-    [invList, soList] = await Promise.all([
-      fetchTxns("invoices", conductorKey, endUserId, since, "&includeLinkedTransactions=true"),
-      fetchTxns("sales-orders", conductorKey, endUserId, since),
-    ]);
-  } catch (e) {
-    return json(e.status ? 502 : 504, { error: "Conductor request failed", status: e.status, detail: (e.detail || String(e)).slice(0, 300) });
-  }
-  const inv = invList.find((t) => refNo(t) === want);
-  const so = soList.find((t) => refNo(t) === want);
-  const t = inv || so;
-  if (!t) return json(200, { found: false, wanted: want, note: `Not in the last 25 days of QuickBooks (invoices pulled ${invList.length}, sales orders ${soList.length}). Check the number/date + that the office PC, QuickBooks, and the Web Connector are running.` });
-  const kind = inv ? "invoice" : "sales-order";
-  const num = refNo(t);
-  const rawLines = (t.lines || t.salesOrderLines || t.invoiceLines || t.lineItems || []).map((ln) => ({
-    itemCode: ln.item?.fullName || ln.item?.name || null,
-    description: ln.description || ln.memo || null,
-    qty: ln.quantity ?? ln.quantityOrdered ?? ln.qty ?? null,
-  }));
-  const mapped = mapItems(t);
-  const linked = kind === "invoice" ? linkedSalesOrders(t) : [];
-  const online = fromOnlineStore(t);
-  const VERDICT =
-    online ? "SKIPPED — tagged as an online-store order (treated as a Shopify duplicate)"
-    : (kind === "invoice" && !num.startsWith("4")) ? "SKIPPED — invoice number doesn't start with 4"
-    : mapped.length === 0 ? "SKIPPED — no product lines survive the filter (every line is labor / fee / shipping / discount / payment)"
-    : (kind === "invoice" && linked.length > 0) ? `SKIPPED — came from sales order(s) ${linked.join(", ")} (the sales order is the real order; the invoice is a duplicate)`
-    : "ELIGIBLE — would be added on the next sync (unless already on the board)";
-  return json(200, { found: true, kind, number: num, customer: customerOf(t), rawLines, mappedProductLines: mapped.map((m) => m.name), mappedCount: mapped.length, linkedSalesOrders: linked, fromOnlineStore: online, VERDICT });
-}
 export async function POST(request) {
-  const days = Number(new URL(request.url).searchParams.get("shiptoBackfillDays") || 0);
-  return run({ commit: true, shipToBackfillDays: days });
+  const params = new URL(request.url).searchParams;
+  const days = Number(params.get("shiptoBackfillDays") || 0);
+  // ?commitBacklog=<invoiceNo> hand-commits ONE held-back pre-fix backlog order
+  // (bypasses the forward-only guard for just that number). Used to recover a
+  // specific dropped order without flushing the whole backlog.
+  const commitBacklog = params.get("commitBacklog") || null;
+  return run({ commit: true, shipToBackfillDays: days, commitBacklog });
 }
 
 // One-off maintenance: remove synced QuickBooks orders so the next sync re-pulls
@@ -196,7 +160,7 @@ async function fetchTxns(path, conductorKey, endUserId, since, extra = "") {
   return out;
 }
 
-async function run({ commit, shipToBackfillDays }) {
+async function run({ commit, shipToBackfillDays, commitBacklog }) {
   const conductorKey = process.env.CONDUCTOR_SECRET_KEY;
   const endUserId = process.env.CONDUCTOR_END_USER_ID;
   const url = process.env.VITE_SUPABASE_URL;
@@ -286,15 +250,31 @@ async function run({ commit, shipToBackfillDays }) {
   const sosToAdd = sos.filter((m) => !existing[m.orderNo]);
   // Every sales-order number that is (or is about to be) on the board:
   const soNumbersOnBoard = new Set([...Object.keys(existing), ...sosToAdd.map((m) => m.orderNo)]);
-  // Skip ANY invoice that originated from a sales order — whether or not that SO
-  // is still on the board. The sales order already represents the job; a finished
-  // SO that's cleared off must NOT reappear as a brand-new invoice. (That was the
-  // duplicate flood: a backlog of invoices for already-made orders synced at once.)
-  // Only genuine direct invoices — no linked sales order, e.g. card payments —
-  // come in on their own.
-  const invLinkedDup = invs.filter((m) => !existing[m.orderNo] && m.linkedSo.length > 0);
-  const invsToAdd = invs.filter((m) => !existing[m.orderNo] && m.linkedSo.length === 0);
+  // Skip an invoice only when its originating sales order is ACTUALLY on the
+  // board — that SO already represents the job, so the invoice is a duplicate.
+  // But if the linked SO is NOT on the board (it was invoiced before the
+  // open-SO sync ever caught it, so the SO never landed), the invoice is the
+  // order's ONLY record — add it, or the order vanishes entirely. The 7/4
+  // invoice floor + the orders unique index keep this from re-flooding: an old
+  // backlog can't flush, and exact-number duplicates are rejected outright.
+  const soIsOnBoard = (m) => m.linkedSo.some((n) => existing[n]);
+  const invLinkedDup = invs.filter((m) => !existing[m.orderNo] && soIsOnBoard(m));
+  const invsToAdd = invs.filter((m) => !existing[m.orderNo] && !soIsOnBoard(m));
   const toAdd = [...sosToAdd, ...invsToAdd];
+
+  // --- 5b. Forward-only guard ---
+  // The linked-SO dedup above newly recovers invoices whose sales order never
+  // landed on the board. We do NOT want the auto-sync to retroactively flush the
+  // pre-fix backlog of those, so only COMMIT invoices dated on/after this date.
+  // Sales orders are exempt (always current open jobs). The preview still reports
+  // the whole held-back backlog so it stays visible and can be hand-recovered via
+  // POST ?commitBacklog=<invoiceNo>.
+  const COMMIT_INVOICES_FROM = "2026-07-13";
+  const heldBackBacklog = invsToAdd.filter((m) => m.receivedAt < COMMIT_INVOICES_FROM);
+  const commitBacklogNo = commitBacklog ? String(commitBacklog).trim() : null;
+  const toCommit = commitBacklogNo
+    ? toAdd.filter((m) => m.orderNo === commitBacklogNo) // hand-pick one held-back order
+    : toAdd.filter((m) => m.kind === "so" || m.receivedAt >= COMMIT_INVOICES_FROM);
 
   // --- Preview (no writes) ---
   if (!commit) {
@@ -307,16 +287,25 @@ async function run({ commit, shipToBackfillDays }) {
         alreadyOnBoardByNumber: invs.filter((m) => existing[m.orderNo]).length,
         skippedLinkedToSalesOrder: invLinkedDup.length,
         wouldAdd: invsToAdd.length,
+        backlogHeldBack: heldBackBacklog.length, // dated before the forward-only date; won't auto-commit
       },
       wouldAddTotal: toAdd.length,
+      committingNow: toAdd.filter((m) => m.kind === "so" || m.receivedAt >= COMMIT_INVOICES_FROM).length,
       sample: toAdd.slice(0, 8).map((m) => ({ kind: m.kind, orderNo: m.orderNo, date: m.receivedAt, customer: m.customer, shipVia: m.shipVia, linkedSo: m.linkedSo })),
-      note: "Preview only — nothing inserted.",
+      // The held-back backlog, in full — every one of these has a linked SO that
+      // is NOT on the board (verified against the DB), i.e. genuinely dropped.
+      backlog: heldBackBacklog.map((m) => ({ orderNo: m.orderNo, date: m.receivedAt.slice(0, 10), customer: m.customer, linkedSo: m.linkedSo, shipTo: m.shipTo, shipVia: m.shipVia, items: m.items.map((it) => `${it.qty}× ${it.name}`) })),
+      note: "Preview only — nothing inserted. Backlog held back by the forward-only guard; recover one via POST ?commitBacklog=<invoiceNo>.",
     });
   }
 
-  // --- Commit: insert the genuinely new orders ---
+  // --- Commit: insert the genuinely new orders (forward-only, or one hand-picked
+  // backlog order when ?commitBacklog is set) ---
+  if (commitBacklogNo && !toCommit.length) {
+    return json(200, { mode: "commit", commitBacklog: commitBacklogNo, inserted: 0, note: "That number isn't an eligible, not-yet-on-board order in the current window — nothing to add (it may already be on the board, filtered out, or outside the window)." });
+  }
   let inserted = 0, failed = 0, firstError = null;
-  for (const m of toAdd) {
+  for (const m of toCommit) {
     const ins = await fetch(`${url}/rest/v1/rpc/create_order`, {
       method: "POST",
       headers: sb,
@@ -346,7 +335,7 @@ async function run({ commit, shipToBackfillDays }) {
   // stamp it invoiced with this invoice's number — so the crew never has to.
   // (Tolerates the 0032 columns not existing yet — a 400 just returns no rows.)
   let salesOrdersInvoiced = 0;
-  const links = invs.flatMap((inv) => inv.linkedSo.map((soNo) => ({ soNo, invNo: inv.orderNo })));
+  const links = commitBacklogNo ? [] : invs.flatMap((inv) => inv.linkedSo.map((soNo) => ({ soNo, invNo: inv.orderNo })));
   for (const { soNo, invNo } of links) {
     if (!soNumbersOnBoard.has(soNo)) continue;
     const r = await fetch(`${url}/rest/v1/orders?order_no=eq.${encodeURIComponent(soNo)}&source=eq.QuickBooks&invoiced=is.false`, {
@@ -358,9 +347,11 @@ async function run({ commit, shipToBackfillDays }) {
 
   return json(200, {
     mode: "commit",
-    salesOrdersAdded: sosToAdd.length,
-    invoicesAdded: invsToAdd.length,
+    committed: commitBacklogNo ? `backlog ${commitBacklogNo}` : "forward-only",
+    salesOrdersAdded: toCommit.filter((m) => m.kind === "so").length,
+    invoicesAdded: toCommit.filter((m) => m.kind === "invoice").length,
     invoicesSkippedAsSalesOrderDup: invLinkedDup.length,
+    backlogHeldBack: commitBacklogNo ? undefined : heldBackBacklog.length,
     salesOrdersInvoiced,
     inserted, failed, firstError,
   });
