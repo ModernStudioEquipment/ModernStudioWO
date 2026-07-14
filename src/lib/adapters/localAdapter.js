@@ -496,8 +496,10 @@ export const localAdapter = {
     (lines || []).forEach((ln) => { const it = o.items.find((i) => i.id === ln.itemId); if (it) it.fulfilledQty = (it.fulfilledQty || 0) + (parseInt(ln.qty, 10) || 0); });
     const allOut = o.items.every((it) => (it.fulfilledQty || 0) >= Math.max(parseInt(it.qty, 10) || 1, 1));
     if (allOut) {
-      if (kind === "pickup") { o.pickedUpAt = new Date().toISOString(); o.pickedUpBy = person || null; }
-      else { o.trackingNumber = tracking || o.trackingNumber || "shipped"; o.shippedAt = new Date().toISOString(); }
+      o.items.forEach((it) => { it.stage = "done"; }); // route to Completed even if recorded from the order view
+      o.fulfilledAt = o.fulfilledAt || new Date().toISOString();
+      if (kind === "pickup") { o.pickedUpAt = new Date().toISOString(); o.pickedUpBy = person || null; o.fulfillment = "willcall"; }
+      else { o.trackingNumber = tracking || o.trackingNumber || "shipped"; o.shippedAt = new Date().toISOString(); o.fulfillment = "shipping"; }
     }
     write(orders);
   },
