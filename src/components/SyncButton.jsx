@@ -1,5 +1,4 @@
 import React from "react";
-import { RefreshCw } from "lucide-react";
 import { C } from "../theme.js";
 
 // The QuickBooks "qb" mark: a green circle with the white monogram. The qb path
@@ -32,14 +31,26 @@ export function SyncButton({ syncing, onClick }) {
       className="relative inline-flex items-center justify-center shrink-0"
       style={{ width: 44, height: 44, borderRadius: 22, border: `1px solid ${C.line}`, background: C.surface, cursor: syncing ? "default" : "pointer", padding: 0 }}
     >
-      {/* the arrows ring around the logo — spins on sync */}
-      <RefreshCw
-        size={40}
+      {/* the arrows ring around the logo — a custom two-arc sync ring (lucide
+          RefreshCw with smaller arrowhead ends, 3-unit legs vs 5); spins on sync */}
+      <svg
+        width={40}
+        height={40}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke={QB_GREEN}
         strokeWidth={1.7}
-        color={QB_GREEN}
+        strokeLinecap="round"
+        strokeLinejoin="round"
         className={syncing ? "animate-spin" : ""}
         style={{ position: "absolute", opacity: 0.9 }}
-      />
+        aria-hidden="true"
+      >
+        <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+        <path d="M21 5v3h-3" />
+        <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+        <path d="M3 19v-3h3" />
+      </svg>
       <QuickBooksLogo size={21} />
     </button>
   );
