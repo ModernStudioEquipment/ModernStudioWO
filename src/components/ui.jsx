@@ -123,6 +123,13 @@ function DueEditor({ initialDate, initialTime, onChange, onClose }) {
   const inp = { border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 13, background: C.surface };
   const lbl = { fontSize: 10, fontWeight: 700, color: C.gray, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3 };
   const apply = (d, t) => { setDate(d); setTime(t); onChange(d || null, d && t ? t : null); };
+  // Close on scroll: the popover is absolutely anchored to the pill, so when the
+  // page scrolls out from under it it jitters/detaches — just dismiss it instead.
+  // capture=true catches scrolling inside any container, not only the window.
+  useEffect(() => {
+    window.addEventListener("scroll", onClose, true);
+    return () => window.removeEventListener("scroll", onClose, true);
+  }, [onClose]);
   return (
     <>
       <div onClick={(e) => { e.stopPropagation(); onClose(); }} style={{ position: "fixed", inset: 0, zIndex: 49 }} />
@@ -168,6 +175,11 @@ function CompletionEditor({ initialDate, onChange, onClose }) {
   const [date, setDate] = useState(initialDate || "");
   const inp = { border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 13, background: C.surface };
   const lbl = { fontSize: 10, fontWeight: 700, color: C.gray, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3 };
+  // Close on scroll (same reason as DueEditor — the anchored popover jitters).
+  useEffect(() => {
+    window.addEventListener("scroll", onClose, true);
+    return () => window.removeEventListener("scroll", onClose, true);
+  }, [onClose]);
   return (
     <>
       <div onClick={(e) => { e.stopPropagation(); onClose(); }} style={{ position: "fixed", inset: 0, zIndex: 49 }} />
@@ -289,7 +301,8 @@ export function OrderHeader({ o, now, onDueDate, onCompletion, onMethod, onInvoi
         <button
           onClick={(e) => { e.stopPropagation(); onToggle && onToggle(); }}
           title={open ? "Collapse" : "Expand"}
-          style={{ background: "none", border: "none", padding: 0, cursor: "pointer", display: "inline-flex", color: C.gray, flexShrink: 0 }}
+          className="no-pop"
+          style={{ background: "none", border: "none", padding: 8, margin: -4, borderRadius: 6, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", color: C.gray, flexShrink: 0 }}
         >
           <ChevronDown size={18} style={{ transform: open ? "none" : "rotate(-90deg)", transition: "transform 0.15s" }} />
         </button>
@@ -446,9 +459,14 @@ export function Info({ label, value }) {
   );
 }
 
-// Per-product progress tracker: Received -> Triaged -> In production -> Done
+// Per-product progress tracker: Received -> Triaged -> [current stage] -> Done.
+// The 3rd step names the item's ACTUAL stage (Pick List / Work Order /
+// Purchasing) so the bubble says WHERE the work is, not a generic "In
+// production". Falls back to "In production" for new/done or any other stage.
 export function Stepper({ it }) {
-  const labels = ["Received", "Triaged", "In production", "Done"];
+  const midLabel = (it.stage === "picklist" || it.stage === "workorder" || it.stage === "awaiting")
+    ? STAGE_LABELS[it.stage] : "In production";
+  const labels = ["Received", "Triaged", midLabel, "Done"];
   const doneCount = it.stage === "new" ? 1 : it.stage === "done" ? 4 : 2;
   const currentIdx = it.stage === "done" ? -1 : doneCount;
   return (

@@ -97,6 +97,7 @@ export default function App() {
   const [fulfillTarget, setFulfillTarget] = useState(null); // { order, method }
   const [trackTarget, setTrackTarget] = useState(null); // order being marked shipped
   const [pickupTarget, setPickupTarget] = useState(null); // will-call order being marked picked up
+  const [walkInTarget, setWalkInTarget] = useState(null); // order a walk-in customer collected straight from the board
   const [partialTarget, setPartialTarget] = useState(null); // { order, kind } partial pickup/shipment
   const [invoiceTarget, setInvoiceTarget] = useState(null); // QB order whose invoice number is being entered
   const [orderTarget, setOrderTarget] = useState(null); // purchasing material being marked ordered (asks who/vendor/PO)
@@ -293,6 +294,19 @@ export default function App() {
   const confirmPickup = async (by) => {
     await board.markPickedUp(pickupTarget.id, by);
     setPickupTarget(null);
+    setTab("completed");
+  };
+
+  // Walk-in pickup: a customer collected an order before it worked through the
+  // stages. Mark every item done, put it on will-call (no staging spot — it's
+  // already gone), and record who took it + when, so it lands straight in
+  // Completed in one step.
+  const confirmWalkInPickup = async (by) => {
+    const order = walkInTarget;
+    await Promise.all(order.items.filter((it) => it.stage !== "done").map((it) => board.moveItem(it.id, "done")));
+    await board.fulfillOrder(order.id, "willcall", "");
+    await board.markPickedUp(order.id, by);
+    setWalkInTarget(null);
     setTab("completed");
   };
 
@@ -950,6 +964,8 @@ export default function App() {
           onUpdateItem={(itemId, patch) => board.updateItem(itemId, patch)}
           onUnpick={(itemId) => board.unpickItem(itemId)}
           onCancel={(reason) => board.cancelOrder(detailOrder.id, reason)}
+          onWalkInPickup={!detailOrder.fulfillment && !detailOrder.pickedUpAt ? () => { setDetailId(null); setWalkInTarget(detailOrder); } : undefined}
+          onPartialPickup={!detailOrder.fulfillment && !detailOrder.pickedUpAt ? () => { setDetailId(null); setPartialTarget({ order: detailOrder, kind: "pickup" }); } : undefined}
           onClose={() => setDetailId(null)}
         />
       )}
@@ -979,6 +995,13 @@ export default function App() {
           order={pickupTarget}
           onConfirm={confirmPickup}
           onClose={() => setPickupTarget(null)}
+        />
+      )}
+      {walkInTarget && (
+        <PickedUpModal
+          order={walkInTarget}
+          onConfirm={confirmWalkInPickup}
+          onClose={() => setWalkInTarget(null)}
         />
       )}
       {partialTarget && (
