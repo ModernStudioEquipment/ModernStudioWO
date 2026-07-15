@@ -13,6 +13,11 @@ export const DEPT_ORDER = ["shop", "cnc", "sewing", "saw"];
 // drop the #floor hash and return to the office app in place.
 export function exitMonitor() {
   try {
+    sessionStorage.removeItem("mse_floor"); // stop remembering this tab as a floor monitor
+  } catch {
+    /* ignore */
+  }
+  try {
     window.close();
   } catch {
     /* ignore */

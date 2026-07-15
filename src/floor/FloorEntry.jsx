@@ -18,6 +18,16 @@ export default function FloorEntry() {
     return () => window.removeEventListener("hashchange", on);
   }, []);
 
+  // Remember (per tab) that this screen is a floor monitor, so a refresh that
+  // loses the hash still returns here instead of the office. Cleared by Exit.
+  useEffect(() => {
+    try {
+      if (deptKey) sessionStorage.setItem("mse_floor", deptKey);
+    } catch {
+      /* ignore */
+    }
+  }, [deptKey]);
+
   if (!deptKey) return <FloorPicker />;
   return <FloorDisplay deptKey={deptKey} />;
 }

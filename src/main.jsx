@@ -8,7 +8,22 @@ const root = ReactDOM.createRoot(document.getElementById("root"));
 // and never imports the office App, its auth, or its Supabase client — so a
 // monitor cannot become logged in or reach customer data. Everything else is
 // the normal office app.
-if (/^#\/?floor\b/i.test(window.location.hash || "")) {
+const isFloorHash = /^#\/?floor\b/i.test(window.location.hash || "");
+let stickyFloor = null;
+try {
+  stickyFloor = sessionStorage.getItem("mse_floor");
+} catch {
+  /* ignore */
+}
+
+if (isFloorHash || stickyFloor) {
+  // A refresh can drop the URL fragment (e.g. through a domain redirect). This
+  // tab remembers it's a floor monitor, so restore the floor screen instead of
+  // bouncing to the office. sessionStorage is per-tab, so an office computer
+  // that only previews a monitor is never affected.
+  if (!isFloorHash && stickyFloor) {
+    window.location.hash = `#floor/${stickyFloor}`;
+  }
   import("./floor/FloorEntry.jsx").then(({ default: FloorEntry }) => {
     root.render(
       <React.StrictMode>
