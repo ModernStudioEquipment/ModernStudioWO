@@ -154,6 +154,11 @@ export default function App() {
   if (auth.needsAuth && !auth.user) {
     return <Auth auth={auth} />;
   }
+  // Scoped login: a CNC lead (role "cnc") only ever sees the CNC Floor Control —
+  // no office board, no other departments, no way back to the office.
+  if (auth.role === "cnc") {
+    return <FloorControl cncOnly orders={orders} onSignOut={auth.signOut} />;
+  }
 
   // Search result clicked: take you to that order in the tab you're already in
   // (scroll + flash). If it's not on a list tab (e.g. the Dashboard), fall back

@@ -77,7 +77,7 @@ export default function CncLibrary({ onClose, embedded = false }) {
       <div className="cl-wrap">
         <header className="cl-top">
           <div className="cl-brand">
-            <b>CNC&nbsp;{embedded ? "BOOK" : "LIBRARY"}</b>
+            <b>CNC&nbsp;CATALOG</b>
             <span>Every product · how to make it · blueprints · notes</span>
           </div>
           <div className="cl-spacer" />

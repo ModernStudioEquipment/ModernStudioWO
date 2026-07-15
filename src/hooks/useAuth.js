@@ -27,8 +27,13 @@ export function useAuth() {
     };
   }, [needsAuth]);
 
+  // Role for scoped logins (e.g. a CNC lead who should only see CNC). Prefer
+  // app_metadata (admin-set, the user can't change it) over user_metadata.
+  const role = user?.app_metadata?.role || user?.user_metadata?.role || null;
+
   return {
     user,
+    role,
     ready,
     needsAuth,
     async signIn(email, password) {

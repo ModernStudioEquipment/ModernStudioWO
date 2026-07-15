@@ -76,6 +76,18 @@ export function matchCncPart(parts, item) {
   return (item.sku && parts.bySku[item.sku]) || parts.byName[norm(item.product)] || null;
 }
 
+// CNC machine assignment (item_id -> 'vf4' | 'st10' | 'ds30ssy').
+export async function fetchCncMachines() {
+  if (!floorClient) return {};
+  const { data, error } = await floorClient.from("floor_cnc_machine").select("item_id, machine");
+  if (error) return {};
+  const m = {};
+  (data || []).forEach((r) => {
+    if (r.machine) m[r.item_id] = r.machine;
+  });
+  return m;
+}
+
 // Per-item floor notes (typed on the queue page), keyed by item_id.
 export async function fetchFloorNotes() {
   if (!floorClient) return {};

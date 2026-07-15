@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { FLOOR_DEPTS, exitMonitor } from "./depts.js";
-import { fetchFloorQueue, fetchFloorPhotos, fetchFloorArrangement, fetchCncParts, matchCncPart, fetchFloorNotes, completeItem } from "./floorData.js";
+import { fetchFloorQueue, fetchFloorPhotos, fetchFloorArrangement, fetchCncParts, matchCncPart, fetchFloorNotes, completeItem, fetchCncMachines } from "./floorData.js";
 
 // Order the queue the way the office set it: items in the arrangement come
 // first, in the dragged order. Anything not yet arranged (a brand-new arrival)
@@ -21,6 +21,13 @@ function applyOrder(items, arrangement) {
 const POLL_MS = 25000; // refresh every 25s — plenty for a shop wall, and easy on the free tier
 const STATIC_EVERY = 12; // re-fetch photos / CNC parts only every ~5 min (they rarely change)
 const MAX_QUEUE = 6; // rows visible under the NOW card
+
+// CNC monitor is split by machine — clickable tabs at the top of the screen.
+const MACHINES = [
+  { key: "vf4", short: "VF-4" },
+  { key: "st10", short: "ST-10" },
+  { key: "ds30ssy", short: "DS-30SSY" },
+];
 
 function useClock() {
   const [now, setNow] = useState(() => new Date());
@@ -43,13 +50,32 @@ function photoFor(item, photos) {
 
 export default function FloorDisplay({ deptKey }) {
   const dept = FLOOR_DEPTS[deptKey];
-  const [queue, setQueue] = useState([]);
+  const isCnc = deptKey === "cnc";
+  const [rawItems, setRawItems] = useState([]);
+  const [deptArr, setDeptArr] = useState([]);
+  const [machineMap, setMachineMap] = useState({}); // item_id -> machine (CNC)
+  const [machineArr, setMachineArr] = useState({ vf4: [], st10: [], ds30ssy: [] });
   const [photos, setPhotos] = useState({});
   const [cncParts, setCncParts] = useState({ bySku: {}, byName: {} });
   const [notes, setNotes] = useState({});
   const [loaded, setLoaded] = useState(false);
   const [online, setOnline] = useState(true);
+  const [machine, setMachine] = useState(() => {
+    try {
+      return sessionStorage.getItem("mse_floor_machine") || "vf4";
+    } catch {
+      return "vf4";
+    }
+  });
   const clock = useClock();
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem("mse_floor_machine", machine);
+    } catch {
+      /* ignore */
+    }
+  }, [machine]);
 
   useEffect(() => {
     let alive = true;
@@ -60,12 +86,16 @@ export default function FloorDisplay({ deptKey }) {
       // the queue / order / notes ride every poll. Cuts request volume by more than half.
       const refreshStatic = tick % STATIC_EVERY === 0;
       tick += 1;
-      const [q, arr, nts, p, cnc] = await Promise.all([
+      const [q, arr, nts, p, cnc, mMap, aVf4, aSt10, aDs] = await Promise.all([
         fetchFloorQueue(dept.db),
         fetchFloorArrangement(deptKey),
         fetchFloorNotes(),
         refreshStatic ? fetchFloorPhotos() : Promise.resolve(null),
-        refreshStatic && deptKey === "cnc" ? fetchCncParts() : Promise.resolve(null),
+        refreshStatic && isCnc ? fetchCncParts() : Promise.resolve(null),
+        isCnc ? fetchCncMachines() : Promise.resolve(null),
+        isCnc ? fetchFloorArrangement("cnc_vf4") : Promise.resolve(null),
+        isCnc ? fetchFloorArrangement("cnc_st10") : Promise.resolve(null),
+        isCnc ? fetchFloorArrangement("cnc_ds30ssy") : Promise.resolve(null),
       ]);
       if (!alive) return;
       if (p) setPhotos(p);
@@ -74,7 +104,12 @@ export default function FloorDisplay({ deptKey }) {
         setOnline(false); // fetch failed — keep the last-good queue on screen, flag "reconnecting"
         return;
       }
-      setQueue(applyOrder(q, arr || []));
+      setRawItems(q);
+      setDeptArr(arr || []);
+      if (isCnc) {
+        if (mMap) setMachineMap(mMap);
+        setMachineArr({ vf4: aVf4 || [], st10: aSt10 || [], ds30ssy: aDs || [] });
+      }
       setNotes(nts || {});
       setOnline(true);
       setLoaded(true);
@@ -96,7 +131,7 @@ export default function FloorDisplay({ deptKey }) {
       alive = false;
       clearInterval(id);
     };
-  }, [dept.db, deptKey]);
+  }, [dept.db, deptKey, isCnc]);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -106,11 +141,25 @@ export default function FloorDisplay({ deptKey }) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  // The displayed queue: for CNC, only the selected machine's items in its order;
+  // for other departments, the whole department queue.
+  const queue = useMemo(() => {
+    if (isCnc) {
+      const forM = rawItems.filter((it) => machineMap[it.item_id] === machine);
+      return applyOrder(forM, machineArr[machine] || []);
+    }
+    return applyOrder(rawItems, deptArr);
+  }, [isCnc, rawItems, deptArr, machineMap, machineArr, machine]);
+
+  const machineCounts = {};
+  MACHINES.forEach((m) => (machineCounts[m.key] = rawItems.filter((it) => machineMap[it.item_id] === m.key).length));
+  const unassignedCount = isCnc ? rawItems.filter((it) => !machineMap[it.item_id]).length : 0;
+
   const stageStyle = useMemo(() => ({ "--accent": dept.accent, "--draw": dept.draw }), [dept]);
   const qtyLabel = deptKey === "saw" ? "Cuts" : "Pieces";
 
   const handleDone = async (id) => {
-    setQueue((q) => q.filter((i) => i.item_id !== id)); // optimistic — the next job slides up to NOW
+    setRawItems((r) => r.filter((i) => i.item_id !== id)); // optimistic — the next job slides up to NOW
     await completeItem(id);
   };
 
@@ -131,6 +180,16 @@ export default function FloorDisplay({ deptKey }) {
             <i className="dot" />
             <b>{dept.label.toUpperCase()}</b>
           </div>
+          {isCnc && (
+            <div className="floor-mtabs">
+              {MACHINES.map((m) => (
+                <button key={m.key} className={`floor-mtab${machine === m.key ? " on" : ""}`} onClick={() => setMachine(m.key)}>
+                  <b>{m.short}</b>
+                  <span className="mc">{machineCounts[m.key]}</span>
+                </button>
+              ))}
+            </div>
+          )}
           <div className="spacer" />
           <div className="floor-stat">
             <div className="n">{queue.length}</div>
@@ -177,7 +236,7 @@ export default function FloorDisplay({ deptKey }) {
             </footer>
           </>
         ) : (
-          <IdleCard dept={dept} loaded={loaded} online={online} />
+          <IdleCard dept={dept} loaded={loaded} online={online} unassignedCount={unassignedCount} />
         )}
       </div>
     </div>
@@ -334,7 +393,7 @@ function QueueRow({ item, pos, photos, qtyLabel }) {
   );
 }
 
-function IdleCard({ dept, loaded, online }) {
+function IdleCard({ dept, loaded, online, unassignedCount = 0 }) {
   if (!loaded && !online) {
     return (
       <div className="floor-idle">
@@ -358,6 +417,11 @@ function IdleCard({ dept, loaded, online }) {
       <div className="ring">✓</div>
       <div className="big">All caught up</div>
       <div className="sub">Nothing queued for {dept.label} right now.</div>
+      {unassignedCount > 0 && (
+        <div className="sub" style={{ color: "var(--accent)" }}>
+          {unassignedCount} CNC job{unassignedCount === 1 ? "" : "s"} waiting to be assigned to a machine.
+        </div>
+      )}
     </div>
   );
 }

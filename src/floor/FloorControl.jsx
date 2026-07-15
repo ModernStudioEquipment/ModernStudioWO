@@ -67,7 +67,8 @@ function initials(name = "") {
   return (w[0]?.[0] || "?").toUpperCase() + (w[1]?.[0] || "").toUpperCase();
 }
 
-export default function FloorControl({ orders, onClose }) {
+export default function FloorControl({ orders, onClose, cncOnly = false, onSignOut }) {
+  const navDepts = cncOnly ? DEPTS.filter((d) => d.key === "cnc") : DEPTS;
   const [active, setActive] = useState("cnc");
   const [cncView, setCncView] = useState("unassigned"); // "unassigned" | machine key
   const [order, setOrder] = useState({}); // queueKey -> [ids]
@@ -230,7 +231,7 @@ export default function FloorControl({ orders, onClose }) {
             <span className="fc-brandtag">FLOOR&nbsp;CONTROL</span>
           </div>
           <nav className="fc-tabs" style={{ marginLeft: 8 }}>
-            {DEPTS.map((d) => (
+            {navDepts.map((d) => (
               <button
                 key={d.key}
                 className={`fc-tab${d.key === active ? " on" : ""}`}
@@ -243,7 +244,7 @@ export default function FloorControl({ orders, onClose }) {
               </button>
             ))}
             <button className={`fc-booktab${isBook ? " on" : ""}`} onClick={() => setActive("book")}>
-              <BookOpen size={15} /> CNC Book
+              <BookOpen size={15} /> CNC Catalog
             </button>
           </nav>
           <div className="fc-spacer" />
@@ -252,9 +253,15 @@ export default function FloorControl({ orders, onClose }) {
               <ExternalLink size={15} /> Open live monitor
             </a>
           )}
-          <button className="fc-back" onClick={onClose}>
-            <ArrowLeft size={16} /> Back to office
-          </button>
+          {cncOnly ? (
+            <button className="fc-back" onClick={onSignOut}>
+              <ArrowLeft size={16} /> Sign out
+            </button>
+          ) : (
+            <button className="fc-back" onClick={onClose}>
+              <ArrowLeft size={16} /> Back to office
+            </button>
+          )}
         </header>
 
         {isBook ? (
