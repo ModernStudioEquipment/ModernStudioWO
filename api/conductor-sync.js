@@ -310,6 +310,34 @@ async function run({ commit, shipToBackfillDays, commitBacklog }) {
     ? toAdd.filter((m) => m.orderNo === commitBacklogNo) // hand-pick one held-back order
     : toAdd.filter((m) => m.kind === "so" || m.receivedAt >= COMMIT_INVOICES_FROM);
 
+  // --- 5c. Reconcile existing orders: top up missing line items ---
+  // The sync is add-only, so an order captured mid-edit in QuickBooks (or edited
+  // there afterward) keeps a stale item list — that's how #473248 lost 10 of its
+  // 34 items. For each fetched order ALREADY on the board, add any QB line item
+  // it's missing — matched by name OR item code, so an edited note/name won't
+  // cause a duplicate — WITHOUT touching items already there (stage / dept / done /
+  // pickup state is preserved). An order caught mid-edit thus heals next sync.
+  let reconcileItems = [];
+  if (!commitBacklogNo) {
+    const nameKey = (it) => String(it.name || "").trim().toLowerCase();
+    const codeKey = (it) => { const mm = /item #:\s*(.+)$/i.exec(it.note || ""); return mm ? mm[1].trim().toLowerCase() : null; };
+    const qbByNo = {};
+    for (const m of [...sos, ...invs]) if (m.items.length && existing[m.orderNo] === "QuickBooks") qbByNo[m.orderNo] = m;
+    const nos = Object.keys(qbByNo);
+    if (nos.length) {
+      const inList = nos.map((n) => `"${String(n).replace(/"/g, "")}"`).join(",");
+      const boardOrders = await fetch(`${url}/rest/v1/orders?select=id,order_no,items(name,note)&source=eq.QuickBooks&cancelled_at=is.null&order_no=in.(${encodeURIComponent(inList)})`, { headers: sb }).then((r) => r.json()).catch(() => []);
+      if (Array.isArray(boardOrders)) for (const bo of boardOrders) {
+        const qb = qbByNo[bo.order_no]; if (!qb) continue;
+        const haveNames = new Set((bo.items || []).map(nameKey));
+        const haveCodes = new Set((bo.items || []).map(codeKey).filter(Boolean));
+        const missing = qb.items.filter((it) => !haveNames.has(nameKey(it)) && !(codeKey(it) && haveCodes.has(codeKey(it))));
+        const base = (bo.items || []).length;
+        missing.forEach((it, i) => reconcileItems.push({ order_id: bo.id, name: it.name, qty: it.qty, note: it.note, dept: it.dept || "Shop", stage: "new", position: base + i }));
+      }
+    }
+  }
+
   // --- Preview (no writes) ---
   if (!commit) {
     return json(200, {
@@ -325,6 +353,7 @@ async function run({ commit, shipToBackfillDays, commitBacklog }) {
       },
       wouldAddTotal: toAdd.length,
       committingNow: toAdd.filter((m) => m.kind === "so" || m.receivedAt >= COMMIT_INVOICES_FROM).length,
+      reconcile: { ordersToppedUp: new Set(reconcileItems.map((r) => r.order_id)).size, itemsToAdd: reconcileItems.length },
       sample: toAdd.slice(0, 8).map((m) => ({ kind: m.kind, orderNo: m.orderNo, date: m.receivedAt, customer: m.customer, shipVia: m.shipVia, linkedSo: m.linkedSo })),
       // The held-back backlog, in full — every one of these has a linked SO that
       // is NOT on the board (verified against the DB), i.e. genuinely dropped.
@@ -379,6 +408,19 @@ async function run({ commit, shipToBackfillDays, commitBacklog }) {
     if (Array.isArray(r) && r.length) salesOrdersInvoiced += r.length;
   }
 
+  // Apply the reconcile (5c): add the missing line items to existing orders.
+  // Safety valve: a real reconcile tops up a handful of items; 60+ means the
+  // match likely misfired, so skip the write and flag it rather than flood
+  // orders with duplicates.
+  let itemsReconciled = 0, reconcileSkipped = 0;
+  if (reconcileItems.length > 60) {
+    reconcileSkipped = reconcileItems.length;
+  } else if (reconcileItems.length) {
+    const ins = await fetch(`${url}/rest/v1/items`, { method: "POST", headers: sb, body: JSON.stringify(reconcileItems) });
+    if (ins.ok) itemsReconciled = reconcileItems.length;
+    else if (!firstError) firstError = { status: ins.status, detail: (await ins.text()).slice(0, 300), where: "reconcile" };
+  }
+
   return json(200, {
     mode: "commit",
     committed: commitBacklogNo ? `backlog ${commitBacklogNo}` : "forward-only",
@@ -387,6 +429,8 @@ async function run({ commit, shipToBackfillDays, commitBacklog }) {
     invoicesSkippedAsSalesOrderDup: invLinkedDup.length,
     backlogHeldBack: commitBacklogNo ? undefined : heldBackBacklog.length,
     salesOrdersInvoiced,
+    itemsReconciled,
+    reconcileSkipped: reconcileSkipped || undefined,
     inserted, failed, firstError,
   });
 }
