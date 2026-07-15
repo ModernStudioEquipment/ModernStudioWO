@@ -12,6 +12,10 @@
 }
 .cl-wrap{max-width:1080px; margin:0 auto; padding:22px 26px 60px; display:flex; flex-direction:column; gap:20px}
 
+/* Embedded (CNC Book tab inside Floor Control): no overlay, inherit the dark world. */
+.cl-embed{--accent:#FFB224; --line:#29313A; --line2:#374250; --panel:#14181D; --panel2:#1B2127; --rail:#10141A; --muted:#7C868F; --dim:#565F68; color:#F3F6F8}
+.cl-embed .cl-wrap{max-width:none; margin:0; padding:0; gap:18px}
+
 .cl-top{display:flex; align-items:center; gap:16px}
 .cl-brand{display:flex; flex-direction:column; line-height:1}
 .cl-brand b{font-size:20px; font-weight:800; letter-spacing:.26em; padding-left:.26em; color:var(--accent)}
@@ -42,6 +46,7 @@
 /* editor */
 .cl-editor{background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:20px 22px; display:flex; flex-direction:column; gap:18px}
 .cl-row2{display:grid; grid-template-columns:1fr 200px; gap:14px}
+.cl-row3{display:grid; grid-template-columns:1fr 1fr; gap:14px}
 .cl-field{display:flex; flex-direction:column; gap:6px}
 .cl-field.grow{flex:1}
 .cl-lab{font-size:10px; font-weight:800; letter-spacing:.16em; text-transform:uppercase; color:var(--muted)}

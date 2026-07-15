@@ -336,6 +336,28 @@ export const supabaseAdapter = {
     if (error && error.code !== "42P01") fail(error);
   },
 
+  // ---- CNC machine assignment (VF-4 / ST-10 / DS-30SSY) ----
+  async getCncMachines() {
+    const { data, error } = await supabase.from("cnc_machine").select("item_id, machine");
+    if (error) return {};
+    const m = {};
+    (data || []).forEach((r) => {
+      if (r.machine) m[r.item_id] = r.machine;
+    });
+    return m;
+  },
+  async setCncMachine(itemId, machine) {
+    if (!machine) {
+      const { error } = await supabase.from("cnc_machine").delete().eq("item_id", itemId);
+      if (error && error.code !== "42P01") fail(error);
+      return;
+    }
+    const { error } = await supabase
+      .from("cnc_machine")
+      .upsert({ item_id: itemId, machine, updated_at: new Date().toISOString() }, { onConflict: "item_id" });
+    if (error && error.code !== "42P01") fail(error);
+  },
+
   // ---- CNC parts library (how-to-make steps + blueprints) ----
   async getCncParts() {
     const { data, error } = await supabase.from("cnc_parts").select("*").order("name");
@@ -343,6 +365,7 @@ export const supabaseAdapter = {
     return (data || []).map((r) => ({
       id: r.id, sku: r.sku || "", name: r.name || "", steps: Array.isArray(r.steps) ? r.steps : [],
       blueprintUrl: r.blueprint_url || null, material: r.material || "", notes: r.notes || "",
+      productNo: r.product_no || "", programNo: r.program_no || "",
     }));
   },
   async saveCncPart(p) {
@@ -351,6 +374,7 @@ export const supabaseAdapter = {
       steps: (p.steps || []).filter((s) => s && s.trim()),
       blueprint_url: p.blueprintUrl || null, material: (p.material || "").trim() || null,
       notes: (p.notes || "").trim() || null, updated_at: new Date().toISOString(),
+      product_no: (p.productNo || "").trim() || null, program_no: (p.programNo || "").trim() || null,
     };
     if (p.id) {
       const { data, error } = await supabase.from("cnc_parts").update(row).eq("id", p.id).select("id").single();

@@ -3,9 +3,9 @@ import { ArrowLeft, Plus, Trash2, Upload, ImageOff, Check } from "lucide-react";
 import { db } from "../lib/db.js";
 import "./cncLibrary.css";
 
-const BLANK = { id: null, sku: "", name: "", material: "", notes: "", blueprintUrl: null, steps: [""] };
+const BLANK = { id: null, sku: "", name: "", material: "", notes: "", blueprintUrl: null, steps: [""], productNo: "", programNo: "" };
 
-export default function CncLibrary({ onClose }) {
+export default function CncLibrary({ onClose, embedded = false }) {
   const [parts, setParts] = useState([]);
   const [draft, setDraft] = useState({ ...BLANK });
   const [q, setQ] = useState("");
@@ -73,17 +73,19 @@ export default function CncLibrary({ onClose }) {
   }
 
   return (
-    <div className="cl-overlay">
+    <div className={embedded ? "cl-embed" : "cl-overlay"}>
       <div className="cl-wrap">
         <header className="cl-top">
           <div className="cl-brand">
-            <b>CNC&nbsp;LIBRARY</b>
-            <span>How to make it · blueprints · notes</span>
+            <b>CNC&nbsp;{embedded ? "BOOK" : "LIBRARY"}</b>
+            <span>Every product · how to make it · blueprints · notes</span>
           </div>
           <div className="cl-spacer" />
-          <button className="cl-back" onClick={onClose}>
-            <ArrowLeft size={16} /> Back to floor control
-          </button>
+          {!embedded && (
+            <button className="cl-back" onClick={onClose}>
+              <ArrowLeft size={16} /> Back to floor control
+            </button>
+          )}
         </header>
 
         <div className="cl-body">
@@ -115,6 +117,16 @@ export default function CncLibrary({ onClose }) {
               <label className="cl-field">
                 <span className="cl-lab">SKU (optional)</span>
                 <input value={draft.sku} onChange={(e) => setField("sku", e.target.value)} placeholder="matches the item" />
+              </label>
+            </div>
+            <div className="cl-row3">
+              <label className="cl-field">
+                <span className="cl-lab">Product number</span>
+                <input value={draft.productNo} onChange={(e) => setField("productNo", e.target.value)} placeholder="e.g. JR-1125" />
+              </label>
+              <label className="cl-field">
+                <span className="cl-lab">CNC program number</span>
+                <input value={draft.programNo} onChange={(e) => setField("programNo", e.target.value)} placeholder="e.g. O41207" />
               </label>
             </div>
 

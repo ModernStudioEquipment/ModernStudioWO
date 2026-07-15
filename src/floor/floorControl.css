@@ -39,6 +39,25 @@
 .fc-tab.on{color:#0c1014; border-color:var(--c); background:var(--c)}
 .fc-tab.on .dot{background:rgba(0,0,0,.5)}
 .fc-tab.on .ct{color:rgba(0,0,0,.55)}
+.fc-booktab{display:inline-flex; align-items:center; gap:8px; margin-left:10px; background:var(--panel);
+  border:1px solid #5a4212; border-radius:12px; padding:10px 16px; cursor:pointer; font:inherit; font-size:15px; font-weight:700; color:#FFB224; transition:all .15s}
+.fc-booktab:hover{background:color-mix(in srgb,#FFB224 14%,var(--panel))}
+.fc-booktab.on{color:#20160a; border-color:#FFB224; background:#FFB224}
+
+.fc-subnav{display:flex; gap:8px; flex-wrap:wrap}
+.fc-subtab{display:inline-flex; align-items:center; gap:8px; background:var(--rail); border:1px solid var(--line);
+  border-radius:11px; padding:9px 15px; cursor:pointer; font:inherit; font-size:14px; font-weight:700; color:var(--muted); transition:all .14s}
+.fc-subtab:hover{border-color:var(--line2); color:#F3F6F8}
+.fc-subtab.on{color:var(--accent); border-color:var(--accent); background:color-mix(in srgb,var(--accent) 12%,var(--rail))}
+.fc-subtab .n{font-size:12px; font-weight:800; color:var(--dim); background:var(--panel2); border-radius:999px; padding:1px 8px; min-width:22px; text-align:center}
+.fc-subtab.on .n{color:var(--accent); background:color-mix(in srgb,var(--accent) 20%,transparent)}
+
+.fc-assign{display:flex; align-items:center; gap:8px; margin-top:10px; padding-top:10px; border-top:1px solid var(--line)}
+.fc-assign-lab{font-size:10px; font-weight:800; letter-spacing:.16em; text-transform:uppercase; color:var(--dim); margin-right:2px}
+.fc-mchip{background:var(--panel2); border:1px solid var(--line2); color:var(--muted); font:inherit; font-size:12px; font-weight:800;
+  letter-spacing:.02em; padding:6px 12px; border-radius:8px; cursor:pointer; transition:all .13s}
+.fc-mchip:hover{border-color:var(--accent); color:#F3F6F8}
+.fc-mchip.on{background:var(--accent); border-color:var(--accent); color:#20160a}
 
 .fc-head{display:flex; align-items:baseline; gap:12px}
 .fc-head h1{font-size:26px; font-weight:800; letter-spacing:-.01em}

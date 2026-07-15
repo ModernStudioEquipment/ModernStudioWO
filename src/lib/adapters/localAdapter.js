@@ -148,6 +148,17 @@ export const localAdapter = {
     channel?.postMessage("changed");
   },
 
+  // ---- CNC machine assignment (single-machine, localStorage) ----
+  async getCncMachines() {
+    try { return JSON.parse(localStorage.getItem("mse_cnc_machine_v1")) || {}; } catch { return {}; }
+  },
+  async setCncMachine(itemId, machine) {
+    const m = await this.getCncMachines();
+    if (machine) m[itemId] = machine; else delete m[itemId];
+    try { localStorage.setItem("mse_cnc_machine_v1", JSON.stringify(m)); } catch { /* ignore */ }
+    channel?.postMessage("changed");
+  },
+
   // ---- CNC parts library (single-machine, localStorage) ----
   async getCncParts() {
     try { return JSON.parse(localStorage.getItem("mse_cnc_parts_v1")) || []; } catch { return []; }
@@ -159,6 +170,7 @@ export const localAdapter = {
       id, sku: (p.sku || "").trim(), name: (p.name || "").trim(),
       steps: (p.steps || []).filter((s) => s && s.trim()),
       blueprintUrl: p.blueprintUrl || null, material: (p.material || "").trim(), notes: (p.notes || "").trim(),
+      productNo: (p.productNo || "").trim(), programNo: (p.programNo || "").trim(),
     };
     const i = list.findIndex((x) => x.id === id);
     if (i >= 0) list[i] = rec; else list.push(rec);
