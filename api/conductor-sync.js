@@ -26,7 +26,7 @@ export const maxDuration = 60;
 export async function GET(request) {
   const params = new URL(request.url).searchParams;
   const inspect = params.get("inspect");
-  if (inspect) return inspectOrder(inspect); // ?inspect=<number> → raw vs mapped line count, to spot truncation
+  if (inspect) return inspectOrder(inspect, Math.min(Math.max(Number(params.get("days")) || 12, 2), 40)); // ?inspect=<number>&days=N
   const days = Number(params.get("shiptoBackfillDays") || 0);
   return run({ commit: false, shipToBackfillDays: days });
 }
@@ -34,12 +34,12 @@ export async function GET(request) {
 // Read-only diagnostic: pull one invoice/sales-order straight from QuickBooks
 // (same fetch the sync uses) and report how many line items it has vs how many
 // survive the product filter — so we can tell truncation from over-filtering.
-async function inspectOrder(wanted) {
+async function inspectOrder(wanted, days = 12) {
   const conductorKey = process.env.CONDUCTOR_SECRET_KEY;
   const endUserId = process.env.CONDUCTOR_END_USER_ID;
   if (!conductorKey || !endUserId) return json(500, { error: "Not configured" });
   const want = String(wanted).trim();
-  const since = new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   let invList, soList;
   try {
     [invList, soList] = await Promise.all([
