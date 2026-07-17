@@ -73,6 +73,7 @@ export function useOrders(enabled) {
     arrangement,
     setArrangement: act((ids) => db.setArrangement(ids)),
     nextOrderNo: () => db.nextOrderNo(),
+    nextPurchaseNo: () => db.nextPurchaseNo(),
     createOrder: act((payload) => db.createOrder(payload)),
     createPurchase: act((payload) => db.createPurchase(payload)),
     triageItem: act((itemId, decision) => db.triageItem(itemId, decision)),

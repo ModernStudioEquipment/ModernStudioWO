@@ -234,6 +234,14 @@ export const supabaseAdapter = {
     return String(max ? max + 1 : 100000);
   },
 
+  // Shop purchases: their OWN sequence starting at 800000, so a purchase never
+  // borrows a customer order / invoice / sales-order number (those all sit below
+  // 500000: Shopify 33xxx, work orders 1xxxxx, QB SOs 33xxxx, QB invoices 47xxxx).
+  async nextPurchaseNo() {
+    const max = await maxOrderNo("orders", (n) => n >= 800000);
+    return String(max ? max + 1 : 800000);
+  },
+
   async createOrder({ orderNo, customer, contact, priority, source, willCall, fulfillmentMethod, dueDate, dueTime, items }) {
     const { error } = await supabase.rpc("create_order", {
       p_order: {
@@ -270,7 +278,7 @@ export const supabaseAdapter = {
       if (!error) return;
       const dup = error.code === "23505" || /orders_active_order_no_unique|duplicate key/i.test(error.message || "");
       if (!dup) fail(error);
-      no = await supabaseAdapter.nextOrderNo();
+      no = await supabaseAdapter.nextPurchaseNo();
     }
     fail({ message: "Couldn't assign a free purchase number after several tries — please try again." });
   },

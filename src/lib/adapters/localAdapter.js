@@ -207,6 +207,13 @@ export const localAdapter = {
     return String(nextWoNoFrom(readWO()));
   },
 
+  // Shop purchases: their own sequence starting at 800000 (never borrows a
+  // customer order / invoice / sales-order number).
+  async nextPurchaseNo() {
+    const nums = read().map((o) => parseInt(o.orderNo, 10)).filter((n) => !Number.isNaN(n) && n >= 800000);
+    return String(nums.length ? Math.max(...nums) + 1 : 800000);
+  },
+
   async createOrder({ orderNo, customer, contact, priority, source, willCall, fulfillmentMethod, dueDate, dueTime, items }) {
     const orders = read();
     orders.push({

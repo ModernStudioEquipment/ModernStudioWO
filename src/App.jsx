@@ -950,7 +950,7 @@ export default function App() {
       )}
       {showNewPurchase && (
         <NewPurchaseModal
-          getNextOrderNo={board.nextOrderNo}
+          getNextOrderNo={board.nextPurchaseNo}
           onCreate={board.createPurchase}
           onClose={() => setShowNewPurchase(false)}
         />
