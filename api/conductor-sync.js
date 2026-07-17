@@ -25,42 +25,8 @@ export const maxDuration = 60;
 // recipient) on EXISTING orders from the last N days — no inserts.
 export async function GET(request) {
   const params = new URL(request.url).searchParams;
-  const inspect = params.get("inspect");
-  if (inspect) return inspectOrder(inspect, Math.min(Math.max(Number(params.get("days")) || 12, 2), 40)); // ?inspect=<number>&days=N
   const days = Number(params.get("shiptoBackfillDays") || 0);
   return run({ commit: false, shipToBackfillDays: days });
-}
-
-// Read-only diagnostic: pull one invoice/sales-order straight from QuickBooks
-// (same fetch the sync uses) and report how many line items it has vs how many
-// survive the product filter — so we can tell truncation from over-filtering.
-async function inspectOrder(wanted, days = 12) {
-  const conductorKey = process.env.CONDUCTOR_SECRET_KEY;
-  const endUserId = process.env.CONDUCTOR_END_USER_ID;
-  if (!conductorKey || !endUserId) return json(500, { error: "Not configured" });
-  const want = String(wanted).trim();
-  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  let invList, soList;
-  try {
-    [invList, soList] = await Promise.all([
-      fetchTxns("invoices", conductorKey, endUserId, since, "&includeLinkedTransactions=true"),
-      fetchTxns("sales-orders", conductorKey, endUserId, since),
-    ]);
-  } catch (e) {
-    return json(e.status ? 502 : 504, { error: "Conductor request failed", detail: (e.detail || String(e)).slice(0, 300) });
-  }
-  const t = invList.find((x) => refNo(x) === want) || soList.find((x) => refNo(x) === want);
-  if (!t) return json(200, { found: false, wanted: want, note: `Not in the last 45 days (invoices ${invList.length}, sales orders ${soList.length}).` });
-  const rawLines = t.lines || t.salesOrderLines || t.invoiceLines || t.lineItems || [];
-  const mapped = mapItems(t);
-  return json(200, {
-    found: true,
-    number: refNo(t),
-    customer: customerOf(t),
-    rawLineCount: rawLines.length,
-    mappedProductCount: mapped.length,
-    rawLines: rawLines.map((ln) => ({ code: ln.item?.fullName || ln.item?.name || null, desc: String(ln.description || ln.memo || "").slice(0, 44), qty: ln.quantity ?? ln.quantityOrdered ?? ln.qty ?? null })),
-  });
 }
 
 export async function POST(request) {
