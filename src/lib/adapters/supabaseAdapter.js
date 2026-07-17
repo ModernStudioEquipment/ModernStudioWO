@@ -125,6 +125,19 @@ function mapOrder(row, productPhotos = {}, fulfillmentsByOrder = {}, photoBySku 
   };
 }
 
+// Largest numeric order_no in a table, matching `keep`, across ALL rows — a plain
+// select stops at 1000, so we page through with .range() until a short page.
+async function maxOrderNo(table, keep) {
+  let max = 0;
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabase.from(table).select("order_no").range(from, from + 999);
+    fail(error);
+    for (const r of data || []) { const n = parseInt(r.order_no, 10); if (!Number.isNaN(n) && keep(n) && n > max) max = n; }
+    if (!data || data.length < 1000) break;
+  }
+  return max;
+}
+
 export const supabaseAdapter = {
   needsAuth: true,
 
@@ -208,22 +221,17 @@ export const supabaseAdapter = {
   // Regular orders: their own sequence from 1001 (work-order numbers >= 100000
   // are excluded so the two sequences never collide).
   async nextOrderNo() {
-    const o = await supabase.from("orders").select("order_no");
-    fail(o.error);
-    const nums = (o.data || [])
-      .map((r) => parseInt(r.order_no, 10))
-      .filter((n) => !Number.isNaN(n) && n < 100000);
-    return String(nums.length ? Math.max(...nums) + 1 : 1001);
+    // Paginate — a plain select caps at 1000 rows, but the board has more, so an
+    // un-paginated max returns a STALE number that's already taken (the
+    // "orders_active_order_no_unique" error people hit when logging a purchase).
+    const max = await maxOrderNo("orders", (n) => n < 100000);
+    return String(max ? max + 1 : 1001);
   },
 
   // Work orders: their own sequence starting at WO 100000.
   async nextWorkOrderNo() {
-    const w = await supabase.from("work_orders").select("order_no");
-    fail(w.error);
-    const nums = (w.data || [])
-      .map((r) => parseInt(r.order_no, 10))
-      .filter((n) => !Number.isNaN(n) && n >= 100000);
-    return String(nums.length ? Math.max(...nums) + 1 : 100000);
+    const max = await maxOrderNo("work_orders", (n) => n >= 100000);
+    return String(max ? max + 1 : 100000);
   },
 
   async createOrder({ orderNo, customer, contact, priority, source, willCall, fulfillmentMethod, dueDate, dueTime, items }) {
@@ -252,11 +260,19 @@ export const supabaseAdapter = {
   },
 
   async createPurchase({ orderNo, dept, materials }) {
-    const { error } = await supabase.rpc("create_purchase", {
-      p_order: { order_no: orderNo, dept: dept || "Shop" },
-      p_materials: (materials || []).map((m) => ({ name: m.name, amount: m.amount || null, note: m.note || null, for_inventory: !!m.forInventory })),
-    });
-    fail(error);
+    const p_materials = (materials || []).map((m) => ({ name: m.name, amount: m.amount || null, note: m.note || null, for_inventory: !!m.forInventory }));
+    // If the number was taken between opening the form and saving (or a stale
+    // count handed us a used one), grab the next free number and retry rather
+    // than surfacing the raw unique-constraint error.
+    let no = orderNo;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const { error } = await supabase.rpc("create_purchase", { p_order: { order_no: no, dept: dept || "Shop" }, p_materials });
+      if (!error) return;
+      const dup = error.code === "23505" || /orders_active_order_no_unique|duplicate key/i.test(error.message || "");
+      if (!dup) fail(error);
+      no = await supabaseAdapter.nextOrderNo();
+    }
+    fail({ message: "Couldn't assign a free purchase number after several tries — please try again." });
   },
 
   async triageItem(itemId, decision) {
