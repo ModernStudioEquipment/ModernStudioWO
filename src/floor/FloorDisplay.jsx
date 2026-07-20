@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { FLOOR_DEPTS, exitMonitor } from "./depts.js";
-import { fetchFloorQueue, fetchFloorPhotos, fetchFloorArrangement, fetchCncParts, matchCncPart, fetchFloorNotes, completeItem, fetchCncMachines, fetchFloorProductPhotos } from "./floorData.js";
+import { fetchFloorQueue, fetchFloorPhotosFor, fetchFloorArrangement, fetchCncParts, matchCncPart, fetchFloorNotes, completeItem, fetchCncMachines, fetchFloorProductPhotosFor } from "./floorData.js";
 
 // Order the queue the way the office set it: items in the arrangement come
 // first, in the dragged order. Anything not yet arranged (a brand-new arrival)
@@ -94,22 +94,16 @@ export default function FloorDisplay({ deptKey }) {
       // the queue / order / notes ride every poll. Cuts request volume by more than half.
       const refreshStatic = tick % STATIC_EVERY === 0;
       tick += 1;
-      const [q, arr, nts, p, cnc, mMap, aVf4, aSt10, aDs, pp] = await Promise.all([
+      const [q, arr, nts, mMap, aVf4, aSt10, aDs] = await Promise.all([
         fetchFloorQueue(dept.db),
         fetchFloorArrangement(deptKey),
         fetchFloorNotes(),
-        refreshStatic ? fetchFloorPhotos() : Promise.resolve(null),
-        refreshStatic && isCnc ? fetchCncParts() : Promise.resolve(null),
         isCnc ? fetchCncMachines() : Promise.resolve(null),
         isCnc ? fetchFloorArrangement("cnc_vf4") : Promise.resolve(null),
         isCnc ? fetchFloorArrangement("cnc_st10") : Promise.resolve(null),
         isCnc ? fetchFloorArrangement("cnc_ds30ssy") : Promise.resolve(null),
-        refreshStatic ? fetchFloorProductPhotos() : Promise.resolve(null),
       ]);
       if (!alive) return;
-      if (p) setPhotos(p);
-      if (pp) setProductPhotos(pp);
-      if (cnc) setCncParts(cnc);
       if (q === null) {
         setOnline(false); // fetch failed — keep the last-good queue on screen, flag "reconnecting"
         return;
@@ -123,6 +117,20 @@ export default function FloorDisplay({ deptKey }) {
       setNotes(nts || {});
       setOnline(true);
       setLoaded(true);
+
+      // Photos + CNC parts (rarely change): every ~5 min, and targeted to just
+      // the items currently on the board so we don't pull the whole photo library.
+      if (refreshStatic) {
+        const [ip, pp, cnc] = await Promise.all([
+          fetchFloorPhotosFor(q.map((i) => i.sku)),
+          fetchFloorProductPhotosFor(q.map((i) => i.product)),
+          isCnc ? fetchCncParts() : Promise.resolve(null),
+        ]);
+        if (!alive) return;
+        setPhotos(ip);
+        setProductPhotos(pp);
+        if (cnc) setCncParts(cnc);
+      }
       // Nightly self-reload (~3am, once/day) so a monitor left on for weeks
       // picks up new deploys and clears memory. Guarded via localStorage.
       try {

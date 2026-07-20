@@ -100,31 +100,42 @@ export async function fetchFloorNotes() {
   return m;
 }
 
-// SKU -> product photo, for items that don't carry their own image_url.
-export async function fetchFloorPhotos() {
-  if (!floorClient) return {};
-  const { data, error } = await floorClient
-    .from("floor_item_photos")
-    .select("sku, image_url");
-  if (error) return {};
+// Fetch matching rows for a set of keys, chunked so a big list doesn't blow the
+// URL limit and only pulling the photos we actually need (the libraries have
+// thousands of rows — loading them all would hammer the free tier).
+async function fetchByKeys(table, col, selectCols, keys) {
+  if (!floorClient || !keys.length) return [];
+  const uniq = [...new Set(keys.filter(Boolean))];
+  const out = [];
+  const SIZE = 200;
+  for (let i = 0; i < uniq.length; i += SIZE) {
+    const { data, error } = await floorClient
+      .from(table)
+      .select(selectCols)
+      .in(col, uniq.slice(i, i + SIZE));
+    if (!error && data) out.push(...data);
+  }
+  return out;
+}
+
+// SKU -> photo, only for the SKUs currently on screen.
+export async function fetchFloorPhotosFor(skus) {
+  const rows = await fetchByKeys("floor_item_photos", "sku", "sku, image_url", skus);
   const map = {};
-  (data || []).forEach((r) => {
+  rows.forEach((r) => {
     if (r.sku) map[r.sku] = r.image_url;
   });
   return map;
 }
 
-// Product-NAME -> photo (normalized), the fallback when an item has no image and
-// no matching SKU. Covers most QuickBooks parts.
-export async function fetchFloorProductPhotos() {
-  if (!floorClient) return {};
-  const { data, error } = await floorClient
-    .from("floor_product_photos")
-    .select("name, image_url");
-  if (error) return {};
+// Normalized product-NAME -> photo, only for the names on screen. Matches on the
+// `norm` key (migration 0047) so casing/spacing/punctuation differences resolve.
+// The fallback when an item has no image and no matching SKU.
+export async function fetchFloorProductPhotosFor(names) {
+  const rows = await fetchByKeys("floor_product_photos", "norm", "norm, image_url", names.map(norm));
   const map = {};
-  (data || []).forEach((r) => {
-    if (r.name) map[norm(r.name)] = r.image_url;
+  rows.forEach((r) => {
+    if (r.norm) map[r.norm] = r.image_url;
   });
   return map;
 }
