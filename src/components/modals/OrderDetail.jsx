@@ -154,8 +154,16 @@ export function OrderDetail({ order, status, now, onDueDate, onCompletion, onInv
 
           {onSendOrderBack && order.items.length > 0 && (
             <div style={{ borderTop: `1px solid ${C.line}`, marginTop: 16, paddingTop: 14 }}>
-              <div style={{ fontSize: 13, color: C.inkSoft, marginBottom: 8 }}>Send the whole order back — routes <b>every item</b> to the stage you pick{order.fulfillment ? ", and pulls the order off Will Call / Shipping" : ""}:</div>
-              <MoveMenu stage="done" onMove={(s) => onSendOrderBack(s)} label="Send whole order to" />
+              <div style={{ fontSize: 13, color: C.inkSoft, marginBottom: 8 }}>Send the whole order somewhere else — every item moves at once{order.fulfillment ? " (or switch it straight to Will Call / Shipping)" : ""}:</div>
+              <MoveMenu
+                stage="done"
+                label="Send whole order to"
+                extraTargets={order.fulfillment ? [
+                  ...(order.fulfillment !== "willcall" ? [{ stage: "willcall", label: "Will Call" }] : []),
+                  ...(order.fulfillment !== "shipping" ? [{ stage: "shipping", label: "Shipping" }] : []),
+                ] : []}
+                onMove={(s) => (s === "willcall" || s === "shipping") ? (onFulfill && onFulfill(s)) : onSendOrderBack(s)}
+              />
             </div>
           )}
 

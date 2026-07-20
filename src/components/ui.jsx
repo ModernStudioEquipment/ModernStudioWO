@@ -287,8 +287,10 @@ const MOVE_TARGETS = [
   { stage: "done", label: "Done" },
 ];
 // "Move to ▾" — re-route an item to a different stage/tab (excludes its current one).
-export function MoveMenu({ stage, onMove, label = "Move to" }) {
-  const options = MOVE_TARGETS.filter((t) => t.stage !== stage).map((t) => ({ value: t.stage, label: t.label }));
+// extraTargets appends order-level destinations (e.g. Will Call / Shipping) that
+// aren't item stages, for the whole-order menu.
+export function MoveMenu({ stage, onMove, label = "Move to", extraTargets = [] }) {
+  const options = [...MOVE_TARGETS.filter((t) => t.stage !== stage), ...extraTargets].map((t) => ({ value: t.stage, label: t.label }));
   return (
     <InlineMenu align="right" options={options} onSelect={onMove}>
       <span
