@@ -1,13 +1,13 @@
 import React, { useState, useRef, useEffect } from "react";
-import { X, Trash2, RotateCcw, Clock, ChevronDown, ExternalLink, Check } from "lucide-react";
+import { X, Trash2, Clock, ChevronDown, ExternalLink, Check } from "lucide-react";
 import { C, PRI, elapsed, itemStatusText, trackingUrl } from "../../theme.js";
-import { Pill, Info, Stepper, DeptBadge, DuePill, CompletionPill, MethodBadge, InvoicedBadge, SittingBadge } from "../ui.jsx";
+import { Pill, Info, Stepper, DeptBadge, DuePill, CompletionPill, MethodBadge, InvoicedBadge, SittingBadge, MoveMenu } from "../ui.jsx";
 import { ItemTimeline } from "../ItemTimeline.jsx";
 
 // The office "where's my order?" view — full detail with a per-product
 // progress tracker. Items reconverge here even though they're triaged and
 // routed independently.
-export function OrderDetail({ order, status, now, onDueDate, onCompletion, onInvoice, onMethod, onSaveNotes, onUpdateItem, onUnpick, onCancel, onWalkInPickup, onPartialPickup, onClose }) {
+export function OrderDetail({ order, status, now, onDueDate, onCompletion, onInvoice, onMethod, onSaveNotes, onUpdateItem, onMoveItem, onCancel, onWalkInPickup, onPartialPickup, onClose }) {
   const [confirming, setConfirming] = useState(false);
   const [reason, setReason] = useState("Customer cancelled");
   const [openTimeline, setOpenTimeline] = useState(null); // item id whose timeline is expanded
@@ -114,15 +114,8 @@ export function OrderDetail({ order, status, now, onDueDate, onCompletion, onInv
                   <Clock size={12} />{open ? "Hide timeline" : "View timeline"}
                   <ChevronDown size={13} style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
                 </button>
-                {it.stage === "done" && onUnpick && (
-                  <button
-                    onClick={() => onUnpick(it.id)}
-                    className="inline-flex items-center gap-1"
-                    style={{ fontSize: 12, color: C.gray, fontWeight: 700 }}
-                    title="Send this item back to the pick list"
-                  >
-                    <RotateCcw size={12} />Undo pick — back to pick list
-                  </button>
+                {it.stage === "done" && onMoveItem && (
+                  <MoveMenu stage={it.stage} onMove={(s) => onMoveItem(it.id, s)} label="Send back to" />
                 )}
               </div>
               {open && (

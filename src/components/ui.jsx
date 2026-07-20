@@ -275,7 +275,7 @@ const MOVE_TARGETS = [
   { stage: "done", label: "Done" },
 ];
 // "Move to ▾" — re-route an item to a different stage/tab (excludes its current one).
-export function MoveMenu({ stage, onMove }) {
+export function MoveMenu({ stage, onMove, label = "Move to" }) {
   const options = MOVE_TARGETS.filter((t) => t.stage !== stage).map((t) => ({ value: t.stage, label: t.label }));
   return (
     <InlineMenu align="right" options={options} onSelect={onMove}>
@@ -283,7 +283,7 @@ export function MoveMenu({ stage, onMove }) {
         className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded font-bold uppercase tracking-wide btn-pop"
         style={{ fontSize: 12, background: C.surface, color: C.inkSoft, border: `1px solid ${C.line}`, cursor: "pointer", whiteSpace: "nowrap" }}
       >
-        Move to<ChevronDown size={12} style={{ opacity: 0.6 }} />
+        {label}<ChevronDown size={12} style={{ opacity: 0.6 }} />
       </span>
     </InlineMenu>
   );

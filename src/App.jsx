@@ -967,7 +967,7 @@ export default function App() {
           onMethod={(m) => board.setFulfillmentMethod(detailOrder.id, m)}
           onSaveNotes={(notes) => board.setOrderNotes(detailOrder.id, notes)}
           onUpdateItem={(itemId, patch) => board.updateItem(itemId, patch)}
-          onUnpick={(itemId) => board.unpickItem(itemId)}
+          onMoveItem={(itemId, s) => { if (s === "awaiting") { setDetailId(null); setMatTarget(itemId); } else board.moveItem(itemId, s); }}
           onCancel={(reason) => board.cancelOrder(detailOrder.id, reason)}
           onWalkInPickup={!detailOrder.fulfillment && !detailOrder.pickedUpAt ? () => { setDetailId(null); setWalkInTarget(detailOrder); } : undefined}
           onPartialPickup={!detailOrder.fulfillment && !detailOrder.pickedUpAt ? () => { setDetailId(null); setPartialTarget({ order: detailOrder, kind: "pickup" }); } : undefined}
