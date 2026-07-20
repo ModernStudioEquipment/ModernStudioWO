@@ -113,3 +113,18 @@ export async function fetchFloorPhotos() {
   });
   return map;
 }
+
+// Product-NAME -> photo (normalized), the fallback when an item has no image and
+// no matching SKU. Covers most QuickBooks parts.
+export async function fetchFloorProductPhotos() {
+  if (!floorClient) return {};
+  const { data, error } = await floorClient
+    .from("floor_product_photos")
+    .select("name, image_url");
+  if (error) return {};
+  const map = {};
+  (data || []).forEach((r) => {
+    if (r.name) map[norm(r.name)] = r.image_url;
+  });
+  return map;
+}

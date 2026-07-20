@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { FLOOR_DEPTS, exitMonitor } from "./depts.js";
-import { fetchFloorQueue, fetchFloorPhotos, fetchFloorArrangement, fetchCncParts, matchCncPart, fetchFloorNotes, completeItem, fetchCncMachines } from "./floorData.js";
+import { fetchFloorQueue, fetchFloorPhotos, fetchFloorArrangement, fetchCncParts, matchCncPart, fetchFloorNotes, completeItem, fetchCncMachines, fetchFloorProductPhotos } from "./floorData.js";
 
 // Order the queue the way the office set it: items in the arrangement come
 // first, in the dragged order. Anything not yet arranged (a brand-new arrival)
@@ -44,8 +44,15 @@ function useClock() {
   return { t: `${h}:${m} ${ap}`, d: `${days[now.getDay()]} · ${mos[now.getMonth()]} ${now.getDate()}` };
 }
 
-function photoFor(item, photos) {
-  return item.image_url || (item.sku ? photos[item.sku] : null) || null;
+const normName = (s) => (s || "").toLowerCase().replace(/\s+/g, " ").trim();
+
+function photoFor(item, photos, productPhotos) {
+  return (
+    item.image_url ||
+    (item.sku ? photos[item.sku] : null) ||
+    (productPhotos ? productPhotos[normName(item.product)] : null) ||
+    null
+  );
 }
 
 export default function FloorDisplay({ deptKey }) {
@@ -56,6 +63,7 @@ export default function FloorDisplay({ deptKey }) {
   const [machineMap, setMachineMap] = useState({}); // item_id -> machine (CNC)
   const [machineArr, setMachineArr] = useState({ vf4: [], st10: [], ds30ssy: [] });
   const [photos, setPhotos] = useState({});
+  const [productPhotos, setProductPhotos] = useState({});
   const [cncParts, setCncParts] = useState({ bySku: {}, byName: {} });
   const [notes, setNotes] = useState({});
   const [loaded, setLoaded] = useState(false);
@@ -86,7 +94,7 @@ export default function FloorDisplay({ deptKey }) {
       // the queue / order / notes ride every poll. Cuts request volume by more than half.
       const refreshStatic = tick % STATIC_EVERY === 0;
       tick += 1;
-      const [q, arr, nts, p, cnc, mMap, aVf4, aSt10, aDs] = await Promise.all([
+      const [q, arr, nts, p, cnc, mMap, aVf4, aSt10, aDs, pp] = await Promise.all([
         fetchFloorQueue(dept.db),
         fetchFloorArrangement(deptKey),
         fetchFloorNotes(),
@@ -96,9 +104,11 @@ export default function FloorDisplay({ deptKey }) {
         isCnc ? fetchFloorArrangement("cnc_vf4") : Promise.resolve(null),
         isCnc ? fetchFloorArrangement("cnc_st10") : Promise.resolve(null),
         isCnc ? fetchFloorArrangement("cnc_ds30ssy") : Promise.resolve(null),
+        refreshStatic ? fetchFloorProductPhotos() : Promise.resolve(null),
       ]);
       if (!alive) return;
       if (p) setPhotos(p);
+      if (pp) setProductPhotos(pp);
       if (cnc) setCncParts(cnc);
       if (q === null) {
         setOnline(false); // fetch failed — keep the last-good queue on screen, flag "reconnecting"
@@ -212,7 +222,7 @@ export default function FloorDisplay({ deptKey }) {
         {now ? (
           <>
             <div className="floor-main">
-              <NowCard key={now.item_id} item={now} photos={photos} qtyLabel={qtyLabel} deptLabel={dept.label} part={matchCncPart(cncParts, now)} note={notes[now.item_id]} onDone={handleDone} />
+              <NowCard key={now.item_id} item={now} photos={photos} productPhotos={productPhotos} qtyLabel={qtyLabel} deptLabel={dept.label} part={matchCncPart(cncParts, now)} note={notes[now.item_id]} onDone={handleDone} />
               <aside className="floor-queue">
                 <h2>
                   <i className="c" />
@@ -220,7 +230,7 @@ export default function FloorDisplay({ deptKey }) {
                 </h2>
                 <div className="floor-qlist">
                   {rest.map((it, idx) => (
-                    <QueueRow key={it.item_id} item={it} pos={idx + 2} photos={photos} qtyLabel={qtyLabel} />
+                    <QueueRow key={it.item_id} item={it} pos={idx + 2} photos={photos} productPhotos={productPhotos} qtyLabel={qtyLabel} />
                   ))}
                   {rest.length === 0 && <div className="floor-qmore">Nothing else queued.</div>}
                 </div>
@@ -267,11 +277,11 @@ function DoneButton({ onDone }) {
   );
 }
 
-function NowCard({ item, photos, qtyLabel, deptLabel, part, note, onDone }) {
+function NowCard({ item, photos, productPhotos, qtyLabel, deptLabel, part, note, onDone }) {
   const hasSteps = part && part.steps && part.steps.length > 0;
   const hasNotes = !!(part && part.notes);
   const rich = hasSteps || hasNotes || !!(part && part.blueprint);
-  const src = (part && part.blueprint) || photoFor(item, photos);
+  const src = (part && part.blueprint) || photoFor(item, photos, productPhotos);
   return (
     <section className="floor-now">
       <div className="floor-nowhead">
@@ -371,8 +381,8 @@ function NowCard({ item, photos, qtyLabel, deptLabel, part, note, onDone }) {
   );
 }
 
-function QueueRow({ item, pos, photos, qtyLabel }) {
-  const src = photoFor(item, photos);
+function QueueRow({ item, pos, photos, productPhotos, qtyLabel }) {
+  const src = photoFor(item, photos, productPhotos);
   return (
     <div className="floor-qrow">
       <div className="pos">{pos}</div>
