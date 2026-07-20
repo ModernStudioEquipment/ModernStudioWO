@@ -969,6 +969,7 @@ export default function App() {
           onUpdateItem={(itemId, patch) => board.updateItem(itemId, patch)}
           onMoveItem={(itemId, s) => { if (s === "awaiting") { setDetailId(null); setMatTarget(itemId); } else board.moveItem(itemId, s); }}
           onFulfill={(method) => { setDetailId(null); openFulfill(detailOrder, method); }}
+          onSendOrderBack={(stage) => board.reopenOrder(detailOrder.id, stage)}
           onCancel={(reason) => board.cancelOrder(detailOrder.id, reason)}
           onWalkInPickup={!detailOrder.fulfillment && !detailOrder.pickedUpAt ? () => { setDetailId(null); setWalkInTarget(detailOrder); } : undefined}
           onPartialPickup={!detailOrder.fulfillment && !detailOrder.pickedUpAt ? () => { setDetailId(null); setPartialTarget({ order: detailOrder, kind: "pickup" }); } : undefined}

@@ -7,7 +7,7 @@ import { ItemTimeline } from "../ItemTimeline.jsx";
 // The office "where's my order?" view — full detail with a per-product
 // progress tracker. Items reconverge here even though they're triaged and
 // routed independently.
-export function OrderDetail({ order, status, now, onDueDate, onCompletion, onInvoice, onMethod, onSaveNotes, onUpdateItem, onMoveItem, onFulfill, onCancel, onWalkInPickup, onPartialPickup, onClose }) {
+export function OrderDetail({ order, status, now, onDueDate, onCompletion, onInvoice, onMethod, onSaveNotes, onUpdateItem, onMoveItem, onFulfill, onSendOrderBack, onCancel, onWalkInPickup, onPartialPickup, onClose }) {
   const [confirming, setConfirming] = useState(false);
   const [reason, setReason] = useState("Customer cancelled");
   const [openTimeline, setOpenTimeline] = useState(null); // item id whose timeline is expanded
@@ -149,6 +149,13 @@ export function OrderDetail({ order, status, now, onDueDate, onCompletion, onInv
                   <Btn kind="brass" onClick={() => onFulfill("shipping")}><Truck size={13} />Ship</Btn>
                 )}
               </div>
+            </div>
+          )}
+
+          {onSendOrderBack && order.items.length > 0 && (
+            <div style={{ borderTop: `1px solid ${C.line}`, marginTop: 16, paddingTop: 14 }}>
+              <div style={{ fontSize: 13, color: C.inkSoft, marginBottom: 8 }}>Send the whole order back — routes <b>every item</b> to the stage you pick{order.fulfillment ? ", and pulls the order off Will Call / Shipping" : ""}:</div>
+              <MoveMenu stage="done" onMove={(s) => onSendOrderBack(s)} label="Send whole order to" />
             </div>
           )}
 
