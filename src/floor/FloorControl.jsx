@@ -243,9 +243,11 @@ export default function FloorControl({ orders, onClose, cncOnly = false, onSignO
                 <span className="ct">{deptCount(d)}</span>
               </button>
             ))}
-            <button className={`fc-booktab${isBook ? " on" : ""}`} onClick={() => setActive("book")}>
-              <BookOpen size={15} /> CNC Catalog
-            </button>
+            {(active === "cnc" || isBook) && (
+              <button className={`fc-booktab${isBook ? " on" : ""}`} onClick={() => setActive("book")}>
+                <BookOpen size={15} /> CNC Catalog
+              </button>
+            )}
           </nav>
           <div className="fc-spacer" />
           {!isBook && (
