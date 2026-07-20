@@ -11,6 +11,7 @@ export const DeptIcon = ({ d, size = 12 }) => {
 // Small inline dropdown — click the trigger, pick from `options`.
 export function InlineMenu({ children, options, onSelect, align = "left" }) {
   const [open, setOpen] = useState(false);
+  const [dropUp, setDropUp] = useState(false);
   const ref = useRef(null);
   useEffect(() => {
     if (!open) return;
@@ -18,11 +19,22 @@ export function InlineMenu({ children, options, onSelect, align = "left" }) {
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
   }, [open]);
+  const toggle = () => {
+    // Flip the menu upward when there isn't room below the trigger (near the
+    // bottom of the screen the list would otherwise run off and get clipped).
+    if (!open && ref.current) {
+      const rect = ref.current.getBoundingClientRect();
+      const below = window.innerHeight - rect.bottom;
+      const needed = Math.min(options.length * 36 + 16, 300);
+      setDropUp(below < needed && rect.top > below);
+    }
+    setOpen((v) => !v);
+  };
   return (
     <span ref={ref} style={{ position: "relative", display: "inline-flex" }} onClick={(e) => e.stopPropagation()}>
-      <span onClick={() => setOpen((v) => !v)}>{children}</span>
+      <span onClick={toggle}>{children}</span>
       {open && (
-        <div style={{ position: "absolute", top: "100%", [align]: 0, marginTop: 4, zIndex: 90, background: C.surface, border: `1px solid ${C.line}`, borderRadius: 6, boxShadow: "0 6px 22px rgba(0,0,0,0.13)", minWidth: 132, overflow: "hidden" }}>
+        <div style={{ position: "absolute", [dropUp ? "bottom" : "top"]: "100%", [align]: 0, [dropUp ? "marginBottom" : "marginTop"]: 4, zIndex: 90, background: C.surface, border: `1px solid ${C.line}`, borderRadius: 6, boxShadow: "0 6px 22px rgba(0,0,0,0.13)", minWidth: 132, maxHeight: "min(300px, 60vh)", overflowY: "auto" }}>
           {options.map((opt) => (
             <button
               key={opt.value}
