@@ -1,13 +1,13 @@
 import React, { useState, useRef, useEffect } from "react";
-import { X, Trash2, Clock, ChevronDown, ExternalLink, Check } from "lucide-react";
+import { X, Trash2, Clock, ChevronDown, ExternalLink, Check, Store, Truck } from "lucide-react";
 import { C, PRI, elapsed, itemStatusText, trackingUrl } from "../../theme.js";
-import { Pill, Info, Stepper, DeptBadge, DuePill, CompletionPill, MethodBadge, InvoicedBadge, SittingBadge, MoveMenu } from "../ui.jsx";
+import { Pill, Info, Stepper, DeptBadge, DuePill, CompletionPill, MethodBadge, InvoicedBadge, SittingBadge, MoveMenu, Btn } from "../ui.jsx";
 import { ItemTimeline } from "../ItemTimeline.jsx";
 
 // The office "where's my order?" view — full detail with a per-product
 // progress tracker. Items reconverge here even though they're triaged and
 // routed independently.
-export function OrderDetail({ order, status, now, onDueDate, onCompletion, onInvoice, onMethod, onSaveNotes, onUpdateItem, onMoveItem, onCancel, onWalkInPickup, onPartialPickup, onClose }) {
+export function OrderDetail({ order, status, now, onDueDate, onCompletion, onInvoice, onMethod, onSaveNotes, onUpdateItem, onMoveItem, onFulfill, onCancel, onWalkInPickup, onPartialPickup, onClose }) {
   const [confirming, setConfirming] = useState(false);
   const [reason, setReason] = useState("Customer cancelled");
   const [openTimeline, setOpenTimeline] = useState(null); // item id whose timeline is expanded
@@ -137,6 +137,20 @@ export function OrderDetail({ order, status, now, onDueDate, onCompletion, onInv
             </div>
             );
           })}
+
+          {status.key === "ready" && onFulfill && (
+            <div style={{ borderTop: `1px solid ${C.line}`, marginTop: 16, paddingTop: 14 }}>
+              <div style={{ fontSize: 13, color: C.inkSoft, marginBottom: 8 }}>This order is ready — send the whole order to fulfillment:</div>
+              <div className="flex items-center gap-2 flex-wrap">
+                {order.fulfillmentMethod !== "shipping" && (
+                  <Btn kind="gold" onClick={() => onFulfill("willcall")}><Store size={13} />Will call</Btn>
+                )}
+                {order.fulfillmentMethod !== "willcall" && (
+                  <Btn kind="brass" onClick={() => onFulfill("shipping")}><Truck size={13} />Ship</Btn>
+                )}
+              </div>
+            </div>
+          )}
 
           {(onWalkInPickup || onPartialPickup) && (
             <div style={{ borderTop: `1px solid ${C.line}`, marginTop: 16, paddingTop: 14 }}>
