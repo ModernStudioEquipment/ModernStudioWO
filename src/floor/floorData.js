@@ -128,13 +128,21 @@ export async function fetchFloorPhotosFor(skus) {
   return map;
 }
 
-// Normalized product-NAME -> photo, only for the names on screen. Matches on the
-// `norm` key (migration 0047) so casing/spacing/punctuation differences resolve.
-// The fallback when an item has no image and no matching SKU.
+// Normalized product-NAME -> photo, only for the names on screen. Uses an RPC
+// (migration 0048) because supabase-js .in() drops values containing a double-
+// quote (inch marks), which most product names have. The fallback when an item
+// has no image and no matching SKU.
 export async function fetchFloorProductPhotosFor(names) {
-  const rows = await fetchByKeys("floor_product_photos", "norm", "norm, image_url", names.map(norm));
+  if (!floorClient) return {};
+  const uniq = [...new Set(names.filter(Boolean))];
+  if (!uniq.length) return {};
+  const { data, error } = await floorClient.rpc("floor_photos_by_name", { p_names: uniq });
+  if (error) {
+    console.error("floor_photos_by_name failed:", error.message);
+    return {};
+  }
   const map = {};
-  rows.forEach((r) => {
+  (data || []).forEach((r) => {
     if (r.norm) map[r.norm] = r.image_url;
   });
   return map;
