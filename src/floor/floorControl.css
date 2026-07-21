@@ -3,16 +3,16 @@
 
 .fc-overlay{
   position:fixed; inset:0; z-index:2000; overflow:auto;
+  --line:#262E38; --line2:#38424E; --panel:#161B22; --panel2:#1C222B; --rail:#11151B;
+  --muted:#838D98; --dim:#5A626C; --red:#FF5C5C; --lane:#FFB224;
   background:
-    radial-gradient(120% 80% at 85% -10%, #17222e 0%, rgba(23,34,46,0) 55%),
-    #0D0F12;
+    radial-gradient(150% 95% at 88% -14%, color-mix(in srgb, var(--lane) 11%, #141a22) 0%, rgba(20,26,34,0) 50%),
+    #0C0E12;
   color:#F3F6F8;
   font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   -webkit-font-smoothing:antialiased;
-  --line:#29313A; --line2:#374250; --panel:#14181D; --rail:#10141A;
-  --muted:#7C868F; --dim:#565F68; --red:#FF5C5C;
 }
-.fc-wrap{max-width:1080px; margin:0 auto; padding:22px 26px 60px; display:flex; flex-direction:column; gap:22px}
+.fc-wrap{max-width:1080px; margin:0 auto; padding:24px 28px 60px; display:flex; flex-direction:column; gap:22px}
 
 .fc-top{display:flex; align-items:center; gap:20px}
 .fc-brand{display:flex; align-items:center; gap:14px}
@@ -44,66 +44,81 @@
 .fc-booktab:hover{background:color-mix(in srgb,#FFB224 14%,var(--panel))}
 .fc-booktab.on{color:#20160a; border-color:#FFB224; background:#FFB224}
 
-.fc-subnav{display:flex; gap:8px; flex-wrap:wrap}
-.fc-subtab{display:inline-flex; align-items:center; gap:8px; background:var(--rail); border:1px solid var(--line);
-  border-radius:11px; padding:9px 15px; cursor:pointer; font:inherit; font-size:14px; font-weight:700; color:var(--muted); transition:all .14s}
-.fc-subtab:hover{border-color:var(--line2); color:#F3F6F8}
-.fc-subtab.on{color:var(--accent); border-color:var(--accent); background:color-mix(in srgb,var(--accent) 12%,var(--rail))}
-.fc-subtab .n{font-size:12px; font-weight:800; color:var(--dim); background:var(--panel2); border-radius:999px; padding:1px 8px; min-width:22px; text-align:center}
-.fc-subtab.on .n{color:var(--accent); background:color-mix(in srgb,var(--accent) 20%,transparent)}
+/* machine lanes as one segmented control */
+.fc-subnav{display:inline-flex; align-items:center; gap:4px; align-self:flex-start; background:var(--rail);
+  border:1px solid var(--line); border-radius:13px; padding:4px; box-shadow:inset 0 1px 0 rgba(255,255,255,.02)}
+.fc-subdiv{width:1px; height:22px; background:var(--line); margin:0 5px}
+.fc-subtab{display:inline-flex; align-items:center; gap:9px; background:transparent; border:none;
+  border-radius:9px; padding:8px 15px; cursor:pointer; font:inherit; font-size:14px; font-weight:700; color:var(--muted); transition:all .15s}
+.fc-subtab:hover{color:#F3F6F8; background:rgba(255,255,255,.035)}
+.fc-subtab .mdot{width:8px; height:8px; border-radius:50%; background:var(--seg); flex:none; box-shadow:0 0 6px color-mix(in srgb,var(--seg) 60%,transparent)}
+.fc-subtab .n{font-size:12px; font-weight:800; color:var(--dim); background:rgba(0,0,0,.28); border-radius:999px; padding:1px 8px; min-width:22px; text-align:center; font-variant-numeric:tabular-nums}
+.fc-subtab.on{color:#12161c; background:var(--seg); box-shadow:0 2px 10px color-mix(in srgb,var(--seg) 38%,transparent)}
+.fc-subtab.on .mdot{background:rgba(0,0,0,.5); box-shadow:none}
+.fc-subtab.on .n{color:color-mix(in srgb,var(--seg) 85%,#000); background:rgba(255,255,255,.4)}
 
-.fc-assign{display:flex; align-items:center; gap:8px; margin-top:10px; padding-top:10px; border-top:1px solid var(--line)}
-.fc-assign-lab{font-size:10px; font-weight:800; letter-spacing:.16em; text-transform:uppercase; color:var(--dim); margin-right:2px}
+.fc-assign{display:flex; align-items:center; gap:7px; margin-top:11px; padding-top:11px; border-top:1px solid var(--line)}
+.fc-assign-lab{font-size:10px; font-weight:800; letter-spacing:.16em; text-transform:uppercase; color:var(--dim); margin-right:3px}
 .fc-mchip{background:var(--panel2); border:1px solid var(--line2); color:var(--muted); font:inherit; font-size:12px; font-weight:800;
-  letter-spacing:.02em; padding:6px 12px; border-radius:8px; cursor:pointer; transition:all .13s}
-.fc-mchip:hover{border-color:var(--accent); color:#F3F6F8}
-.fc-mchip.on{background:var(--accent); border-color:var(--accent); color:#20160a}
+  letter-spacing:.02em; padding:6px 13px; border-radius:8px; cursor:pointer; transition:all .13s}
+.fc-mchip:hover{border-color:var(--mc); color:#F3F6F8}
+.fc-mchip.on{background:var(--mc); border-color:var(--mc); color:#1a1206; box-shadow:0 2px 8px color-mix(in srgb,var(--mc) 38%,transparent)}
 
-.fc-head{display:flex; align-items:baseline; gap:12px}
-.fc-head h1{font-size:26px; font-weight:800; letter-spacing:-.01em}
-.fc-head h1 em{font-style:normal; color:var(--accent)}
+.fc-head{display:flex; align-items:baseline; gap:14px}
+.fc-head h1{font-size:27px; font-weight:800; letter-spacing:-.015em}
+.fc-head h1 em{font-style:normal; color:var(--lane)}
 .fc-hint{font-size:14px; color:var(--muted)}
 
-.fc-list{display:flex; flex-direction:column; gap:10px}
-.fc-row{display:flex; flex-direction:column; background:var(--rail); border:1px solid var(--line);
-  border-radius:14px; padding:12px 14px 12px 12px; cursor:grab; transition:border-color .12s, transform .06s, opacity .12s}
+.fc-list{display:flex; flex-direction:column; gap:9px}
+.fc-row{display:flex; flex-direction:column;
+  background:linear-gradient(180deg, color-mix(in srgb,#fff 2.5%,var(--panel)) 0%, var(--panel) 100%);
+  border:1px solid var(--line); border-radius:14px; padding:13px 15px 13px 13px; cursor:grab;
+  box-shadow:0 1px 2px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.03);
+  transition:border-color .14s, transform .1s, box-shadow .14s, opacity .12s}
 .fc-rowmain{display:flex; align-items:center; gap:14px}
-.fc-row:hover{border-color:var(--line2)}
+.fc-row:hover{border-color:var(--line2); transform:translateY(-1px); box-shadow:0 5px 16px rgba(0,0,0,.36), inset 0 1px 0 rgba(255,255,255,.04)}
 .fc-row:active{cursor:grabbing}
 .fc-row.drag{opacity:.35}
-.fc-row.now{border-color:color-mix(in srgb,var(--accent) 55%,#0d0f12); background:color-mix(in srgb,var(--accent) 9%,var(--rail))}
+/* hero: the job that runs next */
+.fc-row.now{
+  background:linear-gradient(180deg, color-mix(in srgb,var(--lane) 15%,var(--panel)) 0%, color-mix(in srgb,var(--lane) 5%,var(--panel)) 100%);
+  border-color:color-mix(in srgb,var(--lane) 45%,var(--line));
+  box-shadow:inset 3px 0 0 var(--lane), 0 8px 26px color-mix(in srgb,var(--lane) 16%,rgba(0,0,0,.45));
+  padding:16px 18px 16px 16px}
+.fc-row.now .fc-rank{color:var(--lane)}
+.fc-row.now .fc-meta .nm{font-size:19px}
 /* drag states (SortableJS) */
-.fc-row.fc-ghost{opacity:.25; background:color-mix(in srgb,var(--accent) 12%,var(--rail)); border-style:dashed; border-color:var(--accent)}
+.fc-row.fc-ghost{opacity:.22; background:color-mix(in srgb,var(--lane) 10%,var(--rail)); border-style:dashed; border-color:var(--lane); box-shadow:none}
 .fc-row.fc-chosen{cursor:grabbing}
-.fc-row.fc-dragging{border-color:var(--accent); box-shadow:0 14px 34px rgba(0,0,0,.5); transform:scale(1.015); background:var(--panel)}
+.fc-row.fc-dragging{border-color:var(--lane); box-shadow:0 18px 44px rgba(0,0,0,.55); transform:scale(1.02)}
 .fc-grip{color:var(--dim); display:flex; flex:none}
-.fc-rank{width:30px; text-align:center; font-size:20px; font-weight:800; color:var(--dim); flex:none; font-variant-numeric:tabular-nums}
-.fc-row.now .fc-rank{color:var(--accent)}
-.fc-thumb{width:46px; height:46px; border-radius:10px; background:#0a1218; border:1px solid var(--line2); flex:none; overflow:hidden; display:flex; align-items:center; justify-content:center}
+.fc-row:hover .fc-grip{color:var(--muted)}
+.fc-rank{width:28px; text-align:center; font-size:19px; font-weight:800; color:var(--dim); flex:none; font-variant-numeric:tabular-nums}
+.fc-thumb{width:48px; height:48px; border-radius:11px; background:#0a0f15; border:1px solid var(--line2); flex:none; overflow:hidden; display:flex; align-items:center; justify-content:center; box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
 .fc-thumb img{width:100%; height:100%; object-fit:cover}
-.fc-thumb .mono{font-size:17px; font-weight:800; color:color-mix(in srgb,var(--accent) 55%,#14181D)}
-.fc-meta{flex:1; min-width:0; display:flex; flex-direction:column}
-.fc-meta .no{display:block; font-size:11px; font-weight:800; letter-spacing:.08em; color:var(--muted)}
-.fc-meta .nm{display:block; font-size:17px; font-weight:700; line-height:1.15; margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-.fc-meta .mt{display:block; font-size:12px; color:var(--dim); margin-top:2px}
-.fc-nowtag{display:block; font-size:9px; font-weight:800; letter-spacing:.12em; color:var(--accent); text-transform:uppercase; margin-top:3px}
+.fc-thumb .mono{font-size:17px; font-weight:800; color:color-mix(in srgb,var(--lane) 55%,var(--panel2))}
+.fc-meta{flex:1; min-width:0; display:flex; flex-direction:column; gap:1px}
+.fc-meta .no{display:block; font-size:10.5px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; color:var(--dim); font-variant-numeric:tabular-nums}
+.fc-meta .nm{display:block; font-size:17px; font-weight:700; line-height:1.18; color:#F5F7FA; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.fc-meta .mt{display:block; font-size:12px; color:var(--dim); margin-top:1px}
+.fc-nowtag{display:block; font-size:9px; font-weight:800; letter-spacing:.14em; color:var(--lane); text-transform:uppercase; margin-top:4px}
 .fc-right{display:flex; align-items:center; gap:12px; flex:none}
 .fc-chip{font-size:10px; font-weight:800; letter-spacing:.1em; padding:4px 9px; border-radius:999px; text-transform:uppercase}
 .fc-chip.rush{background:rgba(255,92,92,.14); color:var(--red); border:1px solid rgba(255,92,92,.45)}
-.fc-chip.prog{background:color-mix(in srgb,var(--accent) 16%,transparent); color:var(--accent); border:1px solid color-mix(in srgb,var(--accent) 40%,transparent)}
+.fc-chip.prog{background:color-mix(in srgb,var(--lane) 16%,transparent); color:var(--lane); border:1px solid color-mix(in srgb,var(--lane) 40%,transparent)}
 .fc-totop, .fc-notebtn{display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; border-radius:9px;
   background:var(--panel); border:1px solid var(--line); color:var(--muted); cursor:pointer; transition:all .13s}
 .fc-totop:hover, .fc-notebtn:hover{border-color:var(--accent); color:var(--accent)}
-.fc-jobnote-row{display:block; font-size:12.5px; color:var(--accent); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:340px}
+.fc-jobnote-row{display:block; font-size:12.5px; color:var(--lane); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:340px}
 .fc-noteedit{display:flex; gap:8px; margin-top:10px; padding-top:10px; border-top:1px solid var(--line)}
 .fc-noteinput{flex:1; background:var(--panel2); border:1px solid var(--line2); color:#F3F6F8; font:inherit; font-size:14px; padding:8px 12px; border-radius:9px; outline:none}
 .fc-noteinput:focus{border-color:var(--accent)}
 .fc-notesave{background:var(--accent); color:#20160a; border:none; font:inherit; font-size:13px; font-weight:800; padding:8px 15px; border-radius:9px; cursor:pointer}
 .fc-notecancel{background:transparent; border:1px solid var(--line); color:var(--muted); font:inherit; font-size:13px; padding:8px 13px; border-radius:9px; cursor:pointer}
 .fc-notecancel:hover{color:#F3F6F8; border-color:var(--line2)}
-.fc-qty{text-align:right}
-.fc-qty .q{display:block; font-size:22px; font-weight:800; line-height:.9}
-.fc-qty .ql{display:block; font-size:9px; letter-spacing:.14em; color:var(--muted); text-transform:uppercase; margin-top:2px}
+.fc-qty{text-align:right; min-width:34px}
+.fc-qty .q{display:block; font-size:23px; font-weight:800; line-height:.9; font-variant-numeric:tabular-nums}
+.fc-qty .ql{display:block; font-size:9px; letter-spacing:.14em; color:var(--muted); text-transform:uppercase; margin-top:3px}
 
 .fc-empty{border:1px dashed var(--line2); border-radius:16px; padding:48px; text-align:center; color:var(--muted)}
 .fc-empty .big{font-size:22px; font-weight:800; color:#F3F6F8; margin-bottom:6px}

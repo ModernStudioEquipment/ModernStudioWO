@@ -14,11 +14,12 @@ const DEPTS = [
   { key: "saw", label: "Saw", db: "Saw", accent: "#7DD35B" },
 ];
 
-// CNC splits into three machines. Each has its own drag-ordered queue.
+// CNC splits into three machines. Each has its own drag-ordered queue and its
+// own tint (warm, so the CNC identity holds) so the lanes read as distinct.
 const MACHINES = [
-  { key: "vf4", short: "VF-4", label: "Haas VF-4" },
-  { key: "st10", short: "ST-10", label: "Haas ST-10" },
-  { key: "ds30ssy", short: "DS-30SSY", label: "Haas DS-30SSY" },
+  { key: "vf4", short: "VF-4", label: "Haas VF-4", color: "#FFB224" },
+  { key: "st10", short: "ST-10", label: "Haas ST-10", color: "#FF8A5C" },
+  { key: "ds30ssy", short: "DS-30SSY", label: "Haas DS-30SSY", color: "#F5CE3A" },
 ];
 
 // Arrangement keys we load up front (dept queues + the three CNC machines).
@@ -153,6 +154,9 @@ export default function FloorControl({ orders, onClose, cncOnly = false, onSignO
   const items = canOrder ? applyOrder(baseItems, order[queueKey] || []) : byRush(baseItems);
   const ids = items.map((i) => i.id);
   const qtyUnit = active === "saw" ? "cuts" : "pcs";
+  // Per-lane tint: each CNC machine gets its own accent for the queue area; the
+  // department (amber) identity stays on the header/logo.
+  const laneColor = isCnc && cncView !== "unassigned" ? MACHINES.find((m) => m.key === cncView)?.color || dept.accent : dept.accent;
 
   const deptCount = (d) => collect(orders, d.db).length;
 
@@ -223,7 +227,7 @@ export default function FloorControl({ orders, onClose, cncOnly = false, onSignO
     : `Items appear here once they're routed to ${dept.label} in the Work stage.`;
 
   return (
-    <div className="fc-overlay" style={{ "--accent": dept.accent }}>
+    <div className="fc-overlay" style={{ "--accent": dept.accent, "--lane": laneColor }}>
       <div className="fc-wrap">
         <header className="fc-top">
           <div className="fc-brand">
@@ -280,12 +284,16 @@ export default function FloorControl({ orders, onClose, cncOnly = false, onSignO
 
         {isCnc && (
           <div className="fc-subnav">
-            <button className={`fc-subtab${cncView === "unassigned" ? " on" : ""}`} onClick={() => setCncView("unassigned")}>
-              Unassigned <span className="n">{unassigned.length}</span>
+            <button className={`fc-subtab${cncView === "unassigned" ? " on" : ""}`} style={{ "--seg": dept.accent }} onClick={() => setCncView("unassigned")}>
+              <span className="lbl">Unassigned</span>
+              <span className="n">{unassigned.length}</span>
             </button>
+            <span className="fc-subdiv" />
             {MACHINES.map((m) => (
-              <button key={m.key} className={`fc-subtab${cncView === m.key ? " on" : ""}`} onClick={() => setCncView(m.key)}>
-                {m.short} <span className="n">{byMachine[m.key].length}</span>
+              <button key={m.key} className={`fc-subtab${cncView === m.key ? " on" : ""}`} style={{ "--seg": m.color }} onClick={() => setCncView(m.key)}>
+                <i className="mdot" />
+                <span className="lbl">{m.short}</span>
+                <span className="n">{byMachine[m.key].length}</span>
               </button>
             ))}
           </div>
@@ -339,6 +347,7 @@ export default function FloorControl({ orders, onClose, cncOnly = false, onSignO
                     <button
                       key={m.key}
                       className={`fc-mchip${machines[it.id] === m.key ? " on" : ""}`}
+                      style={{ "--mc": m.color }}
                       title={machines[it.id] === m.key ? `Remove from ${m.label}` : `Assign to ${m.label}`}
                       onClick={() => assignMachine(it.id, machines[it.id] === m.key ? null : m.key)}
                     >
