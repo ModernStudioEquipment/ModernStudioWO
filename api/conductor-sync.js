@@ -26,7 +26,12 @@ export const maxDuration = 60;
 export async function GET(request) {
   const params = new URL(request.url).searchParams;
   const days = Number(params.get("shiptoBackfillDays") || 0);
-  return run({ commit: false, shipToBackfillDays: days });
+  // ?backlogFrom=YYYY-MM-DD[&backlogTo=YYYY-MM-DD] reaches the invoice pull back to
+  // a specific pre-floor date so ONE old invoice can be located (preview) and then
+  // committed via ?commitBacklog. Normal syncs never pass these.
+  const backlogFrom = params.get("backlogFrom") || null;
+  const backlogTo = params.get("backlogTo") || null;
+  return run({ commit: false, shipToBackfillDays: days, backlogFrom, backlogTo });
 }
 
 export async function POST(request) {
@@ -36,7 +41,9 @@ export async function POST(request) {
   // (bypasses the forward-only guard for just that number). Used to recover a
   // specific dropped order without flushing the whole backlog.
   const commitBacklog = params.get("commitBacklog") || null;
-  return run({ commit: true, shipToBackfillDays: days, commitBacklog });
+  const backlogFrom = params.get("backlogFrom") || null;
+  const backlogTo = params.get("backlogTo") || null;
+  return run({ commit: true, shipToBackfillDays: days, commitBacklog, backlogFrom, backlogTo });
 }
 
 // One-off maintenance: remove synced QuickBooks orders so the next sync re-pulls
@@ -160,7 +167,7 @@ async function fetchTxns(path, conductorKey, endUserId, since, extra = "") {
   return out;
 }
 
-async function run({ commit, shipToBackfillDays, commitBacklog }) {
+async function run({ commit, shipToBackfillDays, commitBacklog, backlogFrom, backlogTo }) {
   const conductorKey = process.env.CONDUCTOR_SECRET_KEY;
   const endUserId = process.env.CONDUCTOR_END_USER_ID;
   const url = process.env.VITE_SUPABASE_URL;
@@ -187,14 +194,18 @@ async function run({ commit, shipToBackfillDays, commitBacklog }) {
   // Bumped 2026-07-04 after a duplicate-invoice backlog flooded the board (an
   // offline stretch let ~2 weeks of invoices sync at once). Go forward-only.
   const INVOICE_FLOOR = "2026-07-04";
-  const invoiceSince = since > INVOICE_FLOOR ? since : INVOICE_FLOOR;
+  // Targeted backlog recovery reaches the invoice pull back to backlogFrom (and
+  // caps it at backlogTo) so one specific old invoice can be pulled. commitBacklog
+  // then commits ONLY that number, so nothing else from the window lands.
+  const invoiceSince = backlogFrom || (since > INVOICE_FLOOR ? since : INVOICE_FLOOR);
+  const invoiceExtra = "&includeLinkedTransactions=true" + (backlogTo ? `&transactionDateTo=${backlogTo}` : "");
   let soList, invList;
   try {
     [soList, invList] = await Promise.all([
       fetchTxns("sales-orders", conductorKey, endUserId, since),
       // linkedTransactions isn't returned by default — ask for it so we can tell
       // which invoices came from a sales order already on the board.
-      fetchTxns("invoices", conductorKey, endUserId, invoiceSince, "&includeLinkedTransactions=true"),
+      fetchTxns("invoices", conductorKey, endUserId, invoiceSince, invoiceExtra),
     ]);
   } catch (e) {
     if (e.status) return json(502, { error: "Conductor request failed", status: e.status, detail: e.detail });
