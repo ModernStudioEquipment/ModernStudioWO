@@ -12,7 +12,8 @@ html:has(.floor-root), body:has(.floor-root) { background: #0D0F12; }
   --accent:#FFB224; --draw:#74D0E6; --lane:#FFB224;
   height:100vh; min-height:640px;
   background:
-    radial-gradient(150% 95% at 84% -12%, color-mix(in srgb,var(--lane) 12%,#141a22) 0%, rgba(20,26,34,0) 52%),
+    radial-gradient(115% 85% at 84% -12%, color-mix(in srgb,var(--lane) 22%,#161e28) 0%, rgba(20,26,34,0) 48%),
+    radial-gradient(80% 68% at 5% 108%, color-mix(in srgb,var(--lane) 12%,#111720) 0%, rgba(18,23,31,0) 52%),
     var(--ground);
   color:var(--text);
   font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
@@ -178,3 +179,25 @@ html:has(.floor-root), body:has(.floor-root) { background: #0D0F12; }
 
 @keyframes floorblink{0%,100%{opacity:1}50%{opacity:.35}}
 @media (prefers-reduced-motion:reduce){.floor-live i{animation:none}}
+
+/* ---- responsive: stack the monitor on phones/tablets ---- */
+@media (max-width:820px){
+  .floor-stage{height:auto; min-height:100vh; overflow-y:auto; overflow-x:hidden;
+    grid-template-rows:auto auto auto; padding:14px 14px 14px; gap:14px}
+  .floor-top{flex-wrap:wrap; gap:10px 16px}
+  .floor-top .spacer{display:none}
+  .floor-logo{width:172px; height:44px}
+  .floor-mtabs{order:9; width:100%; overflow-x:auto; flex-wrap:nowrap}
+  .floor-clock{margin-left:auto; border-left:none; padding-left:0; text-align:right}
+  .floor-main{grid-template-columns:1fr}
+  .floor-nowbody{grid-template-columns:1fr}
+  .floor-photo{min-height:220px}
+  .floor-wo h1{font-size:27px}
+  .floor-qty .n{font-size:48px}
+  .floor-exit{opacity:.85}
+}
+@media (max-width:520px){
+  .floor-nowhead{flex-wrap:wrap; gap:12px}
+  .floor-qty{margin-left:0; padding-left:0}
+  .floor-wo h1{font-size:23px}
+}

@@ -6,8 +6,9 @@
   --line:#262E38; --line2:#38424E; --panel:#161B22; --panel2:#1C222B; --rail:#11151B;
   --muted:#838D98; --dim:#5A626C; --red:#FF5C5C; --lane:#FFB224;
   background:
-    radial-gradient(150% 95% at 88% -14%, color-mix(in srgb, var(--lane) 11%, #141a22) 0%, rgba(20,26,34,0) 50%),
-    #0C0E12;
+    radial-gradient(115% 80% at 86% -12%, color-mix(in srgb, var(--lane) 24%, #171f2a) 0%, rgba(20,26,34,0) 46%),
+    radial-gradient(85% 72% at 6% 108%, color-mix(in srgb, var(--lane) 13%, #121821) 0%, rgba(18,23,31,0) 52%),
+    #0B0D11;
   color:#F3F6F8;
   font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   -webkit-font-smoothing:antialiased;
@@ -127,3 +128,33 @@
 .fc-savebar{display:flex; align-items:center; gap:10px; font-size:12px; color:var(--muted)}
 .fc-savebar .reset{background:transparent; border:1px solid var(--line); color:var(--muted); font:inherit; font-size:12px; padding:6px 12px; border-radius:9px; cursor:pointer}
 .fc-savebar .reset:hover{border-color:var(--line2); color:#F3F6F8}
+
+/* ---- responsive: wrap the header so buttons never get cut off ---- */
+@media (max-width:920px){
+  .fc-wrap{padding:16px 16px 48px; gap:16px}
+  .fc-top{flex-wrap:wrap; gap:10px 12px}
+  .fc-spacer{display:none}
+  .fc-brand{margin-right:auto}
+  .fc-tabs{order:9; width:100%; margin-left:0 !important; overflow-x:auto; flex-wrap:nowrap; padding-bottom:4px;
+    scrollbar-width:thin; -webkit-overflow-scrolling:touch}
+  .fc-tab, .fc-booktab{flex:none}
+  .fc-logo{width:150px; height:40px}
+  .fc-open, .fc-back{font-size:12.5px; padding:8px 13px}
+  .fc-head{flex-wrap:wrap; gap:4px 12px}
+  .fc-head h1{font-size:23px}
+  .fc-subnav{align-self:stretch; overflow-x:auto; flex-wrap:nowrap; scrollbar-width:thin}
+}
+@media (max-width:560px){
+  .fc-wrap{padding:14px 12px 44px}
+  .fc-brandtag{display:none}
+  .fc-open{display:none}            /* preview link drops on phones; Back/Sign-out stays */
+  .fc-logo{width:132px; height:36px}
+  .fc-rowmain{gap:10px}
+  .fc-grip{display:none}            /* whole row is still draggable; icon just hidden */
+  .fc-rank{width:20px; font-size:17px}
+  .fc-thumb{width:42px; height:42px}
+  .fc-right{gap:8px}
+  .fc-qty .q{font-size:20px}
+  .fc-assign{flex-wrap:wrap}
+  .fc-meta .nm{font-size:16px}
+}
