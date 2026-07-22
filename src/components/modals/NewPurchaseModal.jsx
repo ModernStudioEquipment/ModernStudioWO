@@ -29,6 +29,8 @@ export function NewPurchaseModal({ getNextOrderNo, onCreate, onClose }) {
 
   const validMats = mats.filter((m) => m.name.trim());
   const canSave = validMats.length && !saving;
+  // If anything's been typed, a stray click on the backdrop shouldn't nuke it.
+  const dirty = !!(mats.some((m) => m.name.trim() || m.amount.trim()) || note.trim());
 
   const submit = async () => {
     if (!canSave) return;
@@ -51,7 +53,7 @@ export function NewPurchaseModal({ getNextOrderNo, onCreate, onClose }) {
   const label = { fontSize: 10, fontWeight: 700, color: C.gray, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 };
 
   return (
-    <div style={overlay} onClick={onClose}>
+    <div style={overlay} onClick={dirty ? undefined : onClose}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: 560, maxWidth: "96vw", background: C.concrete, borderRadius: 8, overflow: "hidden" }}>
         <div className="flex items-center px-4 py-3 font-bold" style={{ background: C.fill, color: "#fff" }}>
           New purchase
