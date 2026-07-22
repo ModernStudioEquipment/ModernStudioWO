@@ -8,14 +8,27 @@ import { DeptIcon } from "../ui.jsx";
 // and routed independently.
 const blankItem = () => ({ name: "", qty: "1", dept: "Shop", color: "" });
 
+// Persist an in-progress order so a stray click, a live board refetch, or an
+// accidental reload can't wipe a phone order mid-entry. Cleared once created.
+const DRAFT_KEY = "modern.newOrderDraft.v1";
+const loadDraft = () => {
+  try {
+    const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || "null");
+    return d && typeof d === "object" ? d : null;
+  } catch {
+    return null;
+  }
+};
+
 export function NewOrderModal({ getNextOrderNo, onCreate, onClose }) {
   const [orderNo, setOrderNo] = useState("");
-  const [customer, setCustomer] = useState("");
-  const [contact, setContact] = useState("");
-  const [dueDate, setDueDate] = useState("");
-  const [dueTime, setDueTime] = useState(""); // optional "HH:MM"
-  const [method, setMethod] = useState(""); // "" | "willcall" | "shipping" — chosen at intake
-  const [items, setItems] = useState([blankItem()]);
+  const [draft] = useState(loadDraft); // read once on mount
+  const [customer, setCustomer] = useState(draft?.customer || "");
+  const [contact, setContact] = useState(draft?.contact || "");
+  const [dueDate, setDueDate] = useState(draft?.dueDate || "");
+  const [dueTime, setDueTime] = useState(draft?.dueTime || ""); // optional "HH:MM"
+  const [method, setMethod] = useState(draft?.method || ""); // "" | "willcall" | "shipping" — chosen at intake
+  const [items, setItems] = useState(() => (draft?.items?.length ? draft.items : [blankItem()]));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
@@ -23,12 +36,29 @@ export function NewOrderModal({ getNextOrderNo, onCreate, onClose }) {
     getNextOrderNo().then(setOrderNo).catch(() => setOrderNo(""));
   }, [getNextOrderNo]);
 
+  // Mirror what's entered into localStorage on every change, so nothing typed
+  // is ever lost to a stray click, a realtime refetch, or a reload.
+  useEffect(() => {
+    try {
+      const hasContent = customer.trim() || contact.trim() || dueDate || method ||
+        items.some((it) => it.name.trim() || it.color.trim());
+      if (hasContent) {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify({ customer, contact, dueDate, dueTime, method, items }));
+      } else {
+        localStorage.removeItem(DRAFT_KEY);
+      }
+    } catch { /* private mode / quota — just skip persistence */ }
+  }, [customer, contact, dueDate, dueTime, method, items]);
+
   const updItem = (i, k, v) => setItems((rows) => rows.map((r, j) => (j === i ? { ...r, [k]: v } : r)));
   const addItem = () => setItems((rows) => [...rows, blankItem()]);
   const removeItem = (i) => setItems((rows) => (rows.length > 1 ? rows.filter((_, j) => j !== i) : rows));
 
   const validItems = items.filter((it) => it.name.trim());
   const canSave = orderNo.trim() && customer.trim() && validItems.length && !saving;
+  // Once anything's been entered, a stray backdrop click shouldn't discard it.
+  const dirty = !!(customer.trim() || contact.trim() || dueDate || method ||
+    items.some((it) => it.name.trim() || it.color.trim()));
 
   const submit = async () => {
     if (!canSave) return;
@@ -51,6 +81,7 @@ export function NewOrderModal({ getNextOrderNo, onCreate, onClose }) {
           color: it.color.trim() || null,
         })),
       });
+      try { localStorage.removeItem(DRAFT_KEY); } catch { /* noop */ }
       onClose();
     } catch (e) {
       setError(e.message || String(e));
@@ -62,7 +93,7 @@ export function NewOrderModal({ getNextOrderNo, onCreate, onClose }) {
   const label = { fontSize: 10, fontWeight: 700, color: C.gray, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 };
 
   return (
-    <div style={overlay} onClick={onClose}>
+    <div style={overlay} onClick={dirty ? undefined : onClose}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: 620, maxWidth: "96vw", background: C.concrete, borderRadius: 8, overflow: "hidden" }}>
         <div className="flex items-center px-4 py-3 font-bold" style={{ background: C.fill, color: "#fff" }}>
           New order

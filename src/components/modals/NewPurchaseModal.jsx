@@ -8,12 +8,26 @@ import { DeptIcon } from "../ui.jsx";
 // standalone purchase that shows only in Purchasing.
 const blankMat = () => ({ name: "", amount: "" });
 
+// Persist an in-progress purchase so nothing is lost if the modal closes, the
+// live board refetches under you, or the tab reloads mid-entry. Cleared the
+// moment a purchase is successfully added.
+const DRAFT_KEY = "modern.newPurchaseDraft.v1";
+const loadDraft = () => {
+  try {
+    const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || "null");
+    return d && typeof d === "object" ? d : null;
+  } catch {
+    return null;
+  }
+};
+
 export function NewPurchaseModal({ getNextOrderNo, onCreate, onClose }) {
   const [orderNo, setOrderNo] = useState("");
-  const [dept, setDept] = useState("Shop");
-  const [mats, setMats] = useState([blankMat()]);
-  const [forInventory, setForInventory] = useState(true); // standalone purchases default to restock
-  const [note, setNote] = useState("");
+  const [draft] = useState(loadDraft); // read once on mount
+  const [dept, setDept] = useState(draft?.dept || "Shop");
+  const [mats, setMats] = useState(() => (draft?.mats?.length ? draft.mats : [blankMat()]));
+  const [forInventory, setForInventory] = useState(draft?.forInventory ?? true); // standalone purchases default to restock
+  const [note, setNote] = useState(draft?.note || "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
@@ -22,6 +36,18 @@ export function NewPurchaseModal({ getNextOrderNo, onCreate, onClose }) {
   useEffect(() => {
     getNextOrderNo().then(setOrderNo).catch(() => setOrderNo(""));
   }, [getNextOrderNo]);
+
+  // Mirror what's typed into localStorage on every change, so a stray click,
+  // a realtime refetch, or an accidental reload can't wipe the work.
+  useEffect(() => {
+    try {
+      if (mats.some((m) => m.name.trim() || m.amount.trim()) || note.trim()) {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify({ dept, mats, forInventory, note }));
+      } else {
+        localStorage.removeItem(DRAFT_KEY);
+      }
+    } catch { /* private mode / quota — just skip persistence */ }
+  }, [dept, mats, forInventory, note]);
 
   const updMat = (i, k, v) => setMats((rows) => rows.map((r, j) => (j === i ? { ...r, [k]: v } : r)));
   const addMat = () => setMats((rows) => [...rows, blankMat()]);
@@ -42,6 +68,7 @@ export function NewPurchaseModal({ getNextOrderNo, onCreate, onClose }) {
         dept,
         materials: validMats.map((m) => ({ name: m.name.trim(), amount: m.amount.trim() || null, note: note.trim() || null, forInventory })),
       });
+      try { localStorage.removeItem(DRAFT_KEY); } catch { /* noop */ }
       onClose();
     } catch (e) {
       setError(e.message || String(e));
