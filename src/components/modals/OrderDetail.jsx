@@ -7,7 +7,7 @@ import { ItemTimeline } from "../ItemTimeline.jsx";
 // The office "where's my order?" view — full detail with a per-product
 // progress tracker. Items reconverge here even though they're triaged and
 // routed independently.
-export function OrderDetail({ order, status, now, onDueDate, onCompletion, onInvoice, onMethod, onSaveNotes, onUpdateItem, onMoveItem, onFulfill, onSendOrderBack, onCancel, onWalkInPickup, onPartialPickup, onClose }) {
+export function OrderDetail({ order, status, now, onDueDate, onCompletion, onInvoice, onMethod, onSaveNotes, onUpdateItem, onMoveItem, onGoToItem, onFulfill, onSendOrderBack, onCancel, onWalkInPickup, onPartialPickup, onClose }) {
   const [confirming, setConfirming] = useState(false);
   const [reason, setReason] = useState("Customer cancelled");
   const [openTimeline, setOpenTimeline] = useState(null); // item id whose timeline is expanded
@@ -103,7 +103,7 @@ export function OrderDetail({ order, status, now, onDueDate, onCompletion, onInv
                   {itemStatusText(it)}
                 </span>
               </div>
-              <Stepper it={it} />
+              <Stepper it={it} onGoTo={onGoToItem} />
               <div className="flex items-center justify-between gap-3 mt-3 flex-wrap">
                 <button
                   onClick={() => setOpenTimeline(open ? null : it.id)}

@@ -968,6 +968,12 @@ export default function App() {
           onSaveNotes={(notes) => board.setOrderNotes(detailOrder.id, notes)}
           onUpdateItem={(itemId, patch) => board.updateItem(itemId, patch)}
           onMoveItem={(itemId, s) => { if (s === "awaiting") { setDetailId(null); setMatTarget(itemId); } else board.moveItem(itemId, s); }}
+          onGoToItem={(stage) => {
+            // click a product's progress bubbles -> jump to the tab it lives in
+            setDetailId(null);
+            const map = { new: "new", picklist: "pick", workorder: "work", awaiting: "buy" };
+            goToTab(detailOrder.id, map[stage] || (orderLocations(detailOrder)[0] || {}).k || "orders");
+          }}
           onFulfill={(method) => { setDetailId(null); openFulfill(detailOrder, method); }}
           onSendOrderBack={(stage) => board.reopenOrder(detailOrder.id, stage)}
           onCancel={(reason) => board.cancelOrder(detailOrder.id, reason)}

@@ -477,14 +477,19 @@ export function Info({ label, value }) {
 // The 3rd step names the item's ACTUAL stage (Pick List / Work Order /
 // Purchasing) so the bubble says WHERE the work is, not a generic "In
 // production". Falls back to "In production" for new/done or any other stage.
-export function Stepper({ it }) {
+export function Stepper({ it, onGoTo }) {
   const midLabel = (it.stage === "picklist" || it.stage === "workorder" || it.stage === "awaiting")
     ? STAGE_LABELS[it.stage] : "In production";
   const labels = ["Received", "Triaged", midLabel, "Done"];
   const doneCount = it.stage === "new" ? 1 : it.stage === "done" ? 4 : 2;
   const currentIdx = it.stage === "done" ? -1 : doneCount;
   return (
-    <div className="flex items-start" style={{ marginTop: 10 }}>
+    <div
+      className="flex items-start"
+      style={{ marginTop: 10, cursor: onGoTo ? "pointer" : "default" }}
+      onClick={onGoTo ? (e) => { e.stopPropagation(); onGoTo(it.stage); } : undefined}
+      title={onGoTo ? "Go to where this product is on the board" : undefined}
+    >
       {labels.map((lab, i) => {
         const done = i < doneCount,
           cur = i === currentIdx;
