@@ -23,10 +23,11 @@ const STATIC_EVERY = 12; // re-fetch photos / CNC parts only every ~5 min (they 
 const MAX_QUEUE = 6; // rows visible under the NOW card
 
 // CNC monitor is split by machine — clickable tabs at the top of the screen.
+// Colors match Floor Control so a machine reads the same everywhere.
 const MACHINES = [
-  { key: "vf4", short: "VF-4" },
-  { key: "st10", short: "ST-10" },
-  { key: "ds30ssy", short: "DS-30SSY" },
+  { key: "vf4", short: "VF-4", color: "#FFB224" },
+  { key: "st10", short: "ST-10", color: "#FF8A5C" },
+  { key: "ds30ssy", short: "DS-30SSY", color: "#F5CE3A" },
 ];
 
 function useClock() {
@@ -173,7 +174,10 @@ export default function FloorDisplay({ deptKey }) {
   MACHINES.forEach((m) => (machineCounts[m.key] = rawItems.filter((it) => machineMap[it.item_id] === m.key).length));
   const unassignedCount = isCnc ? rawItems.filter((it) => !machineMap[it.item_id]).length : 0;
 
-  const stageStyle = useMemo(() => ({ "--accent": dept.accent, "--draw": dept.draw }), [dept]);
+  // Per-lane tint: the CNC monitor takes the selected machine's color on the
+  // queue area, while the header/logo keep the department (amber) identity.
+  const laneColor = isCnc ? MACHINES.find((m) => m.key === machine)?.color || dept.accent : dept.accent;
+  const stageStyle = useMemo(() => ({ "--accent": dept.accent, "--draw": dept.draw, "--lane": laneColor }), [dept, laneColor]);
   const qtyLabel = deptKey === "saw" ? "Cuts" : "Pieces";
 
   const handleDone = async (id) => {
@@ -201,7 +205,8 @@ export default function FloorDisplay({ deptKey }) {
           {isCnc && (
             <div className="floor-mtabs">
               {MACHINES.map((m) => (
-                <button key={m.key} className={`floor-mtab${machine === m.key ? " on" : ""}`} onClick={() => setMachine(m.key)}>
+                <button key={m.key} className={`floor-mtab${machine === m.key ? " on" : ""}`} style={{ "--seg": m.color }} onClick={() => setMachine(m.key)}>
+                  <i className="md" />
                   <b>{m.short}</b>
                   <span className="mc">{machineCounts[m.key]}</span>
                 </button>
