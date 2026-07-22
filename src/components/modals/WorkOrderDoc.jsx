@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { createPortal } from "react-dom";
 import { Printer } from "lucide-react";
 import { C, dueLabel } from "../../theme.js";
 import { Btn } from "../ui.jsx";
@@ -80,8 +81,8 @@ export function WorkOrderDoc({ order, items, onSave, onUploadPhoto, onClose }) {
     onUploadPhoto,
   };
 
-  return (
-    <div style={overlay} onClick={onClose}>
+  return createPortal(
+    <div className="print-doc-overlay" style={overlay} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: 680, maxWidth: "96vw" }}>
         <div className="flex gap-2 mb-2 justify-end no-print">
           {onSave && <Btn kind="green" onClick={() => save(false)} disabled={saving}>{saving ? "Saving…" : "Save"}</Btn>}
@@ -92,7 +93,8 @@ export function WorkOrderDoc({ order, items, onSave, onUploadPhoto, onClose }) {
           <Body {...bodyProps} />
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

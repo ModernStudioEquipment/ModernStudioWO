@@ -180,13 +180,25 @@ button:not(.navtab):not(.no-pop),
   #wo * {
     visibility: visible !important;
   }
+  /* The portaled modal collapses to just the sheet, which flows normally so it
+     prints its true height (one page for a one-page order) — no blank pages. */
+  .print-doc-overlay {
+    position: static !important;
+    overflow: visible !important;
+    background: none !important;
+    padding: 0 !important;
+    display: block !important;
+  }
   #wo {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
+    position: static !important;
+    width: 100% !important;
   }
   .no-print {
+    display: none !important;
+  }
+  /* The board (#root) flows tall; the print sheet is portaled to <body>, so
+     hiding the app root kills the blank pages without touching the sheet. */
+  #root {
     display: none !important;
   }
   .wo-edit {

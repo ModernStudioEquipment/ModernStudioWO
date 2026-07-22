@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { createPortal } from "react-dom";
 import { Printer } from "lucide-react";
 import { C } from "../../theme.js";
 import { Btn } from "../ui.jsx";
@@ -60,8 +61,8 @@ export function CustomWorkOrderDoc({ wo, onSave, onClose }) {
   const Body = bodyFor(t);
   const bodyProps = { fields, set, setLineCell, addLine, form, orderNo: wo.orderNo };
 
-  return (
-    <div style={overlay} onClick={onClose}>
+  return createPortal(
+    <div className="print-doc-overlay" style={overlay} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: 680, maxWidth: "96vw" }}>
         <div className="flex gap-2 mb-2 justify-end no-print">
           <Btn kind="green" onClick={() => save(false)} disabled={saving}>{saving ? "Saving…" : "Save"}</Btn>
@@ -72,7 +73,8 @@ export function CustomWorkOrderDoc({ wo, onSave, onClose }) {
           <Body {...bodyProps} />
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
