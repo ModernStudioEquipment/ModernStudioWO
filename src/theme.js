@@ -162,7 +162,10 @@ export function trackingUrl(raw) {
 export const DEPTS = ["Shop", "CNC", "Sewing", "Saw"];
 export const PRIORITIES = ["Normal", "High", "RUSH"]; // stored values; UI shows PRI[x].label
 
-export const elapsed = (ms) => {
+export const elapsed = (msRaw) => {
+  // The `now` tick only refreshes every 30s, so a just-happened event can compute
+  // a negative age. Clamp — "-1m ago" is nonsense on screen.
+  const ms = Math.max(0, msRaw);
   const m = Math.floor(ms / 60000);
   if (m < 60) return `${m}m`;
   const h = Math.floor(m / 60);
@@ -184,7 +187,9 @@ export const stampAt = (ms) => {
 };
 export const stamp = (ms, now = Date.now()) => {
   const at = stampAt(ms);
-  return at ? `${at} · ${elapsed(now - ms)} ago` : "";
+  if (!at) return "";
+  const age = Math.max(0, now - ms);
+  return `${at} · ${age < 60000 ? "just now" : `${elapsed(age)} ago`}`;
 };
 
 // Format a "YYYY-MM-DD" due date as e.g. "Jun 20" (parsed at local midnight so

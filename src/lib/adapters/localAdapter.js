@@ -566,10 +566,10 @@ export const localAdapter = {
     return id;
   },
 
-  async markWorkOrderDone(id) {
+  async markWorkOrderDone(id, done = true) {
     const list = readWO();
     const w = list.find((x) => x.id === id);
-    if (w) w.done = true;
+    if (w) w.done = !!done;
     writeWO(list);
   },
 

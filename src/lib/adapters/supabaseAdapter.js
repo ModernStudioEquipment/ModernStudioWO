@@ -616,8 +616,9 @@ export const supabaseAdapter = {
     return data?.id;
   },
 
-  async markWorkOrderDone(id) {
-    const { error } = await supabase.from("work_orders").update({ done: true }).eq("id", id);
+  // done=false reopens it — that's how Undo takes back a mis-tapped "Mark done".
+  async markWorkOrderDone(id, done = true) {
+    const { error } = await supabase.from("work_orders").update({ done: !!done }).eq("id", id);
     fail(error);
   },
 

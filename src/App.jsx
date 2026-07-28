@@ -8,6 +8,7 @@ import { backendMode } from "./lib/db.js";
 import { useAuth } from "./hooks/useAuth.js";
 import { useOrders } from "./hooks/useOrders.js";
 import { useWorkOrders } from "./hooks/useWorkOrders.js";
+import { useUndo } from "./hooks/useUndo.js";
 import {
   Pill, Btn, Group, ItemLine, Empty, Tabwrap, DeptBadge, DuePill, CompletionPill, MethodBadge, InvoicedBadge, MoveMenu, SittingBadge, InlineMenu,
 } from "./components/ui.jsx";
@@ -38,6 +39,7 @@ export default function App() {
   const authed = !auth.needsAuth || !!auth.user;
   const board = useOrders(authed);
   const wo = useWorkOrders(authed);
+  const undoer = useUndo();
   // Cancelled orders are kept on record in the DB but hidden from every board.
   const allOrders = board.orders;
   const orders = allOrders.filter((o) => !o.cancelledAt);
@@ -187,6 +189,40 @@ export default function App() {
     setMatTarget(null);
   };
   const cyclePri = (orderId, cur) => board.setPriority(orderId, PRI_CYCLE[cur]);
+
+  // --- Undo (one deep, this device) -------------------------------------------
+  // Stage changes are the easy ones to mis-tap and the hardest to trace after the
+  // fact ("what did I just mark done?"), so they capture the item's previous
+  // stage BEFORE the write and record how to put it back.
+  const findItem = (itemId) => {
+    for (const o of orders) {
+      const it = o.items.find((x) => x.id === itemId);
+      if (it) return { it, o };
+    }
+    return {};
+  };
+  const label = (it, o, what) => `${what} — ${it.name}${o ? ` (#${o.orderNo})` : ""}`;
+  const finishItemU = async (itemId) => {
+    const { it, o } = findItem(itemId);
+    const prev = it?.stage;
+    await board.finishItem(itemId);
+    if (prev) undoer.record(label(it, o, "Marked done"), () => board.moveItem(itemId, prev));
+  };
+  const moveItemU = async (itemId, stage) => {
+    const { it, o } = findItem(itemId);
+    const prev = it?.stage;
+    await board.moveItem(itemId, stage);
+    if (prev) undoer.record(label(it, o, `Moved to ${STAGE_LABELS[stage] || stage}`), () => board.moveItem(itemId, prev));
+  };
+  const markWoDoneU = async (w) => {
+    await wo.markDone(w.id);
+    undoer.record(`Marked done — work order #${w.orderNo || ""}`.trim(), () => wo.markDone(w.id, false));
+  };
+  const markOrderedU = async (materialId, details) => {
+    const m = orders.flatMap((o) => o.items).flatMap((it) => it.materials).find((x) => x.id === materialId);
+    await board.markOrdered(materialId, details);
+    if (m && !m.ordered) undoer.record(`Marked ordered — ${m.name}`, () => board.unmarkOrdered(materialId));
+  };
 
   // Invoiced checkbox (QB orders): checking an un-invoiced order opens the popup
   // to enter its invoice number; clicking an already-invoiced one clears it.
@@ -593,6 +629,26 @@ export default function App() {
         )}
       </div>
 
+      {/* Undo bar — its own row so it never squeezes the nav tabs, and there's room
+          to spell out exactly what happened (the whole point: "what did I just click?"). */}
+      {undoer.last && (
+        <div className="flex items-center gap-3 px-4 py-2" style={{ background: C.grayBg, borderBottom: `1px solid ${C.line}`, fontSize: 12.5 }}>
+          <RotateCcw size={14} style={{ color: C.gray, flexShrink: 0 }} />
+          <span style={{ color: C.ink, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {undoer.last.label}
+          </span>
+          <span style={{ color: C.gray, whiteSpace: "nowrap" }}>{stamp(undoer.last.at, now)}</span>
+          <div className="ml-auto flex items-center gap-2" style={{ flexShrink: 0 }}>
+            <Btn kind="dark" onClick={undoer.undo} disabled={undoer.undoing}>
+              <RotateCcw size={13} />{undoer.undoing ? "Undoing…" : "Undo"}
+            </Btn>
+            <button onClick={undoer.clear} title="Dismiss" style={{ color: C.gray, background: "none", border: "none", cursor: "pointer", padding: 4, display: "inline-flex" }}>
+              <X size={15} />
+            </button>
+          </div>
+        </div>
+      )}
+
       {floorOpen && <FloorControl orders={orders} onClose={() => setFloorOpen(false)} />}
 
       {backendMode === "local" && <LocalBanner />}
@@ -693,8 +749,8 @@ export default function App() {
                         right={
                           <span className="flex items-center gap-2">
                             {it.note && <Bell size={16} color={C.high} fill={C.high} title={`Note: ${it.note}`} style={{ flexShrink: 0 }} />}
-                            <MoveMenu stage={it.stage} onMove={(s) => (s === "awaiting" ? setMatTarget(it.id) : board.moveItem(it.id, s))} />
-                            <Btn kind="dark" onClick={() => board.finishItem(it.id)}><Check size={13} />Item picked</Btn>
+                            <MoveMenu stage={it.stage} onMove={(s) => (s === "awaiting" ? setMatTarget(it.id) : moveItemU(it.id, s))} />
+                            <Btn kind="dark" onClick={() => finishItemU(it.id)}><Check size={13} />Item picked</Btn>
                           </span>
                         }
                       />
@@ -740,7 +796,7 @@ export default function App() {
                       <span className="basis-full sm:basis-auto sm:ml-auto flex flex-wrap items-center gap-2" onClick={(e) => e.stopPropagation()}>
                         <Pill c={C.inkSoft} bg={C.grayBg} Icon={Clock}>{stamp(w.createdAt, now)}</Pill>
                         <Btn onClick={() => setCustomDoc(w)}><Printer size={13} />Print</Btn>
-                        <Btn kind="dark" onClick={() => wo.markDone(w.id)}><Check size={13} />Mark done</Btn>
+                        <Btn kind="dark" onClick={() => markWoDoneU(w)}><Check size={13} />Mark done</Btn>
                       </span>
                     </div>
                   </div>
@@ -796,10 +852,10 @@ export default function App() {
                                   right={
                                     <span className="flex flex-wrap items-center justify-end gap-2">
                                       {it.note && <Bell size={16} color={C.high} fill={C.high} title={`Note: ${it.note}`} style={{ flexShrink: 0 }} />}
-                                      <MoveMenu stage={it.stage} onMove={(s) => (s === "awaiting" ? setMatTarget(it.id) : board.moveItem(it.id, s))} />
+                                      <MoveMenu stage={it.stage} onMove={(s) => (s === "awaiting" ? setMatTarget(it.id) : moveItemU(it.id, s))} />
                                       {!multi && <Btn onClick={() => setDoc({ o, items: [it] })}><Printer size={13} />Print</Btn>}
                                       <Btn kind={it.inProgress ? "green" : "ghost"} onClick={() => board.updateItem(it.id, { inProgress: !it.inProgress })}><Hammer size={13} />In progress</Btn>
-                                      <Btn kind="dark" onClick={() => board.finishItem(it.id)}><Check size={13} />Mark done</Btn>
+                                      <Btn kind="dark" onClick={() => finishItemU(it.id)}><Check size={13} />Mark done</Btn>
                                     </span>
                                   }
                                 />
@@ -967,7 +1023,7 @@ export default function App() {
           onMethod={(m) => board.setFulfillmentMethod(detailOrder.id, m)}
           onSaveNotes={(notes) => board.setOrderNotes(detailOrder.id, notes)}
           onUpdateItem={(itemId, patch) => board.updateItem(itemId, patch)}
-          onMoveItem={(itemId, s) => { if (s === "awaiting") { setDetailId(null); setMatTarget(itemId); } else board.moveItem(itemId, s); }}
+          onMoveItem={(itemId, s) => { if (s === "awaiting") { setDetailId(null); setMatTarget(itemId); } else moveItemU(itemId, s); }}
           onGoToItem={(stage) => {
             // click a product's progress bubbles -> jump to the tab it lives in
             setDetailId(null);
@@ -987,7 +1043,7 @@ export default function App() {
           order={pickItem.o} item={pickItem.it}
           qtyLabel={pickItem.wo ? "Qty" : "Pick qty"}
           actionLabel={pickItem.wo ? "Mark done" : "Item picked"}
-          onPicked={async () => { await board.finishItem(pickItem.it.id); setPickItem(null); }}
+          onPicked={async () => { await finishItemU(pickItem.it.id); setPickItem(null); }}
           onSetImage={(url) => board.updateItem(pickItem.it.id, { imageUrl: url })}
           onUploadImage={(file) => board.uploadItemPhoto(pickItem.it.id, file)}
           onSetNote={(n) => board.updateItem(pickItem.it.id, { note: n })}
@@ -1035,7 +1091,7 @@ export default function App() {
       {orderTarget && (
         <OrderedModal
           material={orderTarget}
-          onConfirm={async (details) => { await board.markOrdered(orderTarget.id, details); setOrderTarget(null); }}
+          onConfirm={async (details) => { await markOrderedU(orderTarget.id, details); setOrderTarget(null); }}
           onClose={() => setOrderTarget(null)}
         />
       )}
@@ -1054,7 +1110,7 @@ export default function App() {
                 Is <b>{confirmStock.name}</b> already picked off the shelf?
               </div>
               <div className="flex gap-2">
-                <button onClick={() => { board.finishItem(confirmStock.id); setConfirmStock(null); }} className="flex-1 py-2.5 rounded font-bold uppercase tracking-wide text-xs" style={{ background: C.green, color: "#fff" }}>Yes — already picked</button>
+                <button onClick={() => { finishItemU(confirmStock.id); setConfirmStock(null); }} className="flex-1 py-2.5 rounded font-bold uppercase tracking-wide text-xs" style={{ background: C.green, color: "#fff" }}>Yes — already picked</button>
                 <button onClick={() => { triage(confirmStock.id, "instock"); setConfirmStock(null); }} className="flex-1 py-2.5 rounded font-bold uppercase tracking-wide text-xs" style={{ background: C.surface, color: C.green, border: `1px solid ${C.green}` }}>No — send to pick list</button>
               </div>
             </div>

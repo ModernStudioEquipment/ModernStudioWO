@@ -40,8 +40,8 @@ export function useWorkOrders(enabled) {
       await refetch();
       return id;
     },
-    markDone: async (id) => {
-      await db.markWorkOrderDone(id);
+    markDone: async (id, done = true) => {
+      await db.markWorkOrderDone(id, done);
       await refetch();
     },
     updateWorkOrder: async (id, payload) => {
