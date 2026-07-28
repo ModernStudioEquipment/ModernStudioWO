@@ -3,7 +3,7 @@ import {
   Clock, Printer, Plus, Truck, CheckCircle2, AlertTriangle, Hammer,
   Flag, Check, ArrowRight, ShoppingCart, LogOut, Store, MapPin, Package, X, Bell, ExternalLink, RefreshCw, Pencil, RotateCcw, ChevronsDownUp, ChevronsUpDown, Sun, Moon, MonitorPlay,
 } from "lucide-react";
-import { C, PRI, PRI_CYCLE, PRI_RANK, elapsed, stamp, blocked, pct, dueLabel, priLabel, effectivePriority, trackingUrl, stagedTooLong, stagedDwellMs, STAGE_LABELS } from "./theme.js";
+import { C, PRI, PRI_CYCLE, PRI_RANK, elapsed, stamp, materialKey, blocked, pct, dueLabel, priLabel, effectivePriority, trackingUrl, stagedTooLong, stagedDwellMs, STAGE_LABELS } from "./theme.js";
 import { backendMode } from "./lib/db.js";
 import { useAuth } from "./hooks/useAuth.js";
 import { useOrders } from "./hooks/useOrders.js";
@@ -226,6 +226,29 @@ export default function App() {
     await wo.markDone(w.id);
     undoer.record(`Marked done — work order #${w.orderNo || ""}`.trim(), () => wo.markDone(w.id, false));
   };
+  // --- Purchasing: demand for the same product across the whole board ----------
+  // A buyer marking one line ordered needs to see every OTHER open line for the
+  // same material, so they can buy for all of them in one go instead of ordering
+  // the same thing three times. Matched on the material name, case-insensitive.
+  const demandFor = (name, exceptId = null) => {
+    const key = materialKey(name);
+    if (!key) return [];
+    const rows = [];
+    for (const o of orders) {
+      for (const it of o.items) {
+        for (const m of it.materials || []) {
+          if (m.received || m.id === exceptId) continue;
+          if (materialKey(m.name) !== key) continue;
+          rows.push({
+            id: m.id, orderNo: o.orderNo, customer: o.customer, standalone: o.source === "purchase",
+            itemName: it.name, amount: m.amount, ordered: m.ordered,
+          });
+        }
+      }
+    }
+    return rows;
+  };
+
   const markOrderedU = async (materialId, details) => {
     const m = orders.flatMap((o) => o.items).flatMap((it) => it.materials).find((x) => x.id === materialId);
     await board.markOrdered(materialId, details);
@@ -1099,6 +1122,7 @@ export default function App() {
       {orderTarget && (
         <OrderedModal
           material={orderTarget}
+          alsoNeeded={demandFor(orderTarget.name, orderTarget.id)}
           onConfirm={async (details) => { await markOrderedU(orderTarget.id, details); setOrderTarget(null); }}
           onClose={() => setOrderTarget(null)}
         />

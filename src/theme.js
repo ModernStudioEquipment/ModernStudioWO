@@ -208,6 +208,47 @@ export const dueLabel = (d, time) => {
   return time ? `${datePart}, ${fmtTime(time)}` : datePart;
 };
 
+// Two buyers type the same material differently — `1" aluminum bar` vs
+// `1in aluminum bar` — so demand has to group on a normalized key, not the raw
+// text. Unifies inch/foot marks and drops spacing/punctuation noise. `/` is
+// deliberately KEPT: without it `1/2" bar` and `12" bar` would collide, which
+// would be a genuinely dangerous mis-group.
+export const materialKey = (raw) =>
+  String(raw ?? "")
+    .toLowerCase()
+    .replace(/["”]/g, "in")
+    .replace(/['’]/g, "ft")
+    .replace(/(\d)\s*(?:inches|inch)\b/g, "$1in") // 1inch / 1 inch -> 1in
+    .replace(/(\d)\s*(?:feet|foot)\b/g, "$1ft")
+    .replace(/\b(?:inches|inch)\b/g, "in")
+    .replace(/\b(?:feet|foot)\b/g, "ft")
+    .replace(/[^a-z0-9/]+/g, "");
+
+// Material amounts are free text ("20 ft", "2 sheets", "12"). Pull off a leading
+// number + its unit so demand for the same product can be added up across orders.
+export const parseAmount = (raw) => {
+  const s = String(raw ?? "").trim();
+  const m = /^([\d.,]+)\s*(.*)$/.exec(s);
+  if (!m) return null;
+  const n = parseFloat(m[1].replace(/,/g, ""));
+  return isNaN(n) ? null : { n, unit: m[2].trim().toLowerCase() };
+};
+
+// Total a set of free-text amounts, grouped by unit: ["20 ft","12 ft"] -> "32 ft".
+// Anything that doesn't parse is listed verbatim rather than dropped — a buyer
+// silently missing a line would be worse than a slightly untidy total.
+export const totalAmounts = (list) => {
+  const byUnit = new Map();
+  const asIs = [];
+  for (const raw of list) {
+    const p = parseAmount(raw);
+    if (p) byUnit.set(p.unit, (byUnit.get(p.unit) || 0) + p.n);
+    else if (String(raw ?? "").trim()) asIs.push(String(raw).trim());
+  }
+  const parts = [...byUnit.entries()].map(([unit, n]) => `${+n.toFixed(2)}${unit ? ` ${unit}` : ""}`);
+  return [...parts, ...asIs].join(" + ");
+};
+
 // An item is blocked while any of its materials hasn't been received.
 export const blocked = (it) =>
   it.needsMaterial && it.materials.some((m) => !m.received);

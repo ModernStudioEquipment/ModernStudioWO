@@ -1,12 +1,12 @@
 import React, { useState } from "react";
 import { X, ShoppingCart } from "lucide-react";
-import { C, stampAt } from "../../theme.js";
+import { C, stampAt, totalAmounts } from "../../theme.js";
 import { Btn } from "../ui.jsx";
 
 // Purchasing: when a material is marked ordered, record the quantity ordered,
 // who placed it, the vendor + who they talked to, the PO number, the dates, and
 // any notes. Re-opening an already-ordered material edits the same details.
-export function OrderedModal({ material, onConfirm, onClose }) {
+export function OrderedModal({ material, alsoNeeded = [], onConfirm, onClose }) {
   const [amount, setAmount] = useState(material.amount || "");
   const [orderedBy, setOrderedBy] = useState(material.orderedBy || "");
   const [vendor, setVendor] = useState(material.vendor || "");
@@ -47,6 +47,35 @@ export function OrderedModal({ material, onConfirm, onClose }) {
         </div>
         <div className="p-4" style={{ maxHeight: "82vh", overflowY: "auto" }}>
           <div style={{ fontSize: 13, marginBottom: 14, fontWeight: 700 }}>{material.name}</div>
+
+          {/* Everything else on the board waiting for this same material, so one
+              purchase can cover them all instead of ordering it piecemeal. */}
+          {!!alsoNeeded.length && (
+            <div className="mb-4" style={{ border: `1px solid ${C.line}`, borderRadius: 6, overflow: "hidden" }}>
+              <div className="px-3 py-2" style={{ ...label, marginBottom: 0, background: C.grayBg }}>
+                Also needed on {alsoNeeded.length} other order{alsoNeeded.length > 1 ? "s" : ""}
+              </div>
+              {alsoNeeded.map((r) => (
+                <div key={r.id} className="flex items-center gap-2 px-3 py-2" style={{ borderTop: `1px solid ${C.line}`, fontSize: 12.5 }}>
+                  <span style={{ fontFamily: "ui-monospace,monospace", fontWeight: 700, flexShrink: 0 }}>#{r.orderNo}</span>
+                  <span className="min-w-0" style={{ color: C.inkSoft, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {r.standalone ? "Stock purchase" : `${r.customer}${r.itemName ? ` · ${r.itemName}` : ""}`}
+                  </span>
+                  <span className="ml-auto flex items-center gap-2" style={{ flexShrink: 0 }}>
+                    {r.ordered && <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", color: C.green }}>Ordered</span>}
+                    <span style={{ fontFamily: "ui-monospace,monospace", fontWeight: 700 }}>{r.amount || "—"}</span>
+                  </span>
+                </div>
+              ))}
+              <div className="flex items-center gap-2 px-3 py-2" style={{ borderTop: `2px solid ${C.line}`, background: C.grayBg }}>
+                <span style={{ ...label, marginBottom: 0 }}>Quantity needed</span>
+                <span className="ml-auto" style={{ fontFamily: "ui-monospace,monospace", fontWeight: 800, fontSize: 14 }}>
+                  {totalAmounts([material.amount, ...alsoNeeded.map((r) => r.amount)]) || "—"}
+                </span>
+              </div>
+            </div>
+          )}
+
           <div className="mb-3">
             <div style={label}>Quantity ordered</div>
             <input value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="e.g. 20 ft, 2 sheets, 12" className="w-full px-2 py-2 outline-none" style={inp} />
