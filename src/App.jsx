@@ -3,7 +3,7 @@ import {
   Clock, Printer, Plus, Truck, CheckCircle2, AlertTriangle, Hammer,
   Flag, Check, ArrowRight, ShoppingCart, LogOut, Store, MapPin, Package, X, Bell, ExternalLink, RefreshCw, Pencil, RotateCcw, ChevronsDownUp, ChevronsUpDown, Sun, Moon, MonitorPlay,
 } from "lucide-react";
-import { C, PRI, PRI_CYCLE, PRI_RANK, elapsed, blocked, pct, dueLabel, priLabel, effectivePriority, trackingUrl, stagedTooLong, stagedDwellMs, STAGE_LABELS } from "./theme.js";
+import { C, PRI, PRI_CYCLE, PRI_RANK, elapsed, stamp, blocked, pct, dueLabel, priLabel, effectivePriority, trackingUrl, stagedTooLong, stagedDwellMs, STAGE_LABELS } from "./theme.js";
 import { backendMode } from "./lib/db.js";
 import { useAuth } from "./hooks/useAuth.js";
 import { useOrders } from "./hooks/useOrders.js";
@@ -477,7 +477,7 @@ export default function App() {
           <div className="min-w-0">
             <div className="font-bold flex items-center gap-2 flex-wrap" style={{ fontSize: 14 }}>{o.customer}{o.notes && <Bell size={15} color={C.note} fill={C.note} title={`Note: ${o.notes}`} style={{ flexShrink: 0 }} />}<MethodBadge m={o.fulfillmentMethod} onChange={(m) => board.setFulfillmentMethod(o.id, m)} /></div>
             <div style={{ fontSize: 12, color: C.gray }}>
-              Ordered by {o.contact} · {elapsed(now - o.receivedAt)} ago
+              Ordered by {o.contact} · {stamp(o.receivedAt, now)}
             </div>
             {o.shipTo && <div style={{ fontSize: 12, color: C.inkSoft, fontWeight: 600 }}>→ Ship to: {o.shipTo}</div>}
             {o.shipVia && <div style={{ fontSize: 12, color: C.inkSoft, fontWeight: 600 }}>→ Ship via: {o.shipVia}</div>}
@@ -738,7 +738,7 @@ export default function App() {
                         <div style={{ fontSize: 12, color: C.gray }}>QuickBooks work order</div>
                       </div>
                       <span className="basis-full sm:basis-auto sm:ml-auto flex flex-wrap items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                        <Pill c={C.inkSoft} bg={C.grayBg} Icon={Clock}>{elapsed(now - w.createdAt)} ago</Pill>
+                        <Pill c={C.inkSoft} bg={C.grayBg} Icon={Clock}>{stamp(w.createdAt, now)}</Pill>
                         <Btn onClick={() => setCustomDoc(w)}><Printer size={13} />Print</Btn>
                         <Btn kind="dark" onClick={() => wo.markDone(w.id)}><Check size={13} />Mark done</Btn>
                       </span>
@@ -1200,7 +1200,7 @@ function FulfillmentBoard({ orders, now, onOpen, onMarkShipped, onPickedUp, onSe
               )}
               <div className="min-w-0">
                 <div className="font-bold flex items-center gap-2" style={{ fontSize: 14 }}>{o.customer}{o.notes && <Bell size={15} color={C.note} fill={C.note} title={`Note: ${o.notes}`} style={{ flexShrink: 0 }} />}</div>
-                <div style={{ fontSize: 12, color: C.gray }}>Ordered by {o.contact} · {elapsed(now - o.receivedAt)} ago</div>
+                <div style={{ fontSize: 12, color: C.gray }}>Ordered by {o.contact} · {stamp(o.receivedAt, now)}</div>
                 {o.shipTo && <div style={{ fontSize: 12, color: C.inkSoft, fontWeight: 600 }}>→ Ship to: {o.shipTo}</div>}
             {o.shipVia && <div style={{ fontSize: 12, color: C.inkSoft, fontWeight: 600 }}>→ Ship via: {o.shipVia}</div>}
               </div>

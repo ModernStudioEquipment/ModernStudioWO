@@ -19,6 +19,14 @@ export function CustomWorkOrderDoc({ wo, onSave, onClose }) {
   const [woId, setWoId] = useState(wo.id);
   const [fields, setFields] = useState(() => {
     const base = { ...initFields(form), ...(wo.fields || {}) };
+    // Reprints must show the ORIGINAL creation date, never the reprint day. Once
+    // the sheet has been saved (it has a createdAt), pin the date field to that
+    // immutable stamp instead of the today() default.
+    if (wo.createdAt) {
+      const c = new Date(wo.createdAt);
+      if ("orderedOn" in base) base.orderedOn = c.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+      if ("orderDate" in base) base.orderDate = `${c.getMonth() + 1}/${c.getDate()}`;
+    }
     if (isLines && (!Array.isArray(base.lines) || base.lines.length === 0)) base.lines = [emptyLine(form)];
     return base;
   });

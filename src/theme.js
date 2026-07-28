@@ -171,6 +171,22 @@ export const elapsed = (ms) => {
   return `${d}d ${h % 24}h`;
 };
 
+// Full event stamp shown everywhere a timestamp appears: the exact local date +
+// time AND how long ago — e.g. "Jul 27, 2:34 PM · 2d 11h ago". These reflect when
+// something actually happened; they are never editable.
+export const stampAt = (ms) => {
+  if (ms == null) return "";
+  const dt = new Date(ms);
+  if (isNaN(dt)) return "";
+  const date = dt.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const time = dt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  return `${date}, ${time}`;
+};
+export const stamp = (ms, now = Date.now()) => {
+  const at = stampAt(ms);
+  return at ? `${at} · ${elapsed(now - ms)} ago` : "";
+};
+
 // Format a "YYYY-MM-DD" due date as e.g. "Jun 20" (parsed at local midnight so
 // it doesn't shift a day). With an optional "HH:MM" time -> "Jun 20, 3:00 PM".
 export const fmtTime = (t) => {

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Clock, Wrench, Scissors, Cpu, Hammer, Flag, Check, ChevronDown, Store, Truck, Bell, CalendarCheck, CheckSquare, Square } from "lucide-react";
-import { C, PRI, PRIORITIES, DEPTS, elapsed, sittingLevel, stageDwellMs, STAGE_LABELS, dueLabel, dueLevel, DUE } from "../theme.js";
+import { C, PRI, PRIORITIES, DEPTS, elapsed, stamp, sittingLevel, stageDwellMs, STAGE_LABELS, dueLabel, dueLevel, DUE } from "../theme.js";
 
 const DEPT_ICONS = { Shop: Hammer, CNC: Cpu, Sewing: Scissors, Saw: Wrench };
 export const DeptIcon = ({ d, size = 12 }) => {
@@ -338,7 +338,7 @@ export function OrderHeader({ o, now, onDueDate, onCompletion, onMethod, onInvoi
         {o.shipVia && <div style={{ fontSize: 12, color: C.inkSoft, fontWeight: 600 }}>→ Ship via: {o.shipVia}</div>}
       </div>
       <span className="basis-full sm:basis-auto sm:ml-auto flex items-center gap-2">
-        <Pill c={C.inkSoft} bg={C.grayBg} Icon={Clock}>{elapsed(now - o.receivedAt)} ago</Pill>
+        <Pill c={C.inkSoft} bg={C.grayBg} Icon={Clock}>{stamp(o.receivedAt, now)}</Pill>
       </span>
     </div>
   );

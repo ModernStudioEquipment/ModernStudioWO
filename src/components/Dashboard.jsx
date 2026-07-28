@@ -1,5 +1,5 @@
 import React from "react";
-import { C, elapsed, dueLevel, sittingLevel, stageEnteredAt, stagedTooLong } from "../theme.js";
+import { C, elapsed, stampAt, dueLevel, sittingLevel, stageEnteredAt, stagedTooLong } from "../theme.js";
 
 // The shop's home screen — a live at-a-glance view computed from the same orders
 // + work orders the rest of the app uses. Cards and pipeline stages click
@@ -180,7 +180,7 @@ export function Dashboard({ orders = [], workOrders = [], now, onNavigate, onOpe
                 <span style={{ fontFamily: "ui-monospace,monospace", fontWeight: 700, fontSize: 12.5, color: C.inkSoft }}>#{a.no}</span>
                 <span style={{ fontSize: 8.5, fontWeight: 800, letterSpacing: 0.5, color: tg.c, background: tg.bg, padding: "2px 5px", borderRadius: 3 }}>{a.tag}</span>
                 <span style={{ fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name}</span>
-                <span className="ml-auto" style={{ fontSize: 11.5, color: C.gray, whiteSpace: "nowrap" }}>{elapsed(ts - a.t)}</span>
+                <span title={stampAt(a.t)} className="ml-auto" style={{ fontSize: 11.5, color: C.gray, whiteSpace: "nowrap" }}>{elapsed(ts - a.t)}</span>
               </div>
             );
           })}
@@ -242,7 +242,7 @@ export function Dashboard({ orders = [], workOrders = [], now, onNavigate, onOpe
                 <span style={{ fontSize: 11, color: C.gray, marginLeft: 4, marginRight: 4, whiteSpace: "nowrap" }}>{done}/{o.items.length}</span>
               </span>
               <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: 0.4, color: st.c, background: st.bg, padding: "3px 7px", borderRadius: 3, whiteSpace: "nowrap" }}>{st.label}</span>
-              <span style={{ fontSize: 11.5, color: C.gray, width: 56, textAlign: "right", whiteSpace: "nowrap" }}>{elapsed(ts - o.receivedAt)}</span>
+              <span title={stampAt(o.receivedAt)} style={{ fontSize: 11.5, color: C.gray, width: 56, textAlign: "right", whiteSpace: "nowrap" }}>{elapsed(ts - o.receivedAt)}</span>
             </div>
           );
         })}

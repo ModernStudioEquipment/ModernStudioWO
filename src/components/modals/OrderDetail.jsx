@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { X, Trash2, Clock, ChevronDown, ExternalLink, Check, Store, Truck } from "lucide-react";
-import { C, PRI, elapsed, itemStatusText, trackingUrl } from "../../theme.js";
+import { C, PRI, stamp, itemStatusText, trackingUrl } from "../../theme.js";
 import { Pill, Info, Stepper, DeptBadge, DuePill, CompletionPill, MethodBadge, InvoicedBadge, SittingBadge, MoveMenu, Btn } from "../ui.jsx";
 import { ItemTimeline } from "../ItemTimeline.jsx";
 
@@ -19,9 +19,6 @@ export function OrderDetail({ order, status, now, onDueDate, onCompletion, onInv
   useEffect(() => { growNotes(notesRef.current); }, []);
   const done = order.items.filter((i) => i.stage === "done").length;
   const total = order.items.length;
-  const receivedOn = new Date(order.receivedAt).toLocaleDateString("en-US", {
-    month: "short", day: "numeric", year: "numeric",
-  });
   return (
     <div style={overlay} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: 580, maxWidth: "96vw", background: C.concrete, borderRadius: 8, overflow: "hidden" }}>
@@ -42,7 +39,7 @@ export function OrderDetail({ order, status, now, onDueDate, onCompletion, onInv
           <div className="grid mb-4 grid-cols-2 sm:grid-cols-3" style={{ gap: 10 }}>
             <Info label="Company" value={order.customer} />
             <Info label="Ordered by" value={order.contact} />
-            <Info label="Received" value={`${receivedOn} · ${elapsed(now - order.receivedAt)} ago`} />
+            <Info label="Received" value={stamp(order.receivedAt, now)} />
             {order.shipTo && <Info label="Ship to" value={order.shipTo} />}
             {order.shipVia && <Info label="Ship via" value={order.shipVia} />}
           </div>
