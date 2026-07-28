@@ -34,8 +34,16 @@ export function FulfillModal({ order, method, onConfirm, onClose }) {
           <button onClick={onClose} className="ml-auto" style={{ color: "#fff" }}><X size={18} /></button>
         </div>
         <div className="p-4">
+          {/* Reachable from an order that ISN'T finished (sent early from the order
+              view), so report what's actually done rather than assuming all of it. */}
           <div style={{ fontSize: 13, color: C.gray, marginBottom: 12 }}>
-            {order.customer} — {order.items.length} item{order.items.length === 1 ? "" : "s"}, all done.
+            {order.customer} — {order.items.length} item{order.items.length === 1 ? "" : "s"}
+            {(() => {
+              const done = order.items.filter((i) => i.stage === "done").length;
+              return done === order.items.length
+                ? ", all done."
+                : ` · ${order.items.length - done} not finished yet.`;
+            })()}
           </div>
           <div style={{ fontSize: 10, fontWeight: 700, color: C.gray, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>
             {isShip ? "Warehouse location" : "Pickup location"}

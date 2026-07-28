@@ -1059,6 +1059,7 @@ export default function App() {
           onSaveNotes={(notes) => board.setOrderNotes(detailOrder.id, notes)}
           onUpdateItem={(itemId, patch) => board.updateItem(itemId, patch)}
           onMoveItem={(itemId, s) => { if (s === "awaiting") { setDetailId(null); setMatTarget(itemId); } else moveItemU(itemId, s); }}
+          onFinishItem={(itemId) => finishItemU(itemId)}
           onGoToItem={(stage) => {
             // click a product's progress bubbles -> jump to the tab it lives in
             setDetailId(null);

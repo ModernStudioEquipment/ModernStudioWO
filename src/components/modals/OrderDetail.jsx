@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { X, Trash2, Clock, ChevronDown, ExternalLink, Check, Store, Truck } from "lucide-react";
+import { X, Trash2, Clock, ChevronDown, ExternalLink, Check, Store, Truck, AlertTriangle } from "lucide-react";
 import { C, PRI, stamp, itemStatusText, trackingUrl } from "../../theme.js";
 import { Pill, Info, Stepper, DeptBadge, DuePill, CompletionPill, MethodBadge, InvoicedBadge, SittingBadge, MoveMenu, Btn } from "../ui.jsx";
 import { ItemTimeline } from "../ItemTimeline.jsx";
@@ -7,7 +7,7 @@ import { ItemTimeline } from "../ItemTimeline.jsx";
 // The office "where's my order?" view — full detail with a per-product
 // progress tracker. Items reconverge here even though they're triaged and
 // routed independently.
-export function OrderDetail({ order, status, now, onDueDate, onCompletion, onInvoice, onMethod, onSaveNotes, onUpdateItem, onMoveItem, onGoToItem, onFulfill, onSendOrderBack, onCancel, onWalkInPickup, onPartialPickup, onClose }) {
+export function OrderDetail({ order, status, now, onDueDate, onCompletion, onInvoice, onMethod, onSaveNotes, onUpdateItem, onMoveItem, onGoToItem, onFinishItem, onFulfill, onSendOrderBack, onCancel, onWalkInPickup, onPartialPickup, onClose }) {
   const [confirming, setConfirming] = useState(false);
   const [reason, setReason] = useState("Customer cancelled");
   const [openTimeline, setOpenTimeline] = useState(null); // item id whose timeline is expanded
@@ -61,6 +61,45 @@ export function OrderDetail({ order, status, now, onDueDate, onCompletion, onInv
               )}
             </div>
           )}
+          {/* Send to fulfillment. Sits UP HERE, not at the foot of the modal: the
+              moment the last product is marked done this is the next thing you do,
+              and buried under a long product list it was easy to miss entirely.
+              Available before everything's finished too (the shop sometimes stages
+              or hands over early) but it states what's outstanding first, so that's
+              a deliberate call. Both buttons open the same location pop-up used
+              everywhere else. */}
+          {onFulfill && !order.fulfillment && (
+            <div
+              className="mb-4"
+              style={{
+                border: `1px solid ${done === total ? C.green : C.line}`,
+                background: done === total ? C.greenBg : C.surface,
+                borderRadius: 6, padding: "10px 12px",
+              }}
+            >
+              <div className="flex items-center gap-1.5" style={{ fontSize: 13, fontWeight: 700, color: done === total ? C.green : C.inkSoft, marginBottom: 8 }}>
+                {done === total && <Check size={14} />}
+                {done === total ? "All products done — send this order to:" : "Send the whole order to fulfillment:"}
+              </div>
+              {done < total && (
+                <div className="flex items-start gap-1.5 mb-2" style={{ fontSize: 12.5, color: C.high, fontWeight: 700 }}>
+                  <AlertTriangle size={13} style={{ flexShrink: 0, marginTop: 1 }} />
+                  <span>
+                    {total - done} of {total} product{total - done > 1 ? "s aren't" : " isn't"} finished yet — sending now moves the whole order anyway.
+                  </span>
+                </div>
+              )}
+              <div className="flex items-center gap-2 flex-wrap">
+                {order.fulfillmentMethod !== "shipping" && (
+                  <Btn kind="gold" onClick={() => onFulfill("willcall")}><Store size={13} />Will call</Btn>
+                )}
+                {order.fulfillmentMethod !== "willcall" && (
+                  <Btn kind="brass" onClick={() => onFulfill("shipping")}><Truck size={13} />Ship</Btn>
+                )}
+              </div>
+            </div>
+          )}
+
           {onSaveNotes && (
             <div className="mb-4">
               <div style={{ fontSize: 11, fontWeight: 700, color: C.gray, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Order notes</div>
@@ -111,9 +150,14 @@ export function OrderDetail({ order, status, now, onDueDate, onCompletion, onInv
                   <Clock size={12} />{open ? "Hide timeline" : "View timeline"}
                   <ChevronDown size={13} style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
                 </button>
-                {it.stage === "done" && onMoveItem && (
-                  <MoveMenu stage={it.stage} onMove={(s) => onMoveItem(it.id, s)} label="Send back to" />
-                )}
+                <span className="flex items-center gap-2 flex-wrap">
+                  {it.stage !== "done" && onFinishItem && (
+                    <Btn kind="dark" onClick={() => onFinishItem(it.id)}><Check size={13} />Mark done</Btn>
+                  )}
+                  {it.stage === "done" && onMoveItem && (
+                    <MoveMenu stage={it.stage} onMove={(s) => onMoveItem(it.id, s)} label="Send back to" />
+                  )}
+                </span>
               </div>
               {open && (
                 <div style={{ marginTop: 10, paddingTop: 12, borderTop: `1px solid ${C.line}` }}>
@@ -134,20 +178,6 @@ export function OrderDetail({ order, status, now, onDueDate, onCompletion, onInv
             </div>
             );
           })}
-
-          {status.key === "ready" && onFulfill && (
-            <div style={{ borderTop: `1px solid ${C.line}`, marginTop: 16, paddingTop: 14 }}>
-              <div style={{ fontSize: 13, color: C.inkSoft, marginBottom: 8 }}>This order is ready — send the whole order to fulfillment:</div>
-              <div className="flex items-center gap-2 flex-wrap">
-                {order.fulfillmentMethod !== "shipping" && (
-                  <Btn kind="gold" onClick={() => onFulfill("willcall")}><Store size={13} />Will call</Btn>
-                )}
-                {order.fulfillmentMethod !== "willcall" && (
-                  <Btn kind="brass" onClick={() => onFulfill("shipping")}><Truck size={13} />Ship</Btn>
-                )}
-              </div>
-            </div>
-          )}
 
           {onSendOrderBack && order.items.length > 0 && (
             <div style={{ borderTop: `1px solid ${C.line}`, marginTop: 16, paddingTop: 14 }}>
