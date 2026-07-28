@@ -434,7 +434,9 @@ export const supabaseAdapter = {
 
   async markOrdered(materialId, details = {}) {
     const base     = { ordered: true, ordered_by: details.orderedBy || null, vendor: details.vendor || null, po_number: details.poNumber || null, amount: details.amount ?? null };
-    const withDates = { ...base, ordered_at: details.orderedAt || null, expected_at: details.expectedAt || null };
+    // ordered_at is an immutable stamp: set to the moment of the action on first
+    // mark (details.orderedAt is null), preserved as-is on a later edit.
+    const withDates = { ...base, ordered_at: details.orderedAt || new Date().toISOString(), expected_at: details.expectedAt || null };
     const full      = { ...withDates, contact: details.contact || null, note: details.note || null };
     // Try the full row, then degrade for DBs missing the 0022 / 0019 / 0015 columns.
     let { error } = await supabase.from("materials").update(full).eq("id", materialId);

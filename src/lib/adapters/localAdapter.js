@@ -385,7 +385,7 @@ export const localAdapter = {
       m.vendor = details.vendor || null;
       m.contact = details.contact || null;
       m.poNumber = details.poNumber || null;
-      m.orderedAt = details.orderedAt || null;
+      m.orderedAt = details.orderedAt || new Date().toISOString();
       m.expectedAt = details.expectedAt || null;
       m.note = details.note || null;
     });

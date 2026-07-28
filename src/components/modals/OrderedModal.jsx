@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { X, ShoppingCart } from "lucide-react";
-import { C } from "../../theme.js";
+import { C, stampAt } from "../../theme.js";
 import { Btn } from "../ui.jsx";
 
 // Purchasing: when a material is marked ordered, record the quantity ordered,
@@ -12,8 +12,8 @@ export function OrderedModal({ material, onConfirm, onClose }) {
   const [vendor, setVendor] = useState(material.vendor || "");
   const [contact, setContact] = useState(material.contact || "");
   const [poNumber, setPoNumber] = useState(material.poNumber || "");
-  // Date ordered defaults to today; expected date is left for the buyer to set.
-  const [orderedAt, setOrderedAt] = useState(material.orderedAt || new Date().toLocaleDateString("en-CA"));
+  // The ordered stamp is auto-recorded at the moment you save (immutable — set in
+  // the adapter, never a picker). Only the expected delivery date is user-set.
   const [expectedAt, setExpectedAt] = useState(material.expectedAt || "");
   const [note, setNote] = useState(material.note || "");
   const [saving, setSaving] = useState(false);
@@ -28,7 +28,7 @@ export function OrderedModal({ material, onConfirm, onClose }) {
         vendor: vendor.trim(),
         contact: contact.trim() || null,
         poNumber: poNumber.trim(),
-        orderedAt: orderedAt || null,
+        orderedAt: material.orderedAt || null, // immutable: keep on edit, adapter stamps now on first mark
         expectedAt: expectedAt || null,
         note: note.trim() || null,
       });
@@ -69,15 +69,17 @@ export function OrderedModal({ material, onConfirm, onClose }) {
             <div style={label}>PO number</div>
             <input value={poNumber} onChange={(e) => setPoNumber(e.target.value)} placeholder="Purchase order #" className="w-full px-2 py-2 outline-none" style={inp} />
           </div>
-          <div className="flex gap-3 mb-3">
-            <div className="flex-1">
-              <div style={label}>Date ordered</div>
-              <input type="date" value={orderedAt} onChange={(e) => setOrderedAt(e.target.value)} className="w-full px-2 py-2 outline-none" style={inp} />
+          {editing && material.orderedAt && (
+            <div className="mb-3">
+              <div style={label}>Ordered</div>
+              <div style={{ fontSize: 13, color: C.inkSoft, padding: "6px 2px" }}>
+                {stampAt(new Date(material.orderedAt).getTime())} <span style={{ color: C.gray, fontWeight: 700 }}>· locked</span>
+              </div>
             </div>
-            <div className="flex-1">
-              <div style={label}>Expected date</div>
-              <input type="date" value={expectedAt} onChange={(e) => setExpectedAt(e.target.value)} className="w-full px-2 py-2 outline-none" style={inp} />
-            </div>
+          )}
+          <div className="mb-3">
+            <div style={label}>Expected date</div>
+            <input type="date" value={expectedAt} onChange={(e) => setExpectedAt(e.target.value)} className="w-full px-2 py-2 outline-none" style={inp} />
           </div>
           <div className="mb-4">
             <div style={label}>Notes</div>
