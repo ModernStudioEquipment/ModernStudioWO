@@ -213,8 +213,17 @@ export default function App() {
   const finishItemU = async (itemId) => {
     const { it, o } = findItem(itemId);
     const prev = it?.stage;
-    await board.finishItem(itemId);
+    const fresh = await board.finishItem(itemId);
     if (prev) undoer.record(label(it, o, "Marked done"), () => board.moveItem(itemId, prev));
+    // Finishing the LAST product means the order is ready to go somewhere — ask
+    // right here (destination + location) instead of leaving it parked on the
+    // board waiting for someone to notice it's done.
+    const updated = (fresh || []).find((x) => x.id === o?.id);
+    if (updated && !updated.fulfillment && !updated.cancelledAt &&
+        updated.items.length && updated.items.every((i) => i.stage === "done")) {
+      setDetailId(null);
+      setFulfillTarget({ order: updated, method: updated.fulfillmentMethod || null });
+    }
   };
   const moveItemU = async (itemId, stage) => {
     const { it, o } = findItem(itemId);
@@ -343,18 +352,22 @@ export default function App() {
   // Close out a completed order via Ship or Will Call. Records the location and
   // sends the order to the matching top tab.
   const openFulfill = (order, method) => setFulfillTarget({ order, method });
-  const confirmFulfill = async (location) => {
+  const confirmFulfill = async (location, chosen) => {
     const { order, method } = fulfillTarget;
-    await board.fulfillOrder(order.id, method, location);
+    const dest = chosen || method; // the modal asks when no destination was fixed
+    await board.fulfillOrder(order.id, dest, location);
     setFulfillTarget(null);
-    setTab(method === "willcall" ? "willcall" : "shipping");
+    // Land ON the order in its new tab and flash it, so you can see where it went
+    // instead of hunting for it in the list.
+    goToTab(order.id, dest === "willcall" ? "willcall" : "shipping");
   };
 
   // Shipping stage 2: record tracking number from the Shipping tab.
   const confirmTracking = async (payload) => {
-    await board.markShipped(trackTarget.id, payload);
+    const id = trackTarget.id;
+    await board.markShipped(id, payload);
     setTrackTarget(null);
-    setTab("completed"); // order moves out of Shipping and into the Completed tab
+    goToTab(id, "completed"); // out of Shipping, into Completed — flashed so it's findable
   };
 
   // Partial pickup/shipment: record it; the order auto-completes (and leaves the
