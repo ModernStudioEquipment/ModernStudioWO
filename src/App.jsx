@@ -248,6 +248,9 @@ export default function App() {
     }
     return rows;
   };
+  // Only the lines nobody has bought yet — those are the ones worth warning about
+  // when someone goes to add the same material again.
+  const openDemandFor = (name) => demandFor(name).filter((r) => !r.ordered);
 
   const markOrderedU = async (materialId, details) => {
     const m = orders.flatMap((o) => o.items).flatMap((it) => it.materials).find((x) => x.id === materialId);
@@ -1038,11 +1041,12 @@ export default function App() {
       {showNewPurchase && (
         <NewPurchaseModal
           getNextOrderNo={board.nextPurchaseNo}
+          openFor={openDemandFor}
           onCreate={board.createPurchase}
           onClose={() => setShowNewPurchase(false)}
         />
       )}
-      {matTarget && <MaterialModal onClose={() => setMatTarget(null)} onCommit={commitMaterials} />}
+      {matTarget && <MaterialModal onClose={() => setMatTarget(null)} onCommit={commitMaterials} openFor={openDemandFor} />}
       {detailOrder && (
         <OrderDetail
           order={detailOrder}

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { X, Plus, Trash2, ShoppingCart } from "lucide-react";
+import { X, Plus, Trash2, ShoppingCart, AlertTriangle } from "lucide-react";
 import { C, DEPTS } from "../../theme.js";
 import { DeptIcon } from "../ui.jsx";
 
@@ -21,7 +21,7 @@ const loadDraft = () => {
   }
 };
 
-export function NewPurchaseModal({ getNextOrderNo, onCreate, onClose }) {
+export function NewPurchaseModal({ getNextOrderNo, onCreate, onClose, openFor }) {
   const [orderNo, setOrderNo] = useState("");
   const [draft] = useState(loadDraft); // read once on mount
   const [dept, setDept] = useState(draft?.dept || "Shop");
@@ -29,6 +29,7 @@ export function NewPurchaseModal({ getNextOrderNo, onCreate, onClose }) {
   const [forInventory, setForInventory] = useState(draft?.forInventory ?? true); // standalone purchases default to restock
   const [note, setNote] = useState(draft?.note || "");
   const [saving, setSaving] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
   const [error, setError] = useState(null);
 
   // A standalone purchase still needs an order number under the hood; grab the
@@ -49,7 +50,7 @@ export function NewPurchaseModal({ getNextOrderNo, onCreate, onClose }) {
     } catch { /* private mode / quota — just skip persistence */ }
   }, [dept, mats, forInventory, note]);
 
-  const updMat = (i, k, v) => setMats((rows) => rows.map((r, j) => (j === i ? { ...r, [k]: v } : r)));
+  const updMat = (i, k, v) => { if (k === "name") setConfirmed(false); setMats((rows) => rows.map((r, j) => (j === i ? { ...r, [k]: v } : r))); };
   const addMat = () => setMats((rows) => [...rows, blankMat()]);
   const removeMat = (i) => setMats((rows) => (rows.length > 1 ? rows.filter((_, j) => j !== i) : rows));
 
@@ -58,8 +59,15 @@ export function NewPurchaseModal({ getNextOrderNo, onCreate, onClose }) {
   // If anything's been typed, a stray click on the backdrop shouldn't nuke it.
   const dirty = !!(mats.some((m) => m.name.trim() || m.amount.trim()) || note.trim());
 
+  // Warn (don't block) when this is already sitting in Purchasing un-ordered, so
+  // the same restock doesn't get logged twice.
+  const dupes = openFor
+    ? validMats.flatMap((m) => (openFor(m.name) || []).map((d) => ({ ...d, typed: m.name.trim() })))
+    : [];
+
   const submit = async () => {
     if (!canSave) return;
+    if (dupes.length && !confirmed) { setConfirmed(true); return; }
     setSaving(true);
     setError(null);
     try {
@@ -131,11 +139,29 @@ export function NewPurchaseModal({ getNextOrderNo, onCreate, onClose }) {
             <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. why this is being ordered, stock on hand…" rows={2} className="w-full px-2 py-2 outline-none" style={{ ...inp, resize: "vertical" }} />
           </div>
 
+          {!!dupes.length && (
+            <div className="mb-3" style={{ border: `1px solid ${C.high}`, background: C.highBg, borderRadius: 6, padding: "8px 10px" }}>
+              <div className="flex items-center gap-1.5" style={{ fontSize: 12, fontWeight: 800, color: C.high, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                <AlertTriangle size={13} />Already waiting to be bought
+              </div>
+              {dupes.map((d) => (
+                <div key={d.id} style={{ fontSize: 12.5, color: C.inkSoft, marginTop: 4 }}>
+                  <b>{d.typed}</b> — on #{d.orderNo}
+                  {d.standalone ? " (stock purchase)" : d.customer ? ` (${d.customer})` : ""}
+                  {d.amount ? `, ${d.amount}` : ""}, not ordered yet
+                </div>
+              ))}
+              <div style={{ fontSize: 12, color: C.gray, marginTop: 6 }}>
+                Add it anyway only if you need more on top of that.
+              </div>
+            </div>
+          )}
+
           {error && <div style={{ fontSize: 13, color: C.rush, marginBottom: 10 }}>{error}</div>}
 
           <button onClick={submit} disabled={!canSave} className="w-full py-2.5 rounded font-bold uppercase tracking-wide flex items-center justify-center gap-2"
-            style={{ background: C.fill, color: "#fff", opacity: canSave ? 1 : 0.5 }}>
-            <ShoppingCart size={15} />{saving ? "Saving…" : "Add purchase"}
+            style={{ background: dupes.length && confirmed ? C.high : C.fill, color: "#fff", opacity: canSave ? 1 : 0.5 }}>
+            <ShoppingCart size={15} />{saving ? "Saving…" : dupes.length && confirmed ? "Add anyway" : "Add purchase"}
           </button>
         </div>
       </div>
