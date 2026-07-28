@@ -180,9 +180,17 @@ export default function App() {
   };
 
   // ---- triage / workflow handlers ----
-  const triage = (itemId, decision) => {
+  // Triage is the New Orders routing decision (In stock / Create WO). It's the
+  // easiest thing on the board to mis-tap, so it's undoable too — back to "new".
+  const triage = async (itemId, decision) => {
     if (decision === "need") return setMatTarget(itemId);
-    board.triageItem(itemId, decision);
+    const { it, o } = findItem(itemId);
+    const prev = it?.stage;
+    await board.triageItem(itemId, decision);
+    if (prev) {
+      const dest = decision === "instock" ? "picklist" : "workorder";
+      undoer.record(label(it, o, `Sent to ${STAGE_LABELS[dest] || dest}`), () => board.moveItem(itemId, prev));
+    }
   };
   const commitMaterials = async (rows) => {
     await board.addMaterials(matTarget, rows);
