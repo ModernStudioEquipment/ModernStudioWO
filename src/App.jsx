@@ -1,7 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   Clock, Printer, Plus, Truck, CheckCircle2, AlertTriangle, Hammer,
-  Flag, Check, ArrowRight, ShoppingCart, LogOut, Store, MapPin, Package, X, Bell, ExternalLink, RefreshCw, Pencil, RotateCcw, ChevronsDownUp, ChevronsUpDown, Sun, Moon, MonitorPlay,
+  Flag, Check, ArrowRight, ShoppingCart, LogOut, Store, MapPin, Package, X, Bell, ExternalLink, RefreshCw, Pencil, RotateCcw, ChevronsDownUp, ChevronsUpDown, Sun, Moon, MonitorPlay, Layers, ArrowUpDown,
 } from "lucide-react";
 import { C, PRI, PRI_CYCLE, PRI_RANK, elapsed, stamp, materialKey, blocked, pct, dueLabel, priLabel, effectivePriority, trackingUrl, stagedTooLong, stagedDwellMs, STAGE_LABELS } from "./theme.js";
 import { backendMode } from "./lib/db.js";
@@ -71,6 +71,7 @@ export default function App() {
   });
   const [matTarget, setMatTarget] = useState(null); // itemId awaiting material entry
   const [doc, setDoc] = useState(null); // { o, it } for printable work order
+  const [likeKinds, setLikeKinds] = useState(null); // { o, it, others } — same product on other orders
   const [flashItem, setFlashItem] = useState(null);
   const [detailId, setDetailId] = useState(null);
   const [flashOrderId, setFlashOrderId] = useState(null); // order to scroll to + flash after a search jump
@@ -80,7 +81,7 @@ export default function App() {
   const [orderView, setOrderView] = useState("all");
   const [showNew, setShowNew] = useState(false);
   const [showNewPurchase, setShowNewPurchase] = useState(false);
-  const [newSort, setNewSort] = useState("newest"); // New Orders sort: newest first, or by due date
+  const [sortBy, setSortBy] = useState("newest"); // shared across every order list: newest / oldest / order # / due
   const [newSource, setNewSource] = useState("all"); // New Orders filter: all / QuickBooks / Shopify
   const [orderSource, setOrderSource] = useState("all"); // Orders tab filter: all / QuickBooks / Shopify
   const [orderDrag, setOrderDrag] = useState(null); // order id being dragged in the Orders tab (for the visual dim)
@@ -323,6 +324,41 @@ export default function App() {
   const setCombinedDept = (row, dept) =>
     Promise.all(row.entries.map((e) => board.updateItem(e.it.id, { dept })));
 
+  // Printing a work order for ONE product: if the same product is waiting on other
+  // orders too, ask whether to put them on a single sheet. Previously the only way
+  // to find that out was to switch to the "Combine like items" view first, so the
+  // shop could easily run the same part twice.
+  const likeKindKey = (it) => `${it.name}__${it.color || ""}`;
+  const likeKindsFor = (o, it) => {
+    const key = likeKindKey(it);
+    const found = [];
+    workOrders.forEach((oo) => {
+      if (oo.id === o.id) return;
+      oo.items.forEach((x) => {
+        if (x.stage === "workorder" && likeKindKey(x) === key) found.push({ o: oo, it: x });
+      });
+    });
+    return found;
+  };
+  const printItem = (o, it) => {
+    const others = likeKindsFor(o, it);
+    if (others.length) setLikeKinds({ o, it, others });
+    else setDoc({ o, items: [it] });
+  };
+  // "Combine" from that prompt builds the same row shape CombinedItems produces,
+  // so it goes through the identical combined-sheet path.
+  const combineLikeKinds = ({ o, it, others }) => {
+    const entries = [{ o, it }, ...others];
+    makeCombinedDoc({
+      name: it.name,
+      color: it.color,
+      dept: it.dept,
+      qty: entries.reduce((n, e) => n + (parseFloat(e.it.qty) || 1), 0),
+      entries,
+    });
+    setLikeKinds(null);
+  };
+
   // Pull recent QuickBooks sales orders onto the board (via the Conductor sync
   // function). Takes up to ~a minute since it reads QuickBooks live.
   const syncQuickBooks = async () => {
@@ -462,13 +498,28 @@ export default function App() {
     if (!a.dueDate && b.dueDate) return 1;
     return a.receivedAt - b.receivedAt;
   };
+  // One sort used by every list of orders, so "oldest first" or "by number" means
+  // the same thing on every tab. Order numbers are compared numerically (string
+  // sort would put #473215 before #99).
+  const orderNoNum = (o) => {
+    const n = parseInt(String(o.orderNo ?? "").replace(/\D/g, ""), 10);
+    return Number.isNaN(n) ? Infinity : n;
+  };
+  const sortOrders = (list) => {
+    const arr = [...list];
+    if (sortBy === "oldest") return arr.sort((a, b) => a.receivedAt - b.receivedAt);
+    if (sortBy === "number") return arr.sort((a, b) => orderNoNum(a) - orderNoNum(b));
+    if (sortBy === "due") return arr.sort(byUrgency);
+    return arr.sort((a, b) => b.receivedAt - a.receivedAt); // newest
+  };
+
   const visibleOrders =
-    orderView === "triage" ? ordersSourced.filter(oInTriage)
-    : orderView === "prog" ? ordersSourced.filter(oProg)
-    : orderView === "done" ? ordersSourced.filter(awaitingFulfill)
+    orderView === "triage" ? sortOrders(ordersSourced.filter(oInTriage))
+    : orderView === "prog" ? sortOrders(ordersSourced.filter(oProg))
+    : orderView === "done" ? sortOrders(ordersSourced.filter(awaitingFulfill))
     : orderView === "pct" ? [...ordersSourced].sort((a, b) => pct(b) - pct(a))
     : orderView === "due" ? [...ordersSourced].sort(byDue)
-    : [...ordersSourced].sort((a, b) => b.receivedAt - a.receivedAt);
+    : sortOrders(ordersSourced);
   // Orders tab: hold-and-drag to reorder. The order is shared across the crew
   // (stored in the DB) and overrides the sort above; "Reset order" clears it.
   const orderedVisible = manualOrder.length
@@ -492,9 +543,9 @@ export default function App() {
   const resetOrder = () => { setOptArr([]); board.setArrangement([]); };
 
   // New Orders, filtered by source (All / QuickBooks / Shopify), then sorted.
-  const newOrdersShown = [...newOrders]
-    .filter((o) => newSource === "all" || o.source === newSource)
-    .sort(newSort === "due" ? byUrgency : (a, b) => b.receivedAt - a.receivedAt);
+  const newOrdersShown = sortOrders(
+    newOrders.filter((o) => newSource === "all" || o.source === newSource)
+  );
   // Urgent tab: active orders that are manually Urgent or due within ~2 days
   // (effectivePriority bumps due-soon orders to RUSH). Soonest first, but
   // production-done ("Ready to fulfill") orders sink to the bottom.
@@ -727,7 +778,7 @@ export default function App() {
                 action={
                   <div className="flex items-center gap-2 flex-wrap justify-end">
                     <SegGroup value={newSource} onChange={setNewSource} options={[["all", "All"], ["QuickBooks", "QB"], ["Shopify", "Shopify"]]} />
-                    <SegGroup value={newSort} onChange={setNewSort} options={[["newest", "Newest"], ["due", "Due date"]]} />
+                    <SortMenu value={sortBy} onChange={setSortBy} />
                     <SyncButton syncing={syncing} onClick={syncQuickBooks} />
                     <Btn kind="dark" onClick={() => setShowNew(true)}><Plus size={13} />New order</Btn>
                   </div>
@@ -775,7 +826,8 @@ export default function App() {
                 sub="Click an item to see its image, then grab it and check it off."
                 titleAside={<ExpandToggle scope="pick" ids={(pickNotesOnly ? pickNoted : pickOrders).map((o) => o.id)} isExpanded={isExpanded} setAllExpanded={setAllExpanded} />}
                 action={
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 flex-wrap justify-end">
+                    <SortMenu value={sortBy} onChange={setSortBy} />
                     <button onClick={() => setPickNotesOnly(false)} className="px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wide" style={!pickNotesOnly ? { background: C.fill, color: "#fff" } : { background: C.surface, color: C.inkSoft, border: `1px solid ${C.line}` }}>All</button>
                     <button onClick={() => setPickNotesOnly(true)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wide" style={pickNotesOnly ? { background: C.fill, color: "#fff" } : { background: C.surface, color: C.inkSoft, border: `1px solid ${C.line}` }}>
                       <Bell size={12} />With notes{pickNoted.length ? ` · ${pickNoted.length}` : ""}
@@ -786,7 +838,7 @@ export default function App() {
                 {!(pickNotesOnly ? pickNoted : pickOrders).length && (
                   <Empty>{pickNotesOnly ? "No items have notes right now." : "Empty. In-stock items show up here after triage."}</Empty>
                 )}
-                {[...(pickNotesOnly ? pickNoted : pickOrders)].sort(byUrgency).map((o) => (
+                {sortOrders(pickNotesOnly ? pickNoted : pickOrders).map((o) => (
                   <Group key={o.id} o={o} now={now} onDueDate={board.setDueDate} onCompletion={board.setCompletionDate} onMethod={board.setFulfillmentMethod} onInvoice={onInvoiceClick} onOpen={() => setDetailId(o.id)} collapsible open={isExpanded("pick", o.id)} onToggle={() => toggleExpanded("pick", o.id)}>
                     {o.items.filter((it) => it.stage === "picklist").map((it) => (
                       <ItemLine
@@ -808,7 +860,7 @@ export default function App() {
             )}
 
             {tab === "work" && (
-              <Tabwrap title="WORK ORDERS" sub="QuickBooks orders you create here, plus Shopify orders pulled from the web.">
+              <Tabwrap title="WORK ORDERS" sub="QuickBooks orders you create here, plus Shopify orders pulled from the web." action={<SortMenu value={sortBy} onChange={setSortBy} />}>
                 {/* ---- QuickBooks: custom work orders ---- */}
                 <div className="rounded mb-3 p-3 flex items-center gap-2 flex-wrap" style={{ background: C.surface, border: `1px solid ${C.line}` }}>
                   <span style={{ fontSize: 12, fontWeight: 700, color: C.gray, textTransform: "uppercase", letterSpacing: 0.5 }}>Create new work order</span>
@@ -871,7 +923,7 @@ export default function App() {
                 {workCombined ? (
                   <CombinedItems orders={workOrders} stage="workorder" onMake={makeCombinedDoc} onDept={setCombinedDept} />
                 ) : (
-                  workOrders.map((o) => {
+                  sortOrders(workOrders).map((o) => {
                     const woItems = o.items.filter((it) => it.stage === "workorder");
                     const depts = [...new Set(woItems.map((it) => it.dept))];
                     return (
@@ -887,7 +939,7 @@ export default function App() {
                                   <span style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5, color: C.inkSoft }}>Work order</span>
                                   <span style={{ fontSize: 12, color: C.gray }}>· {deptItems.length} items</span>
                                   <span className="ml-auto">
-                                    <Btn onClick={() => setDoc({ o, items: deptItems })}><Printer size={13} />Print work order</Btn>
+                                    <Btn onClick={() => setDoc({ o, items: deptItems })} title="One sheet with every product in this department"><Printer size={13} />Print all</Btn>
                                   </span>
                                 </div>
                               )}
@@ -900,7 +952,7 @@ export default function App() {
                                     <span className="flex flex-wrap items-center justify-end gap-2">
                                       {it.note && <Bell size={16} color={C.high} fill={C.high} title={`Note: ${it.note}`} style={{ flexShrink: 0 }} />}
                                       <MoveMenu stage={it.stage} onMove={(s) => (s === "awaiting" ? setMatTarget(it.id) : moveItemU(it.id, s))} />
-                                      {!multi && <Btn onClick={() => setDoc({ o, items: [it] })}><Printer size={13} />Print</Btn>}
+                                      <Btn onClick={() => printItem(o, it)} title="Print a work order for just this product"><Printer size={13} />Print</Btn>
                                       <Btn kind={it.inProgress ? "green" : "ghost"} onClick={() => board.updateItem(it.id, { inProgress: !it.inProgress })}><Hammer size={13} />In progress</Btn>
                                       <Btn kind="dark" onClick={() => finishItemU(it.id)}><Check size={13} />Mark done</Btn>
                                     </span>
@@ -918,9 +970,9 @@ export default function App() {
             )}
 
             {tab === "buy" && (
-              <Tabwrap title="PURCHASING" action={<Btn kind="dark" onClick={() => setShowNewPurchase(true)}><Plus size={13} />New purchase</Btn>}>
+              <Tabwrap title="PURCHASING" action={<div className="flex items-center gap-2 flex-wrap justify-end"><SortMenu value={sortBy} onChange={setSortBy} /><Btn kind="dark" onClick={() => setShowNewPurchase(true)}><Plus size={13} />New purchase</Btn></div>}>
                 {!buyOrders.length && <Empty>Nothing to buy. Materials land here when an item is triaged “need material.”</Empty>}
-                {buyOrders.map((o) => (
+                {sortOrders(buyOrders).map((o) => (
                   <Group key={o.id} o={o} now={now} onDueDate={board.setDueDate} onCompletion={board.setCompletionDate} onMethod={board.setFulfillmentMethod} onInvoice={onInvoiceClick} onOpen={() => setDetailId(o.id)}>
                     {o.items.filter((it) => it.needsMaterial).map((it) =>
                       it.materials.filter((m) => !m.received).map((m) => {
@@ -979,7 +1031,7 @@ export default function App() {
             )}
 
             {tab === "orders" && (
-              <Tabwrap title="Orders" action={<SegGroup value={orderSource} onChange={setOrderSource} options={[["all", "All"], ["QuickBooks", "QB"], ["Shopify", "Shopify"]]} />}>
+              <Tabwrap title="Orders" action={<div className="flex items-center gap-2 flex-wrap justify-end"><SortMenu value={sortBy} onChange={setSortBy} /><SegGroup value={orderSource} onChange={setOrderSource} options={[["all", "All"], ["QuickBooks", "QB"], ["Shopify", "Shopify"]]} /></div>}>
                 <div className="flex items-center gap-2 mb-3 flex-wrap">
                   {OFILTERS.map((f) => (
                     <button
@@ -1007,28 +1059,28 @@ export default function App() {
             )}
 
             {tab === "willcall" && (
-              <Tabwrap title="Will Call">
-                <FulfillmentBoard variant="willcall" orders={willCallOrders} now={now} onOpen={setDetailId} onPickedUp={(o) => setPartialTarget({ order: o, kind: "pickup" })} onSetLocation={board.setLocation} onReopen={board.reopenOrder} emptyText="Nothing on will-call yet. Completed orders land here when you mark them Will Call." />
+              <Tabwrap title="Will Call" action={<SortMenu value={sortBy} onChange={setSortBy} />}>
+                <FulfillmentBoard variant="willcall" orders={sortOrders(willCallOrders)} now={now} onOpen={setDetailId} onPickedUp={(o) => setPartialTarget({ order: o, kind: "pickup" })} onSetLocation={board.setLocation} onReopen={board.reopenOrder} emptyText="Nothing on will-call yet. Completed orders land here when you mark them Will Call." />
               </Tabwrap>
             )}
 
             {tab === "shipping" && (
-              <Tabwrap title="Shipping">
-                <FulfillmentBoard variant="shipping" orders={shippingOrders} now={now} onOpen={setDetailId} onMarkShipped={(o) => setPartialTarget({ order: o, kind: "shipment" })} onSetLocation={board.setLocation} onReopen={board.reopenOrder} emptyText="Nothing shipping yet. Completed orders land here when you mark them Ship." />
+              <Tabwrap title="Shipping" action={<SortMenu value={sortBy} onChange={setSortBy} />}>
+                <FulfillmentBoard variant="shipping" orders={sortOrders(shippingOrders)} now={now} onOpen={setDetailId} onMarkShipped={(o) => setPartialTarget({ order: o, kind: "shipment" })} onSetLocation={board.setLocation} onReopen={board.reopenOrder} emptyText="Nothing shipping yet. Completed orders land here when you mark them Ship." />
               </Tabwrap>
             )}
 
             {tab === "completed" && (
-              <Tabwrap title="Completed">
+              <Tabwrap title="Completed" action={<SortMenu value={sortBy} onChange={setSortBy} />}>
                 <SectionHeader label="Shipped" count={shippedOrders.length} />
                 <div style={{ marginTop: 8 }}>
-                  <FulfillmentBoard variant="shipping" orders={shippedOrders} now={now} onOpen={setDetailId} emptyText="Nothing shipped yet. Orders land here once you log a tracking number in Shipping." />
+                  <FulfillmentBoard variant="shipping" orders={sortOrders(shippedOrders)} now={now} onOpen={setDetailId} emptyText="Nothing shipped yet. Orders land here once you log a tracking number in Shipping." />
                 </div>
                 <div style={{ marginTop: 22 }}>
                   <SectionHeader label="Picked up — will call" count={pickedUpOrders.length} />
                 </div>
                 <div style={{ marginTop: 8 }}>
-                  <FulfillmentBoard variant="willcall" orders={pickedUpOrders} now={now} onOpen={setDetailId} emptyText="Nothing picked up yet. Will-call orders land here once they're collected." />
+                  <FulfillmentBoard variant="willcall" orders={sortOrders(pickedUpOrders)} now={now} onOpen={setDetailId} emptyText="Nothing picked up yet. Will-call orders land here once they're collected." />
                 </div>
               </Tabwrap>
             )}
@@ -1100,6 +1152,60 @@ export default function App() {
         />
       )}
       {doc && <WorkOrderDoc order={doc.o} items={doc.items} onSave={(patch) => Promise.all((doc.saveTargets || doc.items).map((it) => board.updateItem(it.id, patch)))} onUploadPhoto={(file) => board.uploadItemPhoto((doc.saveTargets || doc.items)[0].id, file)} onClose={() => setDoc(null)} />}
+
+      {/* Same product waiting on other orders — offer one sheet for all of them
+          instead of running the same part twice. */}
+      {likeKinds && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(20,28,38,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 70 }} onClick={() => setLikeKinds(null)}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: 470, maxWidth: "94vw", background: C.concrete, borderRadius: 8, overflow: "hidden" }}>
+            <div className="flex items-center gap-2 px-4 py-3 font-bold" style={{ background: C.fill, color: "#fff" }}>
+              <Layers size={17} />Same product on other orders
+              <button onClick={() => setLikeKinds(null)} className="ml-auto" style={{ color: "#fff" }}><X size={18} /></button>
+            </div>
+            <div className="p-4">
+              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 2 }}>
+                {likeKinds.it.name}{likeKinds.it.color ? ` · ${likeKinds.it.color}` : ""}
+              </div>
+              <div style={{ fontSize: 13, color: C.gray, marginBottom: 12 }}>
+                Also on {likeKinds.others.length} other order{likeKinds.others.length > 1 ? "s" : ""} — make them all on one work order?
+              </div>
+              <div className="mb-4" style={{ border: `1px solid ${C.line}`, borderRadius: 6, overflow: "hidden" }}>
+                {[{ o: likeKinds.o, it: likeKinds.it, self: true }, ...likeKinds.others].map((e, i) => (
+                  <div key={e.it.id} className="flex items-center gap-2 px-3 py-2" style={{ borderTop: i ? `1px solid ${C.line}` : "none", fontSize: 12.5, background: e.self ? C.grayBg : C.surface }}>
+                    <span style={{ fontFamily: "ui-monospace,monospace", fontWeight: 700 }}>#{e.o.orderNo}</span>
+                    <span className="min-w-0" style={{ color: C.inkSoft, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {e.o.customer}{e.self ? " · this one" : ""}
+                    </span>
+                    <span className="ml-auto" style={{ fontFamily: "ui-monospace,monospace", fontWeight: 700 }}>×{e.it.qty}</span>
+                  </div>
+                ))}
+                <div className="flex items-center gap-2 px-3 py-2" style={{ borderTop: `2px solid ${C.line}`, background: C.grayBg }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: C.gray, textTransform: "uppercase", letterSpacing: 0.5 }}>Total to make</span>
+                  <span className="ml-auto" style={{ fontFamily: "ui-monospace,monospace", fontWeight: 800, fontSize: 14 }}>
+                    ×{[likeKinds.it, ...likeKinds.others.map((e) => e.it)].reduce((n, x) => n + (parseFloat(x.qty) || 1), 0)}
+                  </span>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => combineLikeKinds(likeKinds)}
+                  className="flex-1 py-2.5 rounded font-bold uppercase tracking-wide text-xs"
+                  style={{ background: C.fill, color: "#fff" }}
+                >
+                  Combine — one work order
+                </button>
+                <button
+                  onClick={() => { setDoc({ o: likeKinds.o, items: [likeKinds.it] }); setLikeKinds(null); }}
+                  className="flex-1 py-2.5 rounded font-bold uppercase tracking-wide text-xs"
+                  style={{ background: C.surface, color: C.inkSoft, border: `1px solid ${C.line}` }}
+                >
+                  Just this order
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {fulfillTarget && (
         <FulfillModal
           order={fulfillTarget.order}
@@ -1185,6 +1291,29 @@ export default function App() {
 // you can make them together (8 + 5 T-handles → 13) while still seeing which
 // orders they came from. Read-only roll-up; the per-order view stays the source
 // of truth for marking items done.
+// Shared sort control. Same options everywhere so "oldest first" behaves the
+// same on every tab; the Orders tab's manual drag order still overrides it.
+const SORT_OPTIONS = [
+  { value: "newest", label: "Newest first" },
+  { value: "oldest", label: "Oldest first" },
+  { value: "number", label: "Order number" },
+  { value: "due", label: "Due date" },
+];
+function SortMenu({ value, onChange }) {
+  const cur = SORT_OPTIONS.find((o) => o.value === value) || SORT_OPTIONS[0];
+  return (
+    <InlineMenu align="right" options={SORT_OPTIONS} onSelect={onChange}>
+      <span
+        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded font-bold uppercase tracking-wide btn-pop"
+        style={{ fontSize: 11, background: C.surface, color: C.inkSoft, border: `1px solid ${C.line}`, cursor: "pointer", whiteSpace: "nowrap" }}
+        title="Sort these orders"
+      >
+        <ArrowUpDown size={12} />{cur.label}
+      </span>
+    </InlineMenu>
+  );
+}
+
 function CombinedItems({ orders, stage, onMake, onDept }) {
   const map = new Map();
   orders.forEach((o) =>

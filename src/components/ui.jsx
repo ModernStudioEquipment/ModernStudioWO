@@ -65,7 +65,7 @@ export function Pill({ children, c, bg, Icon }) {
   );
 }
 
-export function Btn({ children, onClick, kind = "ghost", disabled, type = "button" }) {
+export function Btn({ children, onClick, kind = "ghost", disabled, type = "button", title }) {
   const styles = {
     ghost: { background: C.surface, color: C.inkSoft, border: `1px solid ${C.line}` },
     dark: { background: C.fill, color: "#fff" },
@@ -79,6 +79,7 @@ export function Btn({ children, onClick, kind = "ghost", disabled, type = "butto
       type={type}
       onClick={onClick}
       disabled={disabled}
+      title={title}
       className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded text-xs font-bold uppercase tracking-wide"
       style={{ ...styles, opacity: disabled ? 0.5 : 1, cursor: disabled ? "not-allowed" : "pointer" }}
     >
