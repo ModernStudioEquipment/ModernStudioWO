@@ -100,16 +100,38 @@ export default function App() {
       ro?.disconnect();
     };
   }, [measureTabs]);
-  // Assign scrollLeft rather than scrollBy({behavior:"smooth"}) — smooth scrolling
-  // is silently a no-op in some browsers, which left the arrows doing nothing.
+  // Glide to the new position. Animated by hand rather than with
+  // scrollBy({behavior:"smooth"}) because native smooth scrolling is silently a
+  // no-op in some browsers — that's what made the arrows do nothing at first.
+  const tabAnimRef = useRef(0);
+  const tabSnapRef = useRef(0);
   const nudgeTabs = (dir) => {
     const el = tabStripRef.current;
     if (!el) return;
     const max = el.scrollWidth - el.clientWidth;
     const step = Math.max(160, el.clientWidth * 0.6);
-    el.scrollLeft = Math.max(0, Math.min(max, el.scrollLeft + dir * step));
-    measureTabs();
+    const from = el.scrollLeft;
+    const to = Math.max(0, Math.min(max, from + dir * step));
+    if (to === from) return;
+    cancelAnimationFrame(tabAnimRef.current);
+    clearTimeout(tabSnapRef.current);
+    const t0 = performance.now();
+    const dur = 280;
+    const ease = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2); // easeInOutQuad
+    const tick = (nowT) => {
+      const t = Math.min(1, (nowT - t0) / dur);
+      el.scrollLeft = from + (to - from) * ease(t);
+      measureTabs();
+      if (t < 1) tabAnimRef.current = requestAnimationFrame(tick);
+    };
+    tabAnimRef.current = requestAnimationFrame(tick);
+    // rAF is paused in a backgrounded tab, so the animation might never run.
+    // Land on the target anyway — a button that does nothing is worse than a jump.
+    tabSnapRef.current = setTimeout(() => {
+      if (Math.abs(el.scrollLeft - to) > 1) { el.scrollLeft = to; measureTabs(); }
+    }, dur + 60);
   };
+  useEffect(() => () => { cancelAnimationFrame(tabAnimRef.current); clearTimeout(tabSnapRef.current); }, []);
   const [matTarget, setMatTarget] = useState(null); // itemId awaiting material entry
   const [doc, setDoc] = useState(null); // { o, it } for printable work order
   const [likeKinds, setLikeKinds] = useState(null); // { o, it, others } — same product on other orders
