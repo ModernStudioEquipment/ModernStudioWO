@@ -1,7 +1,7 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   Clock, Printer, Plus, Truck, CheckCircle2, AlertTriangle, Hammer,
-  Flag, Check, ArrowRight, ShoppingCart, LogOut, Store, MapPin, Package, X, Bell, ExternalLink, RefreshCw, Pencil, RotateCcw, ChevronsDownUp, ChevronsUpDown, Sun, Moon, MonitorPlay, Layers, ArrowUpDown,
+  Flag, Check, ArrowRight, ShoppingCart, LogOut, Store, MapPin, Package, X, Bell, ExternalLink, RefreshCw, Pencil, RotateCcw, ChevronsDownUp, ChevronsUpDown, Sun, Moon, MonitorPlay, Layers, ArrowUpDown, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { C, PRI, PRI_CYCLE, PRI_RANK, elapsed, stamp, materialKey, blocked, pct, dueLabel, priLabel, effectivePriority, trackingUrl, stagedTooLong, stagedDwellMs, STAGE_LABELS } from "./theme.js";
 import { backendMode } from "./lib/db.js";
@@ -69,6 +69,47 @@ export default function App() {
     tabFirst.current = false;
     setPill((p) => (p.left === n.left && p.top === n.top && p.width === n.width && p.height === n.height) ? p : n);
   });
+
+  // Sideways nav arrows: shown ONLY when a tab is actually cut off, and each side
+  // disappears once you've reached that end of the strip. Re-measured on scroll,
+  // on resize, and after every render (tab counts change the strip's width).
+  const tabStripRef = useRef(null);
+  const [navScroll, setNavScroll] = useState({ left: false, right: false });
+  const measureTabs = useCallback(() => {
+    const el = tabStripRef.current;
+    if (!el) return;
+    const max = el.scrollWidth - el.clientWidth;
+    const l = max > 2 && el.scrollLeft > 2;
+    const r = max > 2 && el.scrollLeft < max - 2;
+    // Same-object return when unchanged, so this can run every render without looping.
+    setNavScroll((p) => (p.left === l && p.right === r ? p : { left: l, right: r }));
+  }, []);
+  useLayoutEffect(measureTabs);
+  useEffect(() => {
+    const el = tabStripRef.current;
+    if (!el) return;
+    el.addEventListener("scroll", measureTabs, { passive: true });
+    window.addEventListener("resize", measureTabs);
+    // The strip can change width without the window resizing — a count badge
+    // appearing, the search box growing — so watch the element itself too.
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measureTabs) : null;
+    if (ro) { ro.observe(el); if (el.firstElementChild) ro.observe(el.firstElementChild); }
+    return () => {
+      el.removeEventListener("scroll", measureTabs);
+      window.removeEventListener("resize", measureTabs);
+      ro?.disconnect();
+    };
+  }, [measureTabs]);
+  // Assign scrollLeft rather than scrollBy({behavior:"smooth"}) — smooth scrolling
+  // is silently a no-op in some browsers, which left the arrows doing nothing.
+  const nudgeTabs = (dir) => {
+    const el = tabStripRef.current;
+    if (!el) return;
+    const max = el.scrollWidth - el.clientWidth;
+    const step = Math.max(160, el.clientWidth * 0.6);
+    el.scrollLeft = Math.max(0, Math.min(max, el.scrollLeft + dir * step));
+    measureTabs();
+  };
   const [matTarget, setMatTarget] = useState(null); // itemId awaiting material entry
   const [doc, setDoc] = useState(null); // { o, it } for printable work order
   const [likeKinds, setLikeKinds] = useState(null); // { o, it, others } — same product on other orders
@@ -684,7 +725,32 @@ export default function App() {
         >
           <Logo height={30} variant="light" />
         </button>
-        <div className="flex items-center gap-1 ml-2 flex-1 min-w-0 no-scrollbar basis-full order-last md:basis-0 md:order-none" style={{ overflowX: "auto", position: "relative" }}>
+        {/* The tab strip scrolls sideways when the window is too narrow for every
+            tab. The scrollbar is hidden, so without these arrows there's nothing
+            telling you the rest of the tabs are even there. Each appears only when
+            there's actually more to see in that direction. */}
+        <div className="ml-2 flex-1 min-w-0 basis-full order-last md:basis-0 md:order-none" style={{ position: "relative" }}>
+        {navScroll.left && (
+          <button
+            onClick={() => nudgeTabs(-1)}
+            title="Show earlier tabs"
+            className="flex items-center justify-center"
+            style={{ position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)", zIndex: 3, width: 26, height: 26, borderRadius: 13, border: "none", cursor: "pointer", color: "#fff", background: C.fill, boxShadow: `6px 0 10px 4px ${C.fill}` }}
+          >
+            <ChevronLeft size={17} />
+          </button>
+        )}
+        {navScroll.right && (
+          <button
+            onClick={() => nudgeTabs(1)}
+            title="Show more tabs"
+            className="flex items-center justify-center"
+            style={{ position: "absolute", right: 0, top: "50%", transform: "translateY(-50%)", zIndex: 3, width: 26, height: 26, borderRadius: 13, border: "none", cursor: "pointer", color: "#fff", background: C.fill, boxShadow: `-6px 0 10px 4px ${C.fill}` }}
+          >
+            <ChevronRight size={17} />
+          </button>
+        )}
+        <div ref={tabStripRef} className="flex items-center gap-1 no-scrollbar" style={{ overflowX: "auto", position: "relative" }}>
           <span aria-hidden style={{ position: "absolute", left: 0, top: 0, transform: `translate(${pill.left}px, ${pill.top}px)`, width: pill.width, height: pill.height, background: "rgba(255,255,255,0.16)", borderRadius: 8, transition: pill.animate ? "transform 0.32s cubic-bezier(0.34,1.1,0.64,1), width 0.32s cubic-bezier(0.34,1.1,0.64,1)" : "none", pointerEvents: "none", zIndex: 0 }} />
           {TABS.map((t) => (
             <button
@@ -702,6 +768,7 @@ export default function App() {
               ) : null}
             </button>
           ))}
+        </div>
         </div>
         <GlobalSearch orders={orders} locate={orderLocations} onOpen={(id) => setDetailId(id)} onGoToTab={goToTab} key={tab} />
         <button
