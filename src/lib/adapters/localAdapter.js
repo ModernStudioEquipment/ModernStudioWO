@@ -65,6 +65,15 @@ function writeSN(list) {
   channel?.postMessage("changed");
 }
 
+// Costing library: one localStorage bucket per collection.
+function readCost(which) {
+  try { return JSON.parse(localStorage.getItem(`mse_cost_${which}_v1`)) || []; } catch { return []; }
+}
+function writeCost(which, list) {
+  try { localStorage.setItem(`mse_cost_${which}_v1`, JSON.stringify(list)); } catch { /* ignore */ }
+  channel?.postMessage("changed");
+}
+
 // Product photo library (name -> url): a photo set for a product is remembered
 // for every order with that product.
 const PHOTO_KEY = "mse_product_photos_v1";
@@ -636,5 +645,66 @@ export const localAdapter = {
 
   async deleteStockNotice(id) {
     writeSN(readSN().filter((x) => x.id !== id));
+  },
+
+  // ---- costing / margins ----
+  async getCosting() {
+    return {
+      inputs: readCost("inputs"),
+      products: readCost("products"),
+      lines: readCost("lines"),
+    };
+  },
+
+  async saveCostInput(p) {
+    const list = readCost("inputs");
+    const id = p.id || uid();
+    const row = {
+      id, kind: p.kind || "material", name: (p.name || "").trim(), unit: p.unit || "each",
+      unitPrice: Number(p.unitPrice) || 0, vendor: p.vendor || "", sku: p.sku || "", note: p.note || "",
+      priceUpdatedAt: p.id && !p.priceChanged
+        ? (list.find((x) => x.id === p.id) || {}).priceUpdatedAt || Date.now()
+        : Date.now(),
+    };
+    const i = list.findIndex((x) => x.id === id);
+    if (i >= 0) list[i] = row; else list.push(row);
+    writeCost("inputs", list);
+    return id;
+  },
+
+  async deleteCostInput(id) {
+    writeCost("inputs", readCost("inputs").filter((x) => x.id !== id));
+  },
+
+  async ensureProductCost(name) {
+    const clean = (name || "").trim();
+    const list = readCost("products");
+    const found = list.find((x) => x.name === clean);
+    if (found) return found.id;
+    const id = uid();
+    list.push({ id, name: clean, sku: "", sellPrice: null, note: "" });
+    writeCost("products", list);
+    return id;
+  },
+
+  async setProductSellPrice(id, sellPrice) {
+    const list = readCost("products");
+    const p = list.find((x) => x.id === id);
+    if (p) p.sellPrice = sellPrice === "" || sellPrice == null ? null : Number(sellPrice);
+    writeCost("products", list);
+  },
+
+  async saveCostLine(l) {
+    const list = readCost("lines");
+    const id = l.id || uid();
+    const row = { id, productId: l.productId, inputId: l.inputId || null, qty: Number(l.qty) || 0, note: l.note || "", position: l.position || 0 };
+    const i = list.findIndex((x) => x.id === id);
+    if (i >= 0) list[i] = row; else list.push(row);
+    writeCost("lines", list);
+    return id;
+  },
+
+  async deleteCostLine(id) {
+    writeCost("lines", readCost("lines").filter((x) => x.id !== id));
   },
 };

@@ -1,7 +1,7 @@
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   Clock, Printer, Plus, Truck, CheckCircle2, AlertTriangle, Hammer,
-  Flag, Check, ArrowRight, ShoppingCart, LogOut, Store, MapPin, Package, X, Bell, ExternalLink, RefreshCw, Pencil, RotateCcw, ChevronsDownUp, ChevronsUpDown, Sun, Moon, MonitorPlay, Layers, ArrowUpDown, ChevronLeft, ChevronRight, PackageSearch, Trash2,
+  Flag, Check, ArrowRight, ShoppingCart, LogOut, Store, MapPin, Package, X, Bell, ExternalLink, RefreshCw, Pencil, RotateCcw, ChevronsDownUp, ChevronsUpDown, Sun, Moon, MonitorPlay, Layers, ArrowUpDown, ChevronLeft, ChevronRight, PackageSearch, Trash2, DollarSign,
 } from "lucide-react";
 import { C, PRI, PRI_CYCLE, PRI_RANK, elapsed, stamp, materialKey, blocked, pct, dueLabel, priLabel, effectivePriority, trackingUrl, stagedTooLong, stagedDwellMs, STAGE_LABELS } from "./theme.js";
 import { backendMode } from "./lib/db.js";
@@ -10,6 +10,7 @@ import { useOrders } from "./hooks/useOrders.js";
 import { useWorkOrders } from "./hooks/useWorkOrders.js";
 import { useUndo } from "./hooks/useUndo.js";
 import { useStockNotices } from "./hooks/useStockNotices.js";
+import { useCosting } from "./hooks/useCosting.js";
 import {
   Pill, Btn, Group, ItemLine, Empty, Tabwrap, DeptBadge, DuePill, CompletionPill, MethodBadge, InvoicedBadge, MoveMenu, SittingBadge, InlineMenu,
 } from "./components/ui.jsx";
@@ -18,6 +19,7 @@ import { Logo } from "./components/Logo.jsx";
 import { Dashboard } from "./components/Dashboard.jsx";
 import { GlobalSearch } from "./components/GlobalSearch.jsx";
 import FloorControl from "./floor/FloorControl.jsx";
+import Costing from "./components/Costing.jsx";
 import { SyncButton } from "./components/SyncButton.jsx";
 import { MaterialModal } from "./components/modals/MaterialModal.jsx";
 import { OrderDetail } from "./components/modals/OrderDetail.jsx";
@@ -43,6 +45,7 @@ export default function App() {
   const wo = useWorkOrders(authed);
   const undoer = useUndo();
   const stock = useStockNotices(authed);
+  const costing = useCosting(authed);
   // Cancelled orders are kept on record in the DB but hidden from every board.
   const allOrders = board.orders;
   const orders = allOrders.filter((o) => !o.cancelledAt);
@@ -176,6 +179,7 @@ export default function App() {
   const [customDoc, setCustomDoc] = useState(null); // work order sheet open for edit ({type} = new, or a saved WO)
   const [workCombined, setWorkCombined] = useState(false); // Work Order tab: combine like items across orders
   const [floorOpen, setFloorOpen] = useState(false); // full-screen dark "Floor Control" world
+  const [costingOpen, setCostingOpen] = useState(false); // full-screen costing / margins world
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 30000);
@@ -535,6 +539,12 @@ export default function App() {
   // Low-stock notices: open ones are the queue; handled ones stay for reference.
   const openNotices = (stock.notices || []).filter((n) => n.status !== "handled");
   const handledNotices = (stock.notices || []).filter((n) => n.status === "handled");
+  // Every distinct product we've ever put on an order — the costing catalog.
+  const allProductNames = useMemo(() => {
+    const set = new Set();
+    allOrders.forEach((o) => o.items.forEach((it) => { if (it.name) set.add(it.name.trim()); }));
+    return [...set];
+  }, [allOrders]);
   const customerOrders = orders.filter((o) => o.source !== "purchase");
   const count = (os, pred) => os.reduce((n, o) => n + o.items.filter(pred).length, 0);
   const detailOrder = allOrders.find((o) => o.id === detailId);
@@ -814,6 +824,14 @@ export default function App() {
         </div>
         <GlobalSearch orders={orders} locate={orderLocations} onOpen={(id) => setDetailId(id)} onGoToTab={goToTab} key={tab} />
         <button
+          onClick={() => setCostingOpen(true)}
+          title="Costing & margins — what each product costs to make"
+          className="inline-flex items-center gap-1.5 shrink-0"
+          style={{ color: "rgba(255,255,255,0.7)", background: "transparent", border: "none", cursor: "pointer", padding: 4, fontSize: 12, fontWeight: 700 }}
+        >
+          <DollarSign size={16} /> Costing
+        </button>
+        <button
           onClick={() => setFloorOpen(true)}
           title="Open Floor Control — arrange the shop-floor monitors"
           className="inline-flex items-center gap-1.5 shrink-0"
@@ -857,6 +875,9 @@ export default function App() {
       )}
 
       {floorOpen && <FloorControl orders={orders} onClose={() => setFloorOpen(false)} />}
+      {costingOpen && (
+        <Costing costing={costing} productNames={allProductNames} onClose={() => setCostingOpen(false)} />
+      )}
 
       {backendMode === "local" && <LocalBanner />}
       {board.error && (

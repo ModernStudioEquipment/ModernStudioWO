@@ -678,4 +678,91 @@ export const supabaseAdapter = {
     const { error } = await supabase.from("stock_notices").delete().eq("id", id);
     fail(error);
   },
+
+  // ---- costing / margins ----
+  // Returns the whole costing dataset in one go: the input library, the costed
+  // products, and their recipe lines. Costs are computed in the UI from the
+  // input's CURRENT price, so a price change flows through everywhere at once.
+  async getCosting() {
+    const [inputs, products, lines] = await Promise.all([
+      supabase.from("cost_inputs").select("*").order("name"),
+      supabase.from("product_costs").select("*").order("name"),
+      supabase.from("product_cost_lines").select("*").order("position"),
+    ]);
+    // Tolerate the tables not existing yet (0050 not run) — the screen shows empty.
+    if (inputs.error || products.error || lines.error) return { inputs: [], products: [], lines: [] };
+    return {
+      inputs: (inputs.data || []).map((r) => ({
+        id: r.id, kind: r.kind, name: r.name, unit: r.unit,
+        unitPrice: Number(r.unit_price) || 0, vendor: r.vendor || "", sku: r.sku || "",
+        note: r.note || "", priceUpdatedAt: r.price_updated_at ? new Date(r.price_updated_at).getTime() : null,
+      })),
+      products: (products.data || []).map((r) => ({
+        id: r.id, name: r.name, sku: r.sku || "",
+        sellPrice: r.sell_price == null ? null : Number(r.sell_price), note: r.note || "",
+      })),
+      lines: (lines.data || []).map((r) => ({
+        id: r.id, productId: r.product_id, inputId: r.input_id,
+        qty: Number(r.qty) || 0, note: r.note || "", position: r.position || 0,
+      })),
+    };
+  },
+
+  async saveCostInput(p) {
+    const row = {
+      kind: p.kind || "material", name: (p.name || "").trim(), unit: p.unit || "each",
+      unit_price: Number(p.unitPrice) || 0, vendor: p.vendor || null, sku: p.sku || null, note: p.note || null,
+    };
+    // Stamp the price change so a buyer can see how current a price is.
+    if (p.priceChanged) row.price_updated_at = new Date().toISOString();
+    if (p.id) {
+      const { error } = await supabase.from("cost_inputs").update(row).eq("id", p.id);
+      fail(error);
+      return p.id;
+    }
+    row.price_updated_at = new Date().toISOString();
+    const { data, error } = await supabase.from("cost_inputs").insert(row).select("id").single();
+    fail(error);
+    return data?.id;
+  },
+
+  async deleteCostInput(id) {
+    const { error } = await supabase.from("cost_inputs").delete().eq("id", id);
+    fail(error);
+  },
+
+  // Costing a product for the first time creates its row on demand.
+  async ensureProductCost(name) {
+    const clean = (name || "").trim();
+    const { data: found } = await supabase.from("product_costs").select("id").eq("name", clean).maybeSingle();
+    if (found?.id) return found.id;
+    const { data, error } = await supabase.from("product_costs").insert({ name: clean }).select("id").single();
+    fail(error);
+    return data?.id;
+  },
+
+  async setProductSellPrice(id, sellPrice) {
+    const { error } = await supabase
+      .from("product_costs")
+      .update({ sell_price: sellPrice === "" || sellPrice == null ? null : Number(sellPrice) })
+      .eq("id", id);
+    fail(error);
+  },
+
+  async saveCostLine(l) {
+    const row = { product_id: l.productId, input_id: l.inputId || null, qty: Number(l.qty) || 0, note: l.note || null, position: l.position || 0 };
+    if (l.id) {
+      const { error } = await supabase.from("product_cost_lines").update(row).eq("id", l.id);
+      fail(error);
+      return l.id;
+    }
+    const { data, error } = await supabase.from("product_cost_lines").insert(row).select("id").single();
+    fail(error);
+    return data?.id;
+  },
+
+  async deleteCostLine(id) {
+    const { error } = await supabase.from("product_cost_lines").delete().eq("id", id);
+    fail(error);
+  },
 };
