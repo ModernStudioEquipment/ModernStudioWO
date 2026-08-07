@@ -5,12 +5,11 @@
 // layout "fields"    -> flat list of `fields`
 // layout "lineItems" -> `header` fields + a repeating `line` (columns)
 
-const today = () =>
-  new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
-const todayShort = () => {
-  const d = new Date();
-  return `${d.getMonth() + 1}/${d.getDate()}`;
-};
+import { fmtDate } from "../../theme.js";
+
+// Both date defaults use the app-wide 00/00/0000 format.
+const today = () => fmtDate(new Date());
+const todayShort = today;
 
 export const WO_TYPES = [
   { key: "shop", label: "Shop" },

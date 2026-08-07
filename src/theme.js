@@ -174,16 +174,28 @@ export const elapsed = (msRaw) => {
   return `${d}d ${h % 24}h`;
 };
 
+// EVERY date the app displays goes through here, so they all read the same:
+// 08/05/2026. Accepts a timestamp, a Date, or a "YYYY-MM-DD" string (due dates —
+// parsed at local midnight so the day doesn't shift).
+export const fmtDate = (value) => {
+  if (value == null || value === "") return "";
+  const dt = typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? new Date(`${value}T00:00:00`)
+    : new Date(value);
+  if (isNaN(dt)) return typeof value === "string" ? value : "";
+  const p = (n) => String(n).padStart(2, "0");
+  return `${p(dt.getMonth() + 1)}/${p(dt.getDate())}/${dt.getFullYear()}`;
+};
+
 // Full event stamp shown everywhere a timestamp appears: the exact local date +
-// time AND how long ago — e.g. "Jul 27, 2:34 PM · 2d 11h ago". These reflect when
-// something actually happened; they are never editable.
+// time AND how long ago — e.g. "08/05/2026, 2:34 PM · 2d 11h ago". These reflect
+// when something actually happened; they are never editable.
 export const stampAt = (ms) => {
   if (ms == null) return "";
   const dt = new Date(ms);
   if (isNaN(dt)) return "";
-  const date = dt.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   const time = dt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-  return `${date}, ${time}`;
+  return `${fmtDate(ms)}, ${time}`;
 };
 export const stamp = (ms, now = Date.now()) => {
   const at = stampAt(ms);
@@ -203,8 +215,7 @@ export const fmtTime = (t) => {
 };
 export const dueLabel = (d, time) => {
   if (!d) return "";
-  const dt = new Date(`${d}T00:00:00`);
-  const datePart = isNaN(dt) ? d : dt.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const datePart = fmtDate(d);
   return time ? `${datePart}, ${fmtTime(time)}` : datePart;
 };
 

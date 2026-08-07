@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { FLOOR_DEPTS, exitMonitor } from "./depts.js";
+import { fmtDate } from "../theme.js";
 import { fetchFloorQueue, fetchFloorPhotosFor, fetchFloorArrangement, fetchCncParts, matchCncPart, fetchFloorNotes, completeItem, fetchCncMachines, fetchFloorProductPhotosFor } from "./floorData.js";
 
 // Order the queue the way the office set it: items in the arrangement come
@@ -37,12 +38,11 @@ function useClock() {
     return () => clearInterval(id);
   }, []);
   const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const mos = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   let h = now.getHours();
   const ap = h >= 12 ? "PM" : "AM";
   h = h % 12 || 12;
   const m = String(now.getMinutes()).padStart(2, "0");
-  return { t: `${h}:${m} ${ap}`, d: `${days[now.getDay()]} · ${mos[now.getMonth()]} ${now.getDate()}` };
+  return { t: `${h}:${m} ${ap}`, d: `${days[now.getDay()]} · ${fmtDate(now)}` };
 }
 
 const normName = (s) => (s || "").toLowerCase().replace(/\s+/g, " ").trim();
@@ -454,9 +454,4 @@ function initials(name = "") {
   return (words[0]?.[0] || "?").toUpperCase() + (words[1]?.[0] || "").toUpperCase();
 }
 
-function fmtDue(d) {
-  const dt = new Date(d + "T00:00:00");
-  if (isNaN(dt)) return d;
-  const mos = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  return `${mos[dt.getMonth()]} ${dt.getDate()}`;
-}
+const fmtDue = (d) => fmtDate(d);

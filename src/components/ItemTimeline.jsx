@@ -1,5 +1,5 @@
 import React from "react";
-import { C, STAGE_LABELS } from "../theme.js";
+import { C, STAGE_LABELS, fmtDate } from "../theme.js";
 
 // Shared per-item history timeline. Shows where the product has been, when it
 // moved, and — the part the office cares about — how long it sat in each stage
@@ -23,7 +23,7 @@ function fmtDur(ms) {
 }
 
 const fmtTime = (at) =>
-  new Date(at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  `${fmtDate(at)}, ${new Date(at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
 
 function eventText(e) {
   if (e.kind === "created") return `Added to ${stageName(e.to)}`;

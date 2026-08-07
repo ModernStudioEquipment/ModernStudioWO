@@ -1,5 +1,5 @@
 import React from "react";
-import { C, elapsed, stampAt, dueLevel, sittingLevel, stageEnteredAt, stagedTooLong } from "../theme.js";
+import { C, elapsed, stampAt, fmtDate, dueLevel, sittingLevel, stageEnteredAt, stagedTooLong } from "../theme.js";
 
 // The shop's home screen — a live at-a-glance view computed from the same orders
 // + work orders the rest of the app uses. Cards and pipeline stages click
@@ -104,7 +104,7 @@ export function Dashboard({ orders = [], workOrders = [], now, onNavigate, onOpe
   const recent = [...orders].sort((a, b) => b.receivedAt - a.receivedAt).slice(0, 8);
 
   const d = new Date(ts);
-  const dateStr = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  const dateStr = `${d.toLocaleDateString("en-US", { weekday: "short" })}, ${fmtDate(d)}`;
   const timeStr = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }).toLowerCase().replace(" ", "");
 
   const card = { background: C.surface, border: `0.5px solid ${C.line}` };

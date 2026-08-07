@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { createPortal } from "react-dom";
 import { Printer } from "lucide-react";
-import { C, dueLabel } from "../../theme.js";
+import { C, dueLabel, fmtDate } from "../../theme.js";
 import { Btn } from "../ui.jsx";
 import { WO_FORMS, initFields, emptyLine } from "../workorders/forms.js";
 import { bodyFor } from "../workorders/bodies.jsx";
@@ -16,9 +16,7 @@ export function WorkOrderDoc({ order, items, onSave, onUploadPhoto, onClose }) {
   const type = DEPT_TO_TYPE[items[0]?.dept] || "shop";
   const form = WO_FORMS[type];
   const isLines = form.layout === "lineItems";
-  const orderedOn = new Date(order.receivedAt).toLocaleDateString("en-US", {
-    month: "long", day: "numeric", year: "numeric",
-  });
+  const orderedOn = fmtDate(order.receivedAt);
 
   const [fields, setFields] = useState(() => {
     const base = initFields(form);
