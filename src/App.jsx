@@ -874,6 +874,7 @@ export default function App() {
               <Dashboard
                 orders={customerOrders}
                 workOrders={wo.workOrders}
+                notices={stock.notices}
                 now={now}
                 onNavigate={setTab}
                 onOpenOrder={setDetailId}

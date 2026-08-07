@@ -4,7 +4,7 @@ import { C, elapsed, stampAt, fmtDate, dueLevel, sittingLevel, stageEnteredAt, s
 // The shop's home screen — a live at-a-glance view computed from the same orders
 // + work orders the rest of the app uses. Cards and pipeline stages click
 // through to their tab; order rows open the order.
-export function Dashboard({ orders = [], workOrders = [], now, onNavigate, onOpenOrder }) {
+export function Dashboard({ orders = [], workOrders = [], notices = [], now, onNavigate, onOpenOrder }) {
   const ts = now || Date.now();
   const items = orders.flatMap((o) => o.items);
   const fulfilled = (o) => !!o.fulfillment;
@@ -21,6 +21,8 @@ export function Dashboard({ orders = [], workOrders = [], now, onNavigate, onOpe
   const readyCount = orders.filter((o) => !fulfilled(o) && o.items.length > 0 && o.items.every((it) => it.stage === "done")).length;
   const fulfillingCount = orders.filter((o) => o.fulfillment === "willcall" || o.fulfillment === "shipping").length;
   const openOrders = orders.filter((o) => !fulfilled(o)).length;
+  // Products someone flagged as running low, waiting to be turned into work orders.
+  const lowStockCount = notices.filter((n) => n.status !== "handled").length;
 
   // ---- materials due to arrive (expected date reached, still not received) ----
   const todayStr = new Date(ts).toLocaleDateString("en-CA");
@@ -142,6 +144,7 @@ export function Dashboard({ orders = [], workOrders = [], now, onNavigate, onOpe
       <div className="grid mb-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 12 }}>
         <Kpi label="Due soon" value={dueSoonCount} accent={C.rush} sub={dueSoonCount ? "due ≤2 days / overdue" : "none right now"} hot to="urgent" />
         <Kpi label="In progress" value={pWork} accent={C.blue} sub={`across ${inProgOrders} order${inProgOrders === 1 ? "" : "s"}`} to="work" />
+        <Kpi label="Running low" value={lowStockCount} accent={C.high} sub={lowStockCount ? "waiting on a work order" : "nothing flagged"} hot to="inventory" />
         <Kpi label="Awaiting material" value={awaitingCount} accent={C.high} sub={awaitingCount ? "in purchasing" : "nothing waiting"} hot to="buy" />
         <Kpi label="Materials arriving" value={arrivingCount} accent={overdueCount ? C.rush : C.gold} sub={overdueCount ? `${overdueCount} overdue` : arrivingCount ? "expected today" : "none due"} hot to="buy" />
         <Kpi label="Ready to ship" value={readyCount} accent={C.green} sub={readyCount ? "ready to fulfill" : "none yet"} hot to="orders" />
