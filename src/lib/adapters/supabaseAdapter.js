@@ -79,6 +79,9 @@ function mapOrder(row, productPhotos = {}, fulfillmentsByOrder = {}, photoBySku 
           name: m.name,
           amount: m.amount,               // requested — what the order needs
           orderedQty: m.ordered_qty || null, // what was actually bought
+          progress: m.progress || null,      // "being worked on" state, e.g. Quote requested
+          progressAt: m.progress_at ? new Date(m.progress_at).getTime() : null,
+          progressBy: m.progress_by || null,
           ordered: m.ordered,
           received: m.received,
           orderedBy: m.ordered_by || null,
@@ -437,6 +440,8 @@ export const supabaseAdapter = {
     // NOTE: never writes `amount` — that's the REQUESTED quantity and must survive.
     // What was actually ordered goes in its own column.
     const base     = { ordered: true, ordered_by: details.orderedBy || null, vendor: details.vendor || null, po_number: details.poNumber || null };
+    // Once it's ordered the "working on it" flag is done — drop it silently.
+    supabase.from("materials").update({ progress: null, progress_at: null, progress_by: null }).eq("id", materialId).then(() => {}, () => {});
     const withQty  = { ...base, ordered_qty: details.orderedQty ?? null };
     // ordered_at is an immutable stamp: set to the moment of the action on first
     // mark (details.orderedAt is null), preserved as-is on a later edit.
@@ -455,6 +460,17 @@ export const supabaseAdapter = {
     const { error } = await supabase.from("materials").update({ for_inventory: !!forInventory }).eq("id", materialId);
     // No-op quietly if the 0027 column isn't there yet (don't show a scary banner).
     if (error && !/for_inventory/.test(error.message || "")) fail(error);
+  },
+
+  // Flag a material as actively being worked on (quote requested, etc). Passing
+  // null clears it. Stamped with when + who, like every other completed action.
+  async setMaterialProgress(materialId, progress, by) {
+    const patch = progress
+      ? { progress, progress_at: new Date().toISOString(), progress_by: by || null }
+      : { progress: null, progress_at: null, progress_by: null };
+    const { error } = await supabase.from("materials").update(patch).eq("id", materialId);
+    // No-op quietly if 0052 hasn't been run yet.
+    if (error && !/progress/.test(error.message || "")) fail(error);
   },
 
   async unmarkOrdered(materialId) {

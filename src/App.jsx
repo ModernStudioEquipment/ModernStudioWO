@@ -1143,6 +1143,24 @@ export default function App() {
                                   {overdue ? `due ${dueLabel(m.expectedAt)}` : "arriving today"}
                                 </Pill>
                               )}
+                              {/* Somebody's already on it — shows what stage and who,
+                                  so two people don't chase the same quote. */}
+                              {!m.ordered && (
+                                <InlineMenu align="right" options={PROGRESS_OPTIONS} onSelect={(v) => board.setMaterialProgress(m.id, v || null, null)}>
+                                  {m.progress ? (
+                                    <span className="btn-pop" style={{ cursor: "pointer", display: "inline-flex" }}
+                                      title={`${m.progress}${m.progressAt ? ` · ${stamp(m.progressAt, now)}` : ""} — click to change`}>
+                                      <Pill c={C.high} bg={C.highBg} Icon={Hammer}>{m.progress}</Pill>
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded btn-pop"
+                                      style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5, background: C.surface, color: C.gray, border: `1px solid ${C.line}`, cursor: "pointer", whiteSpace: "nowrap" }}
+                                      title="Mark that you're working on this">
+                                      <Hammer size={12} />Working on it
+                                    </span>
+                                  )}
+                                </InlineMenu>
+                              )}
                               {m.ordered ? (
                                 <button onClick={() => board.unmarkOrdered(m.id)} title="Click to mark as NOT ordered" style={{ background: "none", border: "none", padding: 0, cursor: "pointer", display: "inline-flex" }}>
                                   <Pill c={C.blue} bg={C.blueBg} Icon={ShoppingCart}>ordered</Pill>
@@ -1153,6 +1171,11 @@ export default function App() {
                               <Btn kind="green" onClick={() => setReceiveTarget({ it, m })}><Check size={13} />Received</Btn>
                             </span>
                           </div>
+                          {!m.ordered && m.progress && m.progressAt && (
+                            <div style={{ fontSize: 11, color: C.gray, marginTop: 7 }}>
+                              {m.progress} · {stamp(m.progressAt, now)}{m.progressBy ? ` · by ${m.progressBy}` : ""}
+                            </div>
+                          )}
                           {m.ordered && (m.poNumber || m.vendor || m.contact || m.orderedBy || m.orderedAt || m.expectedAt) && (
                             <div style={{ fontSize: 11, color: C.gray, marginTop: 7 }}>
                               {[m.orderedQty && `got ${m.orderedQty}`, m.poNumber && `PO ${m.poNumber}`, m.vendor, m.contact && `talked to ${m.contact}`, m.orderedBy && `by ${m.orderedBy}`, m.orderedAt && `ordered ${stamp(new Date(m.orderedAt).getTime(), now)}`, m.expectedAt && `exp ${dueLabel(m.expectedAt)}`].filter(Boolean).join(" · ")}
@@ -1762,6 +1785,16 @@ function SegGroup({ label, value, onChange, options, btnWidth = 70 }) {
     </span>
   );
 }
+
+// Purchasing "being worked on" states — free text in the DB, so this list is
+// just the quick picks and can change without a migration.
+const PROGRESS_OPTIONS = [
+  { value: "Quote requested", label: "Quote requested" },
+  { value: "Waiting on quote", label: "Waiting on quote" },
+  { value: "Sourcing it", label: "Sourcing it" },
+  { value: "Waiting on approval", label: "Waiting on approval" },
+  { value: "", label: "Clear status" },
+];
 
 function SectionHeader({ label, count }) {
   return (

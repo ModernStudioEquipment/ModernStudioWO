@@ -411,6 +411,7 @@ export const localAdapter = {
       m.contact = details.contact || null;
       m.poNumber = details.poNumber || null;
       m.orderedQty = details.orderedQty ?? null;
+      m.progress = null; m.progressAt = null; m.progressBy = null;
       m.orderedAt = details.orderedAt || new Date().toISOString();
       m.expectedAt = details.expectedAt || null;
       m.note = details.note || null;
@@ -419,6 +420,14 @@ export const localAdapter = {
 
   async setForInventory(materialId, forInventory) {
     mutateMaterial(materialId, (m) => { m.forInventory = !!forInventory; });
+  },
+
+  async setMaterialProgress(materialId, progress, by) {
+    mutateMaterial(materialId, (m) => {
+      m.progress = progress || null;
+      m.progressAt = progress ? Date.now() : null;
+      m.progressBy = progress ? by || null : null;
+    });
   },
 
   async unmarkOrdered(materialId) {
