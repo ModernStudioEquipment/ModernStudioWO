@@ -295,6 +295,7 @@ async function run({ commit, shipToBackfillDays, commitBacklog, backlogFrom, bac
   // cause a duplicate — WITHOUT touching items already there (stage / dept / done /
   // pickup state is preserved). An order caught mid-edit thus heals next sync.
   let reconcileItems = [];
+  let reconcileConflicts = []; // renames/mismatches we refused to duplicate
   if (!commitBacklogNo) {
     const nameKey = (it) => String(it.name || "").trim().toLowerCase();
     const codeKey = (it) => { const mm = /item #:\s*(.+)$/i.exec(it.note || ""); return mm ? mm[1].trim().toLowerCase() : null; };
@@ -310,7 +311,20 @@ async function run({ commit, shipToBackfillDays, commitBacklog, backlogFrom, bac
         const haveCodes = new Set((bo.items || []).map(codeKey).filter(Boolean));
         const missing = qb.items.filter((it) => !haveNames.has(nameKey(it)) && !(codeKey(it) && haveCodes.has(codeKey(it))));
         const base = (bo.items || []).length;
-        missing.forEach((it, i) => reconcileItems.push({ order_id: bo.id, name: it.name, qty: it.qty, note: it.note, dept: it.dept || "Shop", stage: "new", position: base + i }));
+        // GUARD: never let reconcile push an order ABOVE QuickBooks' own line count.
+        // Matching is by name (or "Item #:" code when present), so RENAMING a line
+        // in QuickBooks looks identical to adding a new one — reconcile would add
+        // the new name and leave the old behind, duplicating the product. That hit
+        // invoice #473450: two lines renamed to "… (Raw Steel)" became four items.
+        // If the board already holds as many lines as QuickBooks does, nothing is
+        // genuinely missing; report it instead of guessing.
+        const room = qb.items.length - base;
+        if (room <= 0) {
+          if (missing.length) reconcileConflicts.push({ orderNo: bo.order_no, board: base, quickbooks: qb.items.length, wouldAdd: missing.map((it) => it.name) });
+          continue;
+        }
+        missing.slice(0, room).forEach((it, i) => reconcileItems.push({ order_id: bo.id, name: it.name, qty: it.qty, note: it.note, dept: it.dept || "Shop", stage: "new", position: base + i }));
+        if (missing.length > room) reconcileConflicts.push({ orderNo: bo.order_no, board: base, quickbooks: qb.items.length, wouldAdd: missing.slice(room).map((it) => it.name) });
       }
     }
   }
@@ -330,6 +344,7 @@ async function run({ commit, shipToBackfillDays, commitBacklog, backlogFrom, bac
       },
       wouldAddTotal: toAdd.length,
       committingNow: toAdd.filter((m) => m.kind === "so" || m.receivedAt >= COMMIT_INVOICES_FROM).length,
+      reconcileConflicts,
       reconcile: { ordersToppedUp: new Set(reconcileItems.map((r) => r.order_id)).size, itemsToAdd: reconcileItems.length },
       sample: toAdd.slice(0, 8).map((m) => ({ kind: m.kind, orderNo: m.orderNo, date: m.receivedAt, customer: m.customer, shipVia: m.shipVia, linkedSo: m.linkedSo })),
       // The held-back backlog, in full — every one of these has a linked SO that
