@@ -4,7 +4,7 @@ import {
   Flag, Check, ArrowRight, ShoppingCart, LogOut, Store, MapPin, Package, X, Bell, ExternalLink, RefreshCw, Pencil, RotateCcw, ChevronsDownUp, ChevronsUpDown, Sun, Moon, MonitorPlay, Layers, ArrowUpDown, ChevronLeft, ChevronRight, PackageSearch, Trash2, DollarSign,
 } from "lucide-react";
 import { C, PRI, PRI_CYCLE, PRI_RANK, elapsed, stamp, materialKey, blocked, pct, dueLabel, priLabel, effectivePriority, trackingUrl, stagedTooLong, stagedDwellMs, STAGE_LABELS } from "./theme.js";
-import { backendMode } from "./lib/db.js";
+import { backendMode, db } from "./lib/db.js";
 import { useAuth } from "./hooks/useAuth.js";
 import { useOrders } from "./hooks/useOrders.js";
 import { useWorkOrders } from "./hooks/useWorkOrders.js";
@@ -333,6 +333,25 @@ export default function App() {
   // Only the lines nobody has bought yet — those are the ones worth warning about
   // when someone goes to add the same material again.
   const openDemandFor = (name) => demandFor(name).filter((r) => !r.ordered);
+
+  // A big order can have a dozen materials; flagging each one by hand is a chore.
+  // This marks every un-ordered, not-yet-flagged material on the order at once
+  // (one refetch, not one per material) and is undoable as a single action.
+  const openMatsFor = (o) =>
+    o.items.flatMap((it) => (it.materials || []).filter((m) => !m.received && !m.ordered && !m.progress));
+  const quoteAllFor = async (o) => {
+    const targets = openMatsFor(o);
+    if (!targets.length) return;
+    await Promise.all(targets.map((m) => db.setMaterialProgress(m.id, "Quote requested", null)));
+    await board.refetch();
+    undoer.record(
+      `Quote requested — ${targets.length} material${targets.length === 1 ? "" : "s"} (#${o.orderNo})`,
+      async () => {
+        await Promise.all(targets.map((m) => db.setMaterialProgress(m.id, null, null)));
+        await board.refetch();
+      }
+    );
+  };
 
   const markOrderedU = async (materialId, details) => {
     const m = orders.flatMap((o) => o.items).flatMap((it) => it.materials).find((x) => x.id === materialId);
@@ -1100,6 +1119,20 @@ export default function App() {
                 {!buyOrders.length && <Empty>Nothing to buy. Materials land here when an item is triaged “need material.”</Empty>}
                 {sortOrders(buyOrders).map((o) => (
                   <Group key={o.id} o={o} now={now} onDueDate={board.setDueDate} onCompletion={board.setCompletionDate} onMethod={board.setFulfillmentMethod} onInvoice={onInvoiceClick} onOpen={() => setDetailId(o.id)}>
+                    {/* Whole-order shortcut — only worth showing when there's more
+                        than one material still waiting to be flagged. */}
+                    {openMatsFor(o).length > 1 && (
+                      <div className="flex items-center gap-2 px-4 py-2" style={{ background: C.concrete, borderBottom: `1px solid ${C.line}` }}>
+                        <span style={{ fontSize: 12, color: C.gray }}>
+                          {openMatsFor(o).length} materials still to be quoted
+                        </span>
+                        <span className="ml-auto">
+                          <Btn onClick={() => quoteAllFor(o)} title="Mark every material on this order as quote requested">
+                            <Check size={13} />Quote requested — all {openMatsFor(o).length}
+                          </Btn>
+                        </span>
+                      </div>
+                    )}
                     {o.items.filter((it) => it.needsMaterial).map((it) =>
                       it.materials.filter((m) => !m.received).map((m) => {
                         // Once the expected date is reached, flag the row so the
@@ -1143,23 +1176,20 @@ export default function App() {
                                   {overdue ? `due ${dueLabel(m.expectedAt)}` : "arriving today"}
                                 </Pill>
                               )}
-                              {/* Somebody's already on it — shows what stage and who,
-                                  so two people don't chase the same quote. */}
+                              {/* One toggle: quote requested or not. Ticked once set so
+                                  it's obvious at a glance that someone's on it. */}
                               {!m.ordered && (
-                                <InlineMenu align="right" options={PROGRESS_OPTIONS} onSelect={(v) => board.setMaterialProgress(m.id, v || null, null)}>
-                                  {m.progress ? (
-                                    <span className="btn-pop" style={{ cursor: "pointer", display: "inline-flex" }}
-                                      title={`${m.progress}${m.progressAt ? ` · ${stamp(m.progressAt, now)}` : ""} — click to change`}>
-                                      <Pill c={C.high} bg={C.highBg} Icon={Hammer}>{m.progress}</Pill>
-                                    </span>
-                                  ) : (
-                                    <span className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded btn-pop"
-                                      style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5, background: C.surface, color: C.gray, border: `1px solid ${C.line}`, cursor: "pointer", whiteSpace: "nowrap" }}
-                                      title="Mark that you're working on this">
-                                      <Hammer size={12} />Working on it
-                                    </span>
-                                  )}
-                                </InlineMenu>
+                                <button
+                                  onClick={() => board.setMaterialProgress(m.id, m.progress ? null : "Quote requested", null)}
+                                  title={m.progress ? `Quote requested${m.progressAt ? ` · ${stamp(m.progressAt, now)}` : ""} — click to clear` : "Mark that a quote has been requested"}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded btn-pop"
+                                  style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5, cursor: "pointer", whiteSpace: "nowrap",
+                                    ...(m.progress
+                                      ? { background: C.highBg, color: C.high, border: `1px solid ${C.high}` }
+                                      : { background: C.surface, color: C.gray, border: `1px solid ${C.line}` }) }}
+                                >
+                                  <Check size={12} style={{ opacity: m.progress ? 1 : 0.35 }} />Quote requested
+                                </button>
                               )}
                               {m.ordered ? (
                                 <button onClick={() => board.unmarkOrdered(m.id)} title="Click to mark as NOT ordered" style={{ background: "none", border: "none", padding: 0, cursor: "pointer", display: "inline-flex" }}>
@@ -1173,7 +1203,7 @@ export default function App() {
                           </div>
                           {!m.ordered && m.progress && m.progressAt && (
                             <div style={{ fontSize: 11, color: C.gray, marginTop: 7 }}>
-                              {m.progress} · {stamp(m.progressAt, now)}{m.progressBy ? ` · by ${m.progressBy}` : ""}
+                              Quote requested · {stamp(m.progressAt, now)}{m.progressBy ? ` · by ${m.progressBy}` : ""}
                             </div>
                           )}
                           {m.ordered && (m.poNumber || m.vendor || m.contact || m.orderedBy || m.orderedAt || m.expectedAt) && (
@@ -1785,16 +1815,6 @@ function SegGroup({ label, value, onChange, options, btnWidth = 70 }) {
     </span>
   );
 }
-
-// Purchasing "being worked on" states — free text in the DB, so this list is
-// just the quick picks and can change without a migration.
-const PROGRESS_OPTIONS = [
-  { value: "Quote requested", label: "Quote requested" },
-  { value: "Waiting on quote", label: "Waiting on quote" },
-  { value: "Sourcing it", label: "Sourcing it" },
-  { value: "Waiting on approval", label: "Waiting on approval" },
-  { value: "", label: "Clear status" },
-];
 
 function SectionHeader({ label, count }) {
   return (
