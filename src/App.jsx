@@ -539,11 +539,22 @@ export default function App() {
   // Low-stock notices: open ones are the queue; handled ones stay for reference.
   const openNotices = (stock.notices || []).filter((n) => n.status !== "handled");
   const handledNotices = (stock.notices || []).filter((n) => n.status === "handled");
-  // Every distinct product we've ever put on an order — the costing catalog.
+  // Every distinct product we've ever put on an order — the costing catalog. Each
+  // carries the department that makes it (the one it's been routed to most often),
+  // so costing can group products into Sewing / Shop / CNC / Saw sections.
   const allProductNames = useMemo(() => {
-    const set = new Set();
-    allOrders.forEach((o) => o.items.forEach((it) => { if (it.name) set.add(it.name.trim()); }));
-    return [...set];
+    const byName = new Map();
+    allOrders.forEach((o) => o.items.forEach((it) => {
+      const n = (it.name || "").trim();
+      if (!n) return;
+      if (!byName.has(n)) byName.set(n, {});
+      const tally = byName.get(n);
+      if (it.dept) tally[it.dept] = (tally[it.dept] || 0) + 1;
+    }));
+    return [...byName.entries()].map(([name, tally]) => {
+      const dept = Object.entries(tally).sort((x, y) => y[1] - x[1])[0]?.[0] || "Shop";
+      return { name, dept };
+    });
   }, [allOrders]);
   const customerOrders = orders.filter((o) => o.source !== "purchase");
   const count = (os, pred) => os.reduce((n, o) => n + o.items.filter(pred).length, 0);
@@ -829,7 +840,7 @@ export default function App() {
           className="inline-flex items-center gap-1.5 shrink-0"
           style={{ color: "rgba(255,255,255,0.7)", background: "transparent", border: "none", cursor: "pointer", padding: 4, fontSize: 12, fontWeight: 700 }}
         >
-          <DollarSign size={16} /> Costing
+          <DollarSign size={16} />
         </button>
         <button
           onClick={() => setFloorOpen(true)}
