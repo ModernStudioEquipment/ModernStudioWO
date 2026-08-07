@@ -430,11 +430,13 @@ export const localAdapter = {
     mutateMaterial(materialId, (m) => { m.forInventory = !!forInventory; });
   },
 
-  async setMaterialProgress(materialId, progress, by) {
+  async setMaterialProgress(materialId, progress, meta = {}) {
+    const { by = null, note } = meta || {};
     mutateMaterial(materialId, (m) => {
       m.progress = progress || null;
       m.progressAt = progress ? Date.now() : null;
-      m.progressBy = progress ? by || null : null;
+      m.progressBy = progress ? by : null;
+      if (note !== undefined) m.note = note;
     });
   },
 

@@ -117,8 +117,13 @@ export function useOrders(enabled) {
     markOrdered: act((materialId, details) => db.markOrdered(materialId, details)),
     unmarkOrdered: act((materialId) => db.unmarkOrdered(materialId)),
     setMaterialProgress: optimisticMaterial(
-      (progress, by) => ({ progress: progress || null, progressAt: progress ? Date.now() : null, progressBy: progress ? by || null : null }),
-      (materialId, progress, by) => db.setMaterialProgress(materialId, progress, by)
+      (progress, meta = {}) => ({
+        progress: progress || null,
+        progressAt: progress ? Date.now() : null,
+        progressBy: progress ? meta.by || null : null,
+        ...(meta.note !== undefined ? { note: meta.note } : {}),
+      }),
+      (materialId, progress, meta) => db.setMaterialProgress(materialId, progress, meta)
     ),
     setForInventory: optimisticMaterial(
       (forInventory) => ({ forInventory: !!forInventory }),

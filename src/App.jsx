@@ -28,6 +28,7 @@ import { WorkOrderDoc } from "./components/modals/WorkOrderDoc.jsx";
 import { NewOrderModal } from "./components/modals/NewOrderModal.jsx";
 import { NewPurchaseModal } from "./components/modals/NewPurchaseModal.jsx";
 import { NewNoticeModal } from "./components/modals/NewNoticeModal.jsx";
+import { QuoteModal } from "./components/modals/QuoteModal.jsx";
 import { FulfillModal } from "./components/modals/FulfillModal.jsx";
 import { TrackingModal } from "./components/modals/TrackingModal.jsx";
 import { PickedUpModal } from "./components/modals/PickedUpModal.jsx";
@@ -144,6 +145,7 @@ export default function App() {
   const [doc, setDoc] = useState(null); // { o, it } for printable work order
   const [likeKinds, setLikeKinds] = useState(null); // { o, it, others } — same product on other orders
   const [showNewNotice, setShowNewNotice] = useState(false); // low-stock notice form
+  const [quoteTarget, setQuoteTarget] = useState(null); // { materials: [...] } awaiting quote notes
   const [flashItem, setFlashItem] = useState(null);
   const [detailId, setDetailId] = useState(null);
   const [flashOrderId, setFlashOrderId] = useState(null); // order to scroll to + flash after a search jump
@@ -342,17 +344,31 @@ export default function App() {
   const quoteAllFor = async (o) => {
     const targets = openMatsFor(o);
     if (!targets.length) return;
-    // Paint them all immediately, then persist — a refetch behind the click would
+    setQuoteTarget({ materials: targets, orderNo: o.orderNo });
+  };
+
+  // Confirmed from the quote pop-up: flag every target, carrying the note.
+  const confirmQuote = async ({ note, by }) => {
+    const targets = quoteTarget?.materials || [];
+    const orderNo = quoteTarget?.orderNo;
+    setQuoteTarget(null);
+    if (!targets.length) return;
+    // Paint immediately, then persist — a refetch behind the click would
     // re-download the whole board just to show a flag that's already known.
     const paint = (on) => targets.forEach((m) =>
-      board.patchMaterial(m.id, { progress: on ? "Quote requested" : null, progressAt: on ? Date.now() : null, progressBy: null }));
+      board.patchMaterial(m.id, {
+        progress: on ? "Quote requested" : null,
+        progressAt: on ? Date.now() : null,
+        progressBy: on ? by : null,
+        ...(note !== undefined ? { note: on ? note : m.note } : {}),
+      }));
     paint(true);
-    await Promise.all(targets.map((m) => db.setMaterialProgress(m.id, "Quote requested", null)));
+    await Promise.all(targets.map((m) => db.setMaterialProgress(m.id, "Quote requested", { by, note })));
     undoer.record(
-      `Quote requested — ${targets.length} material${targets.length === 1 ? "" : "s"} (#${o.orderNo})`,
+      `Quote requested — ${targets.length} material${targets.length === 1 ? "" : "s"}${orderNo ? ` (#${orderNo})` : ""}`,
       async () => {
         paint(false);
-        await Promise.all(targets.map((m) => db.setMaterialProgress(m.id, null, null)));
+        await Promise.all(targets.map((m) => db.setMaterialProgress(m.id, null)));
       }
     );
   };
@@ -1184,7 +1200,7 @@ export default function App() {
                                   it's obvious at a glance that someone's on it. */}
                               {!m.ordered && (
                                 <button
-                                  onClick={() => board.setMaterialProgress(m.id, m.progress ? null : "Quote requested", null)}
+                                  onClick={() => (m.progress ? board.setMaterialProgress(m.id, null) : setQuoteTarget({ materials: [m] }))}
                                   title={m.progress ? `Quote requested${m.progressAt ? ` · ${stamp(m.progressAt, now)}` : ""} — click to clear` : "Mark that a quote has been requested"}
                                   className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded btn-pop"
                                   style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5, cursor: "pointer", whiteSpace: "nowrap",
@@ -1363,6 +1379,14 @@ export default function App() {
           openFor={openDemandFor}
           onCreate={board.createPurchase}
           onClose={() => setShowNewPurchase(false)}
+        />
+      )}
+      {quoteTarget && (
+        <QuoteModal
+          material={quoteTarget.materials[0]}
+          count={quoteTarget.materials.length}
+          onConfirm={confirmQuote}
+          onClose={() => setQuoteTarget(null)}
         />
       )}
       {showNewNotice && (
