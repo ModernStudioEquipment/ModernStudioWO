@@ -44,31 +44,12 @@ export default function App() {
   const board = useOrders(authed);
   const wo = useWorkOrders(authed);
   const undoer = useUndo();
+  const [costingOpen, setCostingOpen] = useState(false); // full-screen costing / margins world
   const stock = useStockNotices(authed);
-  const costing = useCosting(authed);
+  const costing = useCosting(authed && costingOpen);
   // Cancelled orders are kept on record in the DB but hidden from every board.
   const allOrders = board.orders;
 
-  // Every distinct product we've ever put on an order — the costing catalog. Each
-  // carries the department that makes it (the one it's been routed to most often),
-  // so costing can group products into Sewing / Shop / CNC / Saw sections.
-  // MUST stay up here with the other hooks: App has early returns (loading / auth
-  // / CNC-only) below, and a hook after one of those changes the hook count
-  // between renders, which React rejects (error #310 — blank screen).
-  const allProductNames = useMemo(() => {
-    const byName = new Map();
-    (board.orders || []).forEach((o) => (o.items || []).forEach((it) => {
-      const n = (it.name || "").trim();
-      if (!n) return;
-      if (!byName.has(n)) byName.set(n, {});
-      const tally = byName.get(n);
-      if (it.dept) tally[it.dept] = (tally[it.dept] || 0) + 1;
-    }));
-    return [...byName.entries()].map(([name, tally]) => {
-      const dept = Object.entries(tally).sort((x, y) => y[1] - x[1])[0]?.[0] || "Shop";
-      return { name, dept };
-    });
-  }, [board.orders]);
   const orders = allOrders.filter((o) => !o.cancelledAt);
 
   const [tab, setTab] = useState(() => {
@@ -200,7 +181,6 @@ export default function App() {
   const [customDoc, setCustomDoc] = useState(null); // work order sheet open for edit ({type} = new, or a saved WO)
   const [workCombined, setWorkCombined] = useState(false); // Work Order tab: combine like items across orders
   const [floorOpen, setFloorOpen] = useState(false); // full-screen dark "Floor Control" world
-  const [costingOpen, setCostingOpen] = useState(false); // full-screen costing / margins world
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 30000);
@@ -891,7 +871,7 @@ export default function App() {
 
       {floorOpen && <FloorControl orders={orders} onClose={() => setFloorOpen(false)} />}
       {costingOpen && (
-        <Costing costing={costing} productNames={allProductNames} onClose={() => setCostingOpen(false)} />
+        <Costing costing={costing} productNames={costing.catalog} onClose={() => setCostingOpen(false)} />
       )}
 
       {backendMode === "local" && <LocalBanner />}

@@ -680,6 +680,30 @@ export const supabaseAdapter = {
   },
 
   // ---- costing / margins ----
+  // The costing catalog: EVERY distinct product ever ordered, with the department
+  // that makes it. Queried straight from items (paged past the 1000-row cap) so
+  // it does NOT inherit the board's "1000 newest orders" limit — that cap was
+  // hiding ~474 products from the margins screen.
+  async getProductCatalog() {
+    const tally = new Map();
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await supabase.from("items").select("name,dept").range(from, from + 999);
+      if (error) break;
+      for (const r of data || []) {
+        const n = (r.name || "").trim();
+        if (!n) continue;
+        if (!tally.has(n)) tally.set(n, {});
+        const t = tally.get(n);
+        if (r.dept) t[r.dept] = (t[r.dept] || 0) + 1;
+      }
+      if (!data || data.length < 1000) break;
+    }
+    return [...tally.entries()].map(([name, t]) => ({
+      name,
+      dept: Object.entries(t).sort((a, b) => b[1] - a[1])[0]?.[0] || "Shop",
+    }));
+  },
+
   // Returns the whole costing dataset in one go: the input library, the costed
   // products, and their recipe lines. Costs are computed in the UI from the
   // input's CURRENT price, so a price change flows through everywhere at once.

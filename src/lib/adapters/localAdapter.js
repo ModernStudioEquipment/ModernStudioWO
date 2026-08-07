@@ -648,6 +648,21 @@ export const localAdapter = {
   },
 
   // ---- costing / margins ----
+  async getProductCatalog() {
+    const tally = new Map();
+    read().forEach((o) => (o.items || []).forEach((it) => {
+      const n = (it.name || "").trim();
+      if (!n) return;
+      if (!tally.has(n)) tally.set(n, {});
+      const t = tally.get(n);
+      if (it.dept) t[it.dept] = (t[it.dept] || 0) + 1;
+    }));
+    return [...tally.entries()].map(([name, t]) => ({
+      name,
+      dept: Object.entries(t).sort((a, b) => b[1] - a[1])[0]?.[0] || "Shop",
+    }));
+  },
+
   async getCosting() {
     return {
       inputs: readCost("inputs"),

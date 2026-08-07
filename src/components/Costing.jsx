@@ -186,8 +186,13 @@ function ProductList({ rows, q, setQ, sort, setSort, section, setSection, onPick
       if (bm == null) return -1;
       return sort === "margin_asc" ? am - bm : bm - am;
     });
-    return list.slice(0, 300);
+    return list;
   }, [rows, q, sort, section]);
+
+  // Render cap purely for speed with ~1,800 products; the count above always
+  // reports the true total so nothing looks quietly missing.
+  const CAP = 400;
+  const visible = shown.slice(0, CAP);
 
   const cur = SORTS.find((s) => s.value === sort) || SORTS[0];
 
@@ -218,12 +223,14 @@ function ProductList({ rows, q, setQ, sort, setSort, section, setSection, onPick
             <DeptIcon d={dept} size={12} />{label}
           </button>
         ))}
-        <span className="ml-auto" style={{ fontSize: 12, color: C.gray }}>{shown.length} shown</span>
+        <span className="ml-auto" style={{ fontSize: 12, color: C.gray }}>
+          {shown.length} product{shown.length === 1 ? "" : "s"}{shown.length > CAP ? ` · showing first ${CAP}` : ""}
+        </span>
       </div>
 
       {!shown.length && <Empty>Nothing matches.</Empty>}
 
-      {shown.map((r) => (
+      {visible.map((r) => (
         <button key={r.name} onClick={() => onPick(r.name)} className="w-full flex items-center gap-3 px-4 py-2.5 rounded mb-1.5 text-left card-pop"
           style={{ background: C.surface, border: `1px solid ${C.line}`, cursor: "pointer" }}>
           <span style={{ color: C.gray, flexShrink: 0 }}><DeptIcon d={r.dept} size={13} /></span>
@@ -241,6 +248,11 @@ function ProductList({ rows, q, setQ, sort, setSort, section, setSection, onPick
           )}
         </button>
       ))}
+      {shown.length > CAP && (
+        <div style={{ fontSize: 12, color: C.gray, marginTop: 8 }}>
+          {shown.length - CAP} more — search or pick a department to narrow it down.
+        </div>
+      )}
     </>
   );
 }

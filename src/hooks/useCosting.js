@@ -10,13 +10,19 @@ import { db } from "../lib/db.js";
 // cached to go stale.
 export function useCosting(enabled) {
   const [data, setData] = useState({ inputs: [], products: [], lines: [] });
+  const [catalog, setCatalog] = useState([]); // every product ever ordered
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const debounceRef = useRef(null);
 
   const refetch = useCallback(async () => {
     try {
-      setData((await db.getCosting?.()) || { inputs: [], products: [], lines: [] });
+      const [costing, cat] = await Promise.all([
+        db.getCosting?.(),
+        db.getProductCatalog?.(),
+      ]);
+      setData(costing || { inputs: [], products: [], lines: [] });
+      setCatalog(cat || []);
       setError(null);
     } catch (e) {
       setError(e.message || String(e));
@@ -91,6 +97,7 @@ export function useCosting(enabled) {
 
   return {
     ...data,
+    catalog,
     loading,
     error,
     refetch,
