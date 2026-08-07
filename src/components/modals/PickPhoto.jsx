@@ -1,22 +1,31 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { X, Camera, Check, ImagePlus } from "lucide-react";
 import { C } from "../../theme.js";
 import { Btn, Info } from "../ui.jsx";
 import { ItemTimeline } from "../ItemTimeline.jsx";
 
-function History({ item }) {
-  if (!item.events || !item.events.length) return null;
+// Fetched on open — the event log isn't shipped with the board (migration 0053).
+function History({ item, onLoadEvents }) {
+  const [events, setEvents] = useState(item.events || []);
+  useEffect(() => {
+    let live = true;
+    if (!item.events?.length && onLoadEvents) {
+      onLoadEvents(item.id).then((e) => { if (live) setEvents(e || []); });
+    }
+    return () => { live = false; };
+  }, [item.id, item.events, onLoadEvents]);
+  if (!events.length) return null;
   return (
     <div className="mt-4">
       <div style={{ fontSize: 11, fontWeight: 700, color: C.gray, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>History</div>
-      <ItemTimeline events={item.events} currentStage={item.stage} />
+      <ItemTimeline events={events} currentStage={item.stage} />
     </div>
   );
 }
 
 // Picker confirmation view. Shows the item's product photo (auto-pulled from
 // Shopify when available, or pasted manually here) and the "Item picked" action.
-export function PickPhoto({ order, item, onPicked, onSetImage, onUploadImage, onSetNote, onClose, qtyLabel = "Pick qty", actionLabel = "Item picked" }) {
+export function PickPhoto({ order, item, onPicked, onSetImage, onUploadImage, onSetNote, onLoadEvents, onClose, qtyLabel = "Pick qty", actionLabel = "Item picked" }) {
   const [saving, setSaving] = React.useState(false);
   const [url, setUrl] = React.useState(item.imageUrl || "");
   const [savingImg, setSavingImg] = React.useState(false);
@@ -116,7 +125,7 @@ export function PickPhoto({ order, item, onPicked, onSetImage, onUploadImage, on
             <Info label="Dept" value={item.dept} />
             <Info label="For" value={`#${order.orderNo} · ${order.customer}`} />
           </div>
-          <History item={item} />
+          <History item={item} onLoadEvents={onLoadEvents} />
           <div style={{ marginTop: 16 }}>
             <Btn kind="brass" onClick={pick} disabled={saving}>
               <Check size={15} />{saving ? "Saving…" : actionLabel}

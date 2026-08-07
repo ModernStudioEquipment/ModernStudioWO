@@ -104,6 +104,9 @@ export const SITTING_STALE_MS = 6 * 24 * 60 * 60 * 1000;
 // move into it.stage. Returns null when that move happened before history
 // tracking started (so we genuinely can't prove how long it's been here).
 export function stageEnteredAt(item) {
+  // Real backend stores this on the item (0053) so the board doesn't need the
+  // event log; local mode still derives it from the in-memory events.
+  if (item && item.stageEnteredAt) return item.stageEnteredAt;
   const evs = ((item && item.events) || []).filter((e) => e.kind === "created" || e.kind === "moved");
   for (let i = evs.length - 1; i >= 0; i--) {
     if (evs[i].to === item.stage) return new Date(evs[i].at).getTime();

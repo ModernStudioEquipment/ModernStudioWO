@@ -7,7 +7,7 @@ import { ItemTimeline } from "../ItemTimeline.jsx";
 // The office "where's my order?" view — full detail with a per-product
 // progress tracker. Items reconverge here even though they're triaged and
 // routed independently.
-export function OrderDetail({ order, status, now, onDueDate, onCompletion, onInvoice, onMethod, onSaveNotes, onUpdateItem, onMoveItem, onGoToItem, onFinishItem, onFulfill, onSendOrderBack, onCancel, onWalkInPickup, onPartialPickup, onClose }) {
+export function OrderDetail({ order, status, now, onDueDate, onCompletion, onInvoice, onMethod, onSaveNotes, onUpdateItem, onMoveItem, onGoToItem, onFinishItem, onLoadEvents, onFulfill, onSendOrderBack, onCancel, onWalkInPickup, onPartialPickup, onClose }) {
   const [confirming, setConfirming] = useState(false);
   const [reason, setReason] = useState("Customer cancelled");
   const [openTimeline, setOpenTimeline] = useState(null); // item id whose timeline is expanded
@@ -17,6 +17,17 @@ export function OrderDetail({ order, status, now, onDueDate, onCompletion, onInv
   const notesRef = useRef(null);
   const growNotes = (el) => { if (el) { el.style.height = "auto"; el.style.height = `${el.scrollHeight}px`; } };
   useEffect(() => { growNotes(notesRef.current); }, []);
+  // Timelines are fetched only when opened — the event log is far too big to ship
+  // with the board (see migration 0053).
+  const [eventsById, setEventsById] = useState({});
+  const openTimelineFor = async (itemId) => {
+    if (openTimeline === itemId) return setOpenTimeline(null);
+    setOpenTimeline(itemId);
+    if (eventsById[itemId] || !onLoadEvents) return;
+    const evs = await onLoadEvents(itemId);
+    setEventsById((m) => ({ ...m, [itemId]: evs || [] }));
+  };
+
   const done = order.items.filter((i) => i.stage === "done").length;
   const total = order.items.length;
   return (
@@ -142,7 +153,7 @@ export function OrderDetail({ order, status, now, onDueDate, onCompletion, onInv
               <Stepper it={it} onGoTo={onGoToItem} />
               <div className="flex items-center justify-between gap-3 mt-3 flex-wrap">
                 <button
-                  onClick={() => setOpenTimeline(open ? null : it.id)}
+                  onClick={() => openTimelineFor(it.id)}
                   className="inline-flex items-center gap-1"
                   style={{ fontSize: 12, fontWeight: 700, color: C.blue }}
                   title="See where this product has been and how long"
@@ -161,7 +172,11 @@ export function OrderDetail({ order, status, now, onDueDate, onCompletion, onInv
               </div>
               {open && (
                 <div style={{ marginTop: 10, paddingTop: 12, borderTop: `1px solid ${C.line}` }}>
-                  <ItemTimeline events={it.events} now={now} currentStage={it.stage} />
+                  {eventsById[it.id] ? (
+                    <ItemTimeline events={eventsById[it.id]} now={now} currentStage={it.stage} />
+                  ) : (
+                    <div style={{ fontSize: 12, color: C.gray }}>Loading history…</div>
+                  )}
                 </div>
               )}
               {it.stage === "awaiting" && it.materials.some((m) => !m.received) && (

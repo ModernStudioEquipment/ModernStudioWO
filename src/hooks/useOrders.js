@@ -79,6 +79,7 @@ export function useOrders(enabled) {
     triageItem: act((itemId, decision) => db.triageItem(itemId, decision)),
     addMaterials: act((itemId, rows) => db.addMaterials(itemId, rows)),
     finishItem: act((itemId) => db.finishItem(itemId)),
+    getItemEvents: (itemId) => db.getItemEvents(itemId),
     updateItem: act((itemId, patch) => db.updateItem(itemId, patch)),
     uploadItemPhoto: act((itemId, file) => db.uploadItemPhoto(itemId, file)),
     markOrdered: act((materialId, details) => db.markOrdered(materialId, details)),

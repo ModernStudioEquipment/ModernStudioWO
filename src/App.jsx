@@ -1378,6 +1378,7 @@ export default function App() {
           onUpdateItem={(itemId, patch) => board.updateItem(itemId, patch)}
           onMoveItem={(itemId, s) => { if (s === "awaiting") { setDetailId(null); setMatTarget(itemId); } else moveItemU(itemId, s); }}
           onFinishItem={(itemId) => finishItemU(itemId)}
+          onLoadEvents={board.getItemEvents}
           onGoToItem={(stage) => {
             // click a product's progress bubbles -> jump to the tab it lives in
             setDetailId(null);
@@ -1398,6 +1399,7 @@ export default function App() {
           qtyLabel={pickItem.wo ? "Qty" : "Pick qty"}
           actionLabel={pickItem.wo ? "Mark done" : "Item picked"}
           onPicked={async () => { await finishItemU(pickItem.it.id); setPickItem(null); }}
+          onLoadEvents={board.getItemEvents}
           onSetImage={(url) => board.updateItem(pickItem.it.id, { imageUrl: url })}
           onUploadImage={(file) => board.uploadItemPhoto(pickItem.it.id, file)}
           onSetNote={(n) => board.updateItem(pickItem.it.id, { note: n })}

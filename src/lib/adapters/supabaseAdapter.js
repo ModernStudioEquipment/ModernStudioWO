@@ -67,10 +67,8 @@ function mapOrder(row, productPhotos = {}, fulfillmentsByOrder = {}, photoBySku 
       imageUrl: it.image_url || photoBySku[(itemSku(it) || "").toLowerCase()] || productPhotos[it.name] || null,
       note: it.note || null,
       inProgress: it.in_progress || false,
-      events: (it.item_events || [])
-        .slice()
-        .sort((a, b) => a.created_at.localeCompare(b.created_at))
-        .map((e) => ({ id: e.id, kind: e.kind, from: e.from_val, to: e.to_val, at: e.created_at })),
+      stageEnteredAt: it.stage_entered_at ? new Date(it.stage_entered_at).getTime() : null,
+      events: [], // loaded on demand — see getItemEvents()
       materials: (it.materials || [])
         .slice()
         .sort((a, b) => a.created_at.localeCompare(b.created_at))
@@ -149,16 +147,13 @@ export const supabaseAdapter = {
     // Try with the item history (item_events). If that table isn't there yet
     // (migration 0013 not run), fall back to loading the board without history
     // so nothing breaks — the timeline just stays empty until the table exists.
+    // item_events is deliberately NOT joined here. It's ~14,000 rows and made this
+    // query take ~28s / 3.8 MB; the board only needs items.stage_entered_at (0053).
+    // Full timelines load on demand via getItemEvents().
     let { data, error } = await supabase
       .from("orders")
-      .select("*, items(*, materials(*), item_events(*))")
+      .select("*, items(*, materials(*))")
       .order("received_at", { ascending: false });
-    if (error) {
-      ({ data, error } = await supabase
-        .from("orders")
-        .select("*, items(*, materials(*))")
-        .order("received_at", { ascending: false }));
-    }
     fail(error);
     // Product photo library: a photo remembered per product name fills in for any
     // item that doesn't have its own — this is how Shopify items get matched.
@@ -301,6 +296,17 @@ export const supabaseAdapter = {
       p_materials: rows.map((r) => ({ name: r.name, amount: r.amount })),
     });
     fail(error);
+  },
+
+  // One item's timeline, fetched only when someone actually opens it.
+  async getItemEvents(itemId) {
+    const { data, error } = await supabase
+      .from("item_events")
+      .select("*")
+      .eq("item_id", itemId)
+      .order("created_at", { ascending: true });
+    if (error) return [];
+    return (data || []).map((e) => ({ id: e.id, kind: e.kind, from: e.from_val, to: e.to_val, at: e.created_at }));
   },
 
   async finishItem(itemId) {

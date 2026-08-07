@@ -364,6 +364,14 @@ export const localAdapter = {
     });
   },
 
+  async getItemEvents(itemId) {
+    for (const o of read()) {
+      const it = o.items.find((x) => x.id === itemId);
+      if (it) return it.events || [];
+    }
+    return [];
+  },
+
   async finishItem(itemId) {
     mutateItem(itemId, (it) => {
       it.stage = "done";
