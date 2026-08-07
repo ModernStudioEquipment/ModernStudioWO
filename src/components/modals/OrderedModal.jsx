@@ -6,7 +6,7 @@ import { Btn } from "../ui.jsx";
 // Purchasing: when a material is marked ordered, record the quantity ordered,
 // who placed it, the vendor + who they talked to, the PO number, the dates, and
 // any notes. Re-opening an already-ordered material edits the same details.
-export function OrderedModal({ material, alsoNeeded = [], onConfirm, onClose }) {
+export function OrderedModal({ material, alsoNeeded = [], onConfirm, onUnorder, onClose }) {
   // Requested (material.amount) is read-only here — it's what the order needs.
   // Ordered defaults to it, because usually you buy exactly what was asked for.
   const [orderedQty, setOrderedQty] = useState(material.orderedQty ?? material.amount ?? "");
@@ -126,9 +126,20 @@ export function OrderedModal({ material, alsoNeeded = [], onConfirm, onClose }) 
             <div style={label}>Notes</div>
             <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. 2 rolls left, ordered more because…" rows={2} className="w-full px-2 py-2 outline-none" style={{ ...inp, resize: "vertical" }} />
           </div>
-          <Btn kind="dark" onClick={confirm} disabled={saving}>
-            <ShoppingCart size={15} />{saving ? "Saving…" : editing ? "Save changes" : "Mark ordered"}
-          </Btn>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Btn kind="dark" onClick={confirm} disabled={saving}>
+              <ShoppingCart size={15} />{saving ? "Saving…" : editing ? "Save changes" : "Mark ordered"}
+            </Btn>
+            {/* Un-ordering is a deliberate choice made in here — it used to happen
+                on a single click of the status badge, which looked like a label. */}
+            {editing && onUnorder && (
+              <span className="ml-auto">
+                <Btn onClick={onUnorder} title="This wasn't actually ordered — put it back on the to-buy list">
+                  Not ordered after all
+                </Btn>
+              </span>
+            )}
+          </div>
         </div>
       </div>
     </div>

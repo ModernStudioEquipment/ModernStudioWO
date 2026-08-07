@@ -1212,7 +1212,7 @@ export default function App() {
                                 </button>
                               )}
                               {m.ordered ? (
-                                <button onClick={() => board.unmarkOrdered(m.id)} title="Click to mark as NOT ordered" style={{ background: "none", border: "none", padding: 0, cursor: "pointer", display: "inline-flex" }}>
+                                <button onClick={() => setOrderTarget(m)} title="View or edit the order details" style={{ background: "none", border: "none", padding: 0, cursor: "pointer", display: "inline-flex" }}>
                                   <Pill c={C.blue} bg={C.blueBg} Icon={ShoppingCart}>ordered</Pill>
                                 </button>
                               ) : (
@@ -1226,7 +1226,9 @@ export default function App() {
                               Quote requested · {stamp(m.progressAt, now)}{m.progressBy ? ` · by ${m.progressBy}` : ""}
                             </div>
                           )}
-                          {m.ordered && (m.poNumber || m.vendor || m.contact || m.orderedBy || m.orderedAt || m.expectedAt) && (
+                          {/* Shown whenever there's something to show — NOT gated on
+                              m.ordered, so un-ordering never makes the details look lost. */}
+                          {(m.orderedQty || m.poNumber || m.vendor || m.contact || m.orderedBy || m.orderedAt || m.expectedAt) && (
                             <div style={{ fontSize: 11, color: C.gray, marginTop: 7 }}>
                               {[m.orderedQty && `got ${m.orderedQty}`, m.poNumber && `PO ${m.poNumber}`, m.vendor, m.contact && `talked to ${m.contact}`, m.orderedBy && `by ${m.orderedBy}`, m.orderedAt && `ordered ${stamp(new Date(m.orderedAt).getTime(), now)}`, m.expectedAt && `exp ${dueLabel(m.expectedAt)}`].filter(Boolean).join(" · ")}
                             </div>
@@ -1531,6 +1533,7 @@ export default function App() {
           material={orderTarget}
           alsoNeeded={demandFor(orderTarget.name, orderTarget.id)}
           onConfirm={async (details) => { await markOrderedU(orderTarget.id, details); setOrderTarget(null); }}
+          onUnorder={async () => { await board.unmarkOrdered(orderTarget.id); setOrderTarget(null); }}
           onClose={() => setOrderTarget(null)}
         />
       )}
