@@ -48,6 +48,27 @@ export default function App() {
   const costing = useCosting(authed);
   // Cancelled orders are kept on record in the DB but hidden from every board.
   const allOrders = board.orders;
+
+  // Every distinct product we've ever put on an order — the costing catalog. Each
+  // carries the department that makes it (the one it's been routed to most often),
+  // so costing can group products into Sewing / Shop / CNC / Saw sections.
+  // MUST stay up here with the other hooks: App has early returns (loading / auth
+  // / CNC-only) below, and a hook after one of those changes the hook count
+  // between renders, which React rejects (error #310 — blank screen).
+  const allProductNames = useMemo(() => {
+    const byName = new Map();
+    (board.orders || []).forEach((o) => (o.items || []).forEach((it) => {
+      const n = (it.name || "").trim();
+      if (!n) return;
+      if (!byName.has(n)) byName.set(n, {});
+      const tally = byName.get(n);
+      if (it.dept) tally[it.dept] = (tally[it.dept] || 0) + 1;
+    }));
+    return [...byName.entries()].map(([name, tally]) => {
+      const dept = Object.entries(tally).sort((x, y) => y[1] - x[1])[0]?.[0] || "Shop";
+      return { name, dept };
+    });
+  }, [board.orders]);
   const orders = allOrders.filter((o) => !o.cancelledAt);
 
   const [tab, setTab] = useState(() => {
@@ -539,23 +560,6 @@ export default function App() {
   // Low-stock notices: open ones are the queue; handled ones stay for reference.
   const openNotices = (stock.notices || []).filter((n) => n.status !== "handled");
   const handledNotices = (stock.notices || []).filter((n) => n.status === "handled");
-  // Every distinct product we've ever put on an order — the costing catalog. Each
-  // carries the department that makes it (the one it's been routed to most often),
-  // so costing can group products into Sewing / Shop / CNC / Saw sections.
-  const allProductNames = useMemo(() => {
-    const byName = new Map();
-    allOrders.forEach((o) => o.items.forEach((it) => {
-      const n = (it.name || "").trim();
-      if (!n) return;
-      if (!byName.has(n)) byName.set(n, {});
-      const tally = byName.get(n);
-      if (it.dept) tally[it.dept] = (tally[it.dept] || 0) + 1;
-    }));
-    return [...byName.entries()].map(([name, tally]) => {
-      const dept = Object.entries(tally).sort((x, y) => y[1] - x[1])[0]?.[0] || "Shop";
-      return { name, dept };
-    });
-  }, [allOrders]);
   const customerOrders = orders.filter((o) => o.source !== "purchase");
   const count = (os, pred) => os.reduce((n, o) => n + o.items.filter(pred).length, 0);
   const detailOrder = allOrders.find((o) => o.id === detailId);
