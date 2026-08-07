@@ -50,6 +50,37 @@ export function useOrders(enabled) {
     };
   }, [enabled, refetch]);
 
+  // Patch one material in the local board copy. Used to make small toggles feel
+  // instant: a full refetch is ~2 MB and a second of work, which is far too heavy
+  // to sit behind a single click. The write still goes to the server; realtime
+  // brings the authoritative state a moment later.
+  const patchMaterial = useCallback((materialId, patch) => {
+    setOrders((prev) =>
+      prev.map((o) => ({
+        ...o,
+        items: (o.items || []).map((it) => ({
+          ...it,
+          materials: (it.materials || []).map((m) => (m.id === materialId ? { ...m, ...patch } : m)),
+        })),
+      }))
+    );
+  }, []);
+
+  // Optimistic toggle: show it immediately, persist in the background, and only
+  // fall back to a refetch if the write actually fails.
+  const optimisticMaterial = useCallback(
+    (patch, fn) => async (materialId, ...rest) => {
+      patchMaterial(materialId, typeof patch === "function" ? patch(...rest) : patch);
+      try {
+        await fn(materialId, ...rest);
+      } catch (e) {
+        setError(e.message || String(e));
+        await refetch();
+      }
+    },
+    [patchMaterial, refetch]
+  );
+
   // Wrap a db mutation so it refetches afterward and returns fresh orders.
   const act = useCallback(
     (fn) =>
@@ -70,6 +101,7 @@ export function useOrders(enabled) {
     loading,
     error,
     refetch,
+    patchMaterial,
     arrangement,
     setArrangement: act((ids) => db.setArrangement(ids)),
     nextOrderNo: () => db.nextOrderNo(),
@@ -84,8 +116,14 @@ export function useOrders(enabled) {
     uploadItemPhoto: act((itemId, file) => db.uploadItemPhoto(itemId, file)),
     markOrdered: act((materialId, details) => db.markOrdered(materialId, details)),
     unmarkOrdered: act((materialId) => db.unmarkOrdered(materialId)),
-    setMaterialProgress: act((materialId, progress, by) => db.setMaterialProgress(materialId, progress, by)),
-    setForInventory: act((materialId, forInventory) => db.setForInventory(materialId, forInventory)),
+    setMaterialProgress: optimisticMaterial(
+      (progress, by) => ({ progress: progress || null, progressAt: progress ? Date.now() : null, progressBy: progress ? by || null : null }),
+      (materialId, progress, by) => db.setMaterialProgress(materialId, progress, by)
+    ),
+    setForInventory: optimisticMaterial(
+      (forInventory) => ({ forInventory: !!forInventory }),
+      (materialId, forInventory) => db.setForInventory(materialId, forInventory)
+    ),
     receiveMaterial: act((materialId, opts) => db.receiveMaterial(materialId, opts)),
     setPriority: act((orderId, priority) => db.setPriority(orderId, priority)),
     setDueDate: act((orderId, dueDate, dueTime) => db.setDueDate(orderId, dueDate, dueTime)),

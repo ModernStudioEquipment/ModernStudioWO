@@ -342,13 +342,17 @@ export default function App() {
   const quoteAllFor = async (o) => {
     const targets = openMatsFor(o);
     if (!targets.length) return;
+    // Paint them all immediately, then persist — a refetch behind the click would
+    // re-download the whole board just to show a flag that's already known.
+    const paint = (on) => targets.forEach((m) =>
+      board.patchMaterial(m.id, { progress: on ? "Quote requested" : null, progressAt: on ? Date.now() : null, progressBy: null }));
+    paint(true);
     await Promise.all(targets.map((m) => db.setMaterialProgress(m.id, "Quote requested", null)));
-    await board.refetch();
     undoer.record(
       `Quote requested — ${targets.length} material${targets.length === 1 ? "" : "s"} (#${o.orderNo})`,
       async () => {
+        paint(false);
         await Promise.all(targets.map((m) => db.setMaterialProgress(m.id, null, null)));
-        await board.refetch();
       }
     );
   };
