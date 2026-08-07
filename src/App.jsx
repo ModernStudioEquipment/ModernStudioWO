@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   Clock, Printer, Plus, Truck, CheckCircle2, AlertTriangle, Hammer,
-  Flag, Check, ArrowRight, ShoppingCart, LogOut, Store, MapPin, Package, X, Bell, ExternalLink, RefreshCw, Pencil, RotateCcw, ChevronsDownUp, ChevronsUpDown, Sun, Moon, MonitorPlay, Layers, ArrowUpDown, ChevronLeft, ChevronRight,
+  Flag, Check, ArrowRight, ShoppingCart, LogOut, Store, MapPin, Package, X, Bell, ExternalLink, RefreshCw, Pencil, RotateCcw, ChevronsDownUp, ChevronsUpDown, Sun, Moon, MonitorPlay, Layers, ArrowUpDown, ChevronLeft, ChevronRight, PackageSearch, Trash2,
 } from "lucide-react";
 import { C, PRI, PRI_CYCLE, PRI_RANK, elapsed, stamp, materialKey, blocked, pct, dueLabel, priLabel, effectivePriority, trackingUrl, stagedTooLong, stagedDwellMs, STAGE_LABELS } from "./theme.js";
 import { backendMode } from "./lib/db.js";
@@ -9,6 +9,7 @@ import { useAuth } from "./hooks/useAuth.js";
 import { useOrders } from "./hooks/useOrders.js";
 import { useWorkOrders } from "./hooks/useWorkOrders.js";
 import { useUndo } from "./hooks/useUndo.js";
+import { useStockNotices } from "./hooks/useStockNotices.js";
 import {
   Pill, Btn, Group, ItemLine, Empty, Tabwrap, DeptBadge, DuePill, CompletionPill, MethodBadge, InvoicedBadge, MoveMenu, SittingBadge, InlineMenu,
 } from "./components/ui.jsx";
@@ -24,6 +25,7 @@ import { PickPhoto } from "./components/modals/PickPhoto.jsx";
 import { WorkOrderDoc } from "./components/modals/WorkOrderDoc.jsx";
 import { NewOrderModal } from "./components/modals/NewOrderModal.jsx";
 import { NewPurchaseModal } from "./components/modals/NewPurchaseModal.jsx";
+import { NewNoticeModal } from "./components/modals/NewNoticeModal.jsx";
 import { FulfillModal } from "./components/modals/FulfillModal.jsx";
 import { TrackingModal } from "./components/modals/TrackingModal.jsx";
 import { PickedUpModal } from "./components/modals/PickedUpModal.jsx";
@@ -40,6 +42,7 @@ export default function App() {
   const board = useOrders(authed);
   const wo = useWorkOrders(authed);
   const undoer = useUndo();
+  const stock = useStockNotices(authed);
   // Cancelled orders are kept on record in the DB but hidden from every board.
   const allOrders = board.orders;
   const orders = allOrders.filter((o) => !o.cancelledAt);
@@ -135,6 +138,7 @@ export default function App() {
   const [matTarget, setMatTarget] = useState(null); // itemId awaiting material entry
   const [doc, setDoc] = useState(null); // { o, it } for printable work order
   const [likeKinds, setLikeKinds] = useState(null); // { o, it, others } — same product on other orders
+  const [showNewNotice, setShowNewNotice] = useState(false); // low-stock notice form
   const [flashItem, setFlashItem] = useState(null);
   const [detailId, setDetailId] = useState(null);
   const [flashOrderId, setFlashOrderId] = useState(null); // order to scroll to + flash after a search jump
@@ -387,6 +391,18 @@ export default function App() {
   const setCombinedDept = (row, dept) =>
     Promise.all(row.entries.map((e) => board.updateItem(e.it.id, { dept })));
 
+  // Turn a low-stock notice into a work order: opens a blank sheet for the right
+  // department, pre-filled with the product, and files the notice as handled with
+  // the work order number recorded on it.
+  const makeNoticeWorkOrder = async (n) => {
+    const type = (n.dept || "Shop").toLowerCase();
+    const orderNo = await wo.nextWorkOrderNo();
+    const fields = { product: n.name, item: n.name, notes: n.note || "" };
+    if (n.qtyOnHand) fields.notes = [fields.notes, `On hand when reported: ${n.qtyOnHand}`].filter(Boolean).join(" · ");
+    setCustomDoc({ type, orderNo, fields, title: n.name });
+    await stock.setHandled(n.id, true, { by: n.reportedBy || null, workOrderNo: orderNo });
+  };
+
   // Printing a work order for ONE product: if the same product is waiting on other
   // orders too, ask whether to put them on a single sheet. Previously the only way
   // to find that out was to switch to the "Combine like items" view first, so the
@@ -516,6 +532,9 @@ export default function App() {
   const buyOrders = orders.filter((o) => o.items.some((it) => it.needsMaterial && it.materials.some((m) => !m.received)));
   // Standalone purchases (source='purchase') live only in Purchasing — keep them
   // out of the Orders list, its counts, and the dashboard.
+  // Low-stock notices: open ones are the queue; handled ones stay for reference.
+  const openNotices = (stock.notices || []).filter((n) => n.status !== "handled");
+  const handledNotices = (stock.notices || []).filter((n) => n.status === "handled");
   const customerOrders = orders.filter((o) => o.source !== "purchase");
   const count = (os, pred) => os.reduce((n, o) => n + o.items.filter(pred).length, 0);
   const detailOrder = allOrders.find((o) => o.id === detailId);
@@ -727,6 +746,7 @@ export default function App() {
     { k: "pick", label: "Pick List", n: count(pickOrders, (it) => it.stage === "picklist") },
     { k: "work", label: "Work Order", n: count(workOrders, (it) => it.stage === "workorder") },
     { k: "buy", label: "Purchasing", n: buyOrders.reduce((n, o) => n + o.items.reduce((s, it) => s + (it.needsMaterial ? it.materials.filter((m) => !m.received).length : 0), 0), 0) },
+    { k: "inventory", label: "Inventory", dot: openNotices.length },
     { k: "orders", label: "Orders" },
     { k: "urgent", label: "Urgent", dot: urgentOrders.length },
     { k: "willcall", label: "Will Call", n: willCallOrders.length },
@@ -1119,6 +1139,66 @@ export default function App() {
               </Tabwrap>
             )}
 
+            {/* ---- Inventory: low-stock notices. Purchasing's sibling — same idea,
+                 but for products we MAKE instead of buy. Whoever spots the shortage
+                 posts a notice; whoever makes it turns the notice into a work
+                 order, so nobody has to do both jobs. ---- */}
+            {tab === "inventory" && (
+              <Tabwrap
+                title="INVENTORY"
+                sub="Products running low. Post a notice when you spot one — whoever makes it turns it into a work order."
+                action={<Btn kind="dark" onClick={() => setShowNewNotice(true)}><Plus size={13} />New notice</Btn>}
+              >
+                {!openNotices.length && <Empty>Nothing running low. Post a notice when you spot a product getting thin.</Empty>}
+                {openNotices.map((n) => (
+                  <div key={n.id} className="rounded mb-3 card-pop" style={{ background: C.surface, border: `1px solid ${C.line}`, borderLeft: `4px solid ${C.high}` }}>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
+                      <DeptBadge d={n.dept} />
+                      <div className="min-w-0">
+                        <div className="font-bold" style={{ fontSize: 15 }}>{n.name}</div>
+                        <div style={{ fontSize: 12, color: C.gray }}>
+                          {[n.reportedBy && `Noticed by ${n.reportedBy}`, `Posted ${stamp(n.createdAt, now)}`].filter(Boolean).join(" · ")}
+                        </div>
+                      </div>
+                      {n.qtyOnHand && (
+                        <Pill c={C.high} bg={C.highBg} Icon={PackageSearch}>{n.qtyOnHand} on hand</Pill>
+                      )}
+                      <span className="basis-full sm:basis-auto sm:ml-auto flex flex-wrap items-center gap-2">
+                        <Btn kind="dark" onClick={() => makeNoticeWorkOrder(n)}><Printer size={13} />Create work order</Btn>
+                        <Btn onClick={() => stock.setHandled(n.id, true)} title="Already handled — file it away"><Check size={13} />Handled</Btn>
+                        <button onClick={() => stock.deleteNotice(n.id)} title="Remove this notice" style={{ color: C.gray, background: "none", border: "none", cursor: "pointer", padding: 4, display: "inline-flex" }}>
+                          <Trash2 size={15} />
+                        </button>
+                      </span>
+                    </div>
+                    {n.note && (
+                      <div className="px-4 py-2" style={{ borderTop: `1px solid ${C.line}`, fontSize: 12.5, color: C.inkSoft, background: C.concrete }}>
+                        {n.note}
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {!!handledNotices.length && (
+                  <div style={{ marginTop: 20 }}>
+                    <SectionHeader label="Handled" count={handledNotices.length} />
+                    {handledNotices.map((n) => (
+                      <div key={n.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 rounded mb-2" style={{ background: C.concrete, border: `1px solid ${C.line}`, fontSize: 13 }}>
+                        <span className="font-bold" style={{ color: C.gray, textDecoration: "line-through" }}>{n.name}</span>
+                        {n.workOrderNo && <span style={{ fontFamily: "ui-monospace,monospace", fontSize: 12, color: C.inkSoft }}>WO #{n.workOrderNo}</span>}
+                        <span style={{ fontSize: 12, color: C.gray }}>
+                          {n.handledAt ? `Handled ${stamp(n.handledAt, now)}` : ""}
+                        </span>
+                        <span className="ml-auto">
+                          <Btn onClick={() => stock.setHandled(n.id, false)}><RotateCcw size={13} />Reopen</Btn>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Tabwrap>
+            )}
+
             {tab === "orders" && (
               <Tabwrap title="Orders" action={<div className="flex items-center gap-2 flex-wrap justify-end"><SortMenu value={sortBy} onChange={setSortBy} /><SegGroup value={orderSource} onChange={setOrderSource} options={[["all", "All"], ["QuickBooks", "QB"], ["Shopify", "Shopify"]]} /></div>}>
                 <div className="flex items-center gap-2 mb-3 flex-wrap">
@@ -1199,6 +1279,9 @@ export default function App() {
           onCreate={board.createPurchase}
           onClose={() => setShowNewPurchase(false)}
         />
+      )}
+      {showNewNotice && (
+        <NewNoticeModal onCreate={stock.createNotice} onClose={() => setShowNewNotice(false)} />
       )}
       {matTarget && <MaterialModal onClose={() => setMatTarget(null)} onCommit={commitMaterials} openFor={openDemandFor} />}
       {detailOrder && (

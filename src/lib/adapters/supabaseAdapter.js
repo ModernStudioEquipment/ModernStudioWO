@@ -629,4 +629,53 @@ export const supabaseAdapter = {
     const { error } = await supabase.from("work_orders").update(patch).eq("id", id);
     fail(error);
   },
+
+  // ---- low-stock notices (Inventory tab) ----
+  async getStockNotices() {
+    const { data, error } = await supabase
+      .from("stock_notices")
+      .select("*")
+      .order("created_at", { ascending: false });
+    // Tolerate the table not existing yet (0049 not run) — the tab just shows empty.
+    if (error) return [];
+    return (data || []).map((r) => ({
+      id: r.id,
+      name: r.name,
+      qtyOnHand: r.qty_on_hand || "",
+      dept: r.dept || "Shop",
+      reportedBy: r.reported_by || "",
+      note: r.note || "",
+      status: r.status || "open",
+      workOrderNo: r.work_order_no || null,
+      handledBy: r.handled_by || null,
+      handledAt: r.handled_at ? new Date(r.handled_at).getTime() : null,
+      createdAt: new Date(r.created_at).getTime(),
+    }));
+  },
+
+  async createStockNotice({ name, qtyOnHand, dept, reportedBy, note }) {
+    const { error } = await supabase.from("stock_notices").insert({
+      name: String(name || "").trim(),
+      qty_on_hand: qtyOnHand || null,
+      dept: dept || "Shop",
+      reported_by: reportedBy || null,
+      note: note || null,
+    });
+    fail(error);
+  },
+
+  // Marking a notice handled records WHEN and by WHOM — same immutable-stamp rule
+  // as everything else. Passing handled=false reopens it (that's Undo's path).
+  async setStockNoticeHandled(id, handled = true, { by, workOrderNo } = {}) {
+    const patch = handled
+      ? { status: "handled", handled_at: new Date().toISOString(), handled_by: by || null, ...(workOrderNo ? { work_order_no: String(workOrderNo) } : {}) }
+      : { status: "open", handled_at: null, handled_by: null };
+    const { error } = await supabase.from("stock_notices").update(patch).eq("id", id);
+    fail(error);
+  },
+
+  async deleteStockNotice(id) {
+    const { error } = await supabase.from("stock_notices").delete().eq("id", id);
+    fail(error);
+  },
 };

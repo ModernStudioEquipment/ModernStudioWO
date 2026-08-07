@@ -49,6 +49,22 @@ function writeWO(list) {
   channel?.postMessage("changed");
 }
 
+// Low-stock notices (Inventory tab).
+const SN_KEY = "mse_stock_notices_v1";
+function readSN() {
+  try {
+    const raw = localStorage.getItem(SN_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {
+    /* ignore */
+  }
+  return [];
+}
+function writeSN(list) {
+  localStorage.setItem(SN_KEY, JSON.stringify(list));
+  channel?.postMessage("changed");
+}
+
 // Product photo library (name -> url): a photo set for a product is remembered
 // for every order with that product.
 const PHOTO_KEY = "mse_product_photos_v1";
@@ -581,5 +597,44 @@ export const localAdapter = {
       if (fields !== undefined) w.fields = fields;
     }
     writeWO(list);
+  },
+
+  // ---- low-stock notices (Inventory tab) ----
+  async getStockNotices() {
+    return readSN().sort((a, b) => b.createdAt - a.createdAt);
+  },
+
+  async createStockNotice({ name, qtyOnHand, dept, reportedBy, note }) {
+    const list = readSN();
+    list.push({
+      id: uid(),
+      name: String(name || "").trim(),
+      qtyOnHand: qtyOnHand || "",
+      dept: dept || "Shop",
+      reportedBy: reportedBy || "",
+      note: note || "",
+      status: "open",
+      workOrderNo: null,
+      handledBy: null,
+      handledAt: null,
+      createdAt: Date.now(),
+    });
+    writeSN(list);
+  },
+
+  async setStockNoticeHandled(id, handled = true, { by, workOrderNo } = {}) {
+    const list = readSN();
+    const n = list.find((x) => x.id === id);
+    if (n) {
+      n.status = handled ? "handled" : "open";
+      n.handledAt = handled ? Date.now() : null;
+      n.handledBy = handled ? by || null : null;
+      if (handled && workOrderNo) n.workOrderNo = String(workOrderNo);
+    }
+    writeSN(list);
+  },
+
+  async deleteStockNotice(id) {
+    writeSN(readSN().filter((x) => x.id !== id));
   },
 };
