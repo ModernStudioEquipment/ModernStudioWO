@@ -405,11 +405,12 @@ export const localAdapter = {
   async markOrdered(materialId, details = {}) {
     mutateMaterial(materialId, (m) => {
       m.ordered = true;
-      if (details.amount !== undefined) m.amount = details.amount || null;
+      if (details.amount !== undefined)
       m.orderedBy = details.orderedBy || null;
       m.vendor = details.vendor || null;
       m.contact = details.contact || null;
       m.poNumber = details.poNumber || null;
+      m.orderedQty = details.orderedQty ?? null;
       m.orderedAt = details.orderedAt || new Date().toISOString();
       m.expectedAt = details.expectedAt || null;
       m.note = details.note || null;

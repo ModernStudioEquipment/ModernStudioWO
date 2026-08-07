@@ -7,7 +7,9 @@ import { Btn } from "../ui.jsx";
 // who placed it, the vendor + who they talked to, the PO number, the dates, and
 // any notes. Re-opening an already-ordered material edits the same details.
 export function OrderedModal({ material, alsoNeeded = [], onConfirm, onClose }) {
-  const [amount, setAmount] = useState(material.amount || "");
+  // Requested (material.amount) is read-only here — it's what the order needs.
+  // Ordered defaults to it, because usually you buy exactly what was asked for.
+  const [orderedQty, setOrderedQty] = useState(material.orderedQty ?? material.amount ?? "");
   const [orderedBy, setOrderedBy] = useState(material.orderedBy || "");
   const [vendor, setVendor] = useState(material.vendor || "");
   const [contact, setContact] = useState(material.contact || "");
@@ -23,7 +25,7 @@ export function OrderedModal({ material, alsoNeeded = [], onConfirm, onClose }) 
     setSaving(true);
     try {
       await onConfirm({
-        amount: amount.trim() || null,
+        orderedQty: orderedQty.trim() || null,
         orderedBy: orderedBy.trim(),
         vendor: vendor.trim(),
         contact: contact.trim() || null,
@@ -76,9 +78,19 @@ export function OrderedModal({ material, alsoNeeded = [], onConfirm, onClose }) 
             </div>
           )}
 
-          <div className="mb-3">
-            <div style={label}>Quantity ordered</div>
-            <input value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="e.g. 20 ft, 2 sheets, 12" className="w-full px-2 py-2 outline-none" style={inp} />
+          <div className="flex gap-3 mb-3 flex-wrap">
+            <div style={{ flex: "1 1 150px" }}>
+              <div style={label}>Quantity requested</div>
+              <div className="px-2 py-2" style={{ ...inp, background: C.concrete, color: C.inkSoft, fontFamily: "ui-monospace,monospace", fontWeight: 700 }}>
+                {material.amount || "—"}
+              </div>
+              <div style={{ fontSize: 11, color: C.gray, marginTop: 3 }}>what the order needs</div>
+            </div>
+            <div style={{ flex: "1 1 150px" }}>
+              <div style={label}>Quantity ordered</div>
+              <input value={orderedQty} onChange={(e) => setOrderedQty(e.target.value)} placeholder="e.g. 20 ft, 2 sheets, 12" className="w-full px-2 py-2 outline-none" style={inp} />
+              <div style={{ fontSize: 11, color: C.gray, marginTop: 3 }}>what you actually bought</div>
+            </div>
           </div>
           <div className="mb-3">
             <div style={label}>Ordered by</div>

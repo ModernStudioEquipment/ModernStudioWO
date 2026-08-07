@@ -77,7 +77,8 @@ function mapOrder(row, productPhotos = {}, fulfillmentsByOrder = {}, photoBySku 
         .map((m) => ({
           id: m.id,
           name: m.name,
-          amount: m.amount,
+          amount: m.amount,               // requested — what the order needs
+          orderedQty: m.ordered_qty || null, // what was actually bought
           ordered: m.ordered,
           received: m.received,
           orderedBy: m.ordered_by || null,
@@ -433,14 +434,18 @@ export const supabaseAdapter = {
   },
 
   async markOrdered(materialId, details = {}) {
-    const base     = { ordered: true, ordered_by: details.orderedBy || null, vendor: details.vendor || null, po_number: details.poNumber || null, amount: details.amount ?? null };
+    // NOTE: never writes `amount` — that's the REQUESTED quantity and must survive.
+    // What was actually ordered goes in its own column.
+    const base     = { ordered: true, ordered_by: details.orderedBy || null, vendor: details.vendor || null, po_number: details.poNumber || null };
+    const withQty  = { ...base, ordered_qty: details.orderedQty ?? null };
     // ordered_at is an immutable stamp: set to the moment of the action on first
     // mark (details.orderedAt is null), preserved as-is on a later edit.
-    const withDates = { ...base, ordered_at: details.orderedAt || new Date().toISOString(), expected_at: details.expectedAt || null };
+    const withDates = { ...withQty, ordered_at: details.orderedAt || new Date().toISOString(), expected_at: details.expectedAt || null };
     const full      = { ...withDates, contact: details.contact || null, note: details.note || null };
     // Try the full row, then degrade for DBs missing the 0022 / 0019 / 0015 columns.
     let { error } = await supabase.from("materials").update(full).eq("id", materialId);
     if (error) ({ error } = await supabase.from("materials").update(withDates).eq("id", materialId));
+    if (error) ({ error } = await supabase.from("materials").update(withQty).eq("id", materialId));
     if (error) ({ error } = await supabase.from("materials").update(base).eq("id", materialId));
     if (error) ({ error } = await supabase.from("materials").update({ ordered: true }).eq("id", materialId));
     fail(error);

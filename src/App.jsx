@@ -1119,7 +1119,18 @@ export default function App() {
                               </span>
                               {o.source !== "purchase" && <div style={{ fontSize: 12, color: C.gray }}>for {it.name}</div>}
                             </div>
-                            {m.amount && <span style={{ fontFamily: "ui-monospace,monospace", fontWeight: 700 }}>{m.amount}</span>}
+                            {/* Requested vs actually ordered, side by side, so a short
+                                order is obvious rather than silently overwriting the ask. */}
+                            <span className="flex items-center gap-2" style={{ fontFamily: "ui-monospace,monospace", fontWeight: 700, whiteSpace: "nowrap" }}>
+                              {m.amount && (
+                                <span title="Quantity requested — what the order needs">{m.amount}</span>
+                              )}
+                              {m.ordered && m.orderedQty && m.orderedQty !== m.amount && (
+                                <span title="Quantity actually ordered" style={{ color: C.high }}>
+                                  → {m.orderedQty}
+                                </span>
+                              )}
+                            </span>
                             <button onClick={() => board.setForInventory(m.id, !m.forInventory)} title="For an order = more urgent. Click to switch between For order / Inventory."
                               className="rounded uppercase"
                               style={{ fontSize: 11, fontWeight: 800, letterSpacing: 0.5, padding: "4px 9px", cursor: "pointer", border: "none",
@@ -1144,7 +1155,7 @@ export default function App() {
                           </div>
                           {m.ordered && (m.poNumber || m.vendor || m.contact || m.orderedBy || m.orderedAt || m.expectedAt) && (
                             <div style={{ fontSize: 11, color: C.gray, marginTop: 7 }}>
-                              {[m.poNumber && `PO ${m.poNumber}`, m.vendor, m.contact && `talked to ${m.contact}`, m.orderedBy && `by ${m.orderedBy}`, m.orderedAt && `ordered ${stamp(new Date(m.orderedAt).getTime(), now)}`, m.expectedAt && `exp ${dueLabel(m.expectedAt)}`].filter(Boolean).join(" · ")}
+                              {[m.orderedQty && `got ${m.orderedQty}`, m.poNumber && `PO ${m.poNumber}`, m.vendor, m.contact && `talked to ${m.contact}`, m.orderedBy && `by ${m.orderedBy}`, m.orderedAt && `ordered ${stamp(new Date(m.orderedAt).getTime(), now)}`, m.expectedAt && `exp ${dueLabel(m.expectedAt)}`].filter(Boolean).join(" · ")}
                             </div>
                           )}
                         </div>
