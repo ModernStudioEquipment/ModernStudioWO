@@ -31,7 +31,9 @@ export async function GET(request) {
   // committed via ?commitBacklog. Normal syncs never pass these.
   const backlogFrom = params.get("backlogFrom") || null;
   const backlogTo = params.get("backlogTo") || null;
-  return run({ commit: false, shipToBackfillDays: days, backlogFrom, backlogTo });
+  // ?resync=<orderNo> PREVIEWS re-loading one order from QuickBooks. Read-only.
+  const resync = params.get("resync") || null;
+  return run({ commit: false, shipToBackfillDays: days, backlogFrom, backlogTo, resync });
 }
 
 export async function POST(request) {
@@ -43,7 +45,9 @@ export async function POST(request) {
   const commitBacklog = params.get("commitBacklog") || null;
   const backlogFrom = params.get("backlogFrom") || null;
   const backlogTo = params.get("backlogTo") || null;
-  return run({ commit: true, shipToBackfillDays: days, commitBacklog, backlogFrom, backlogTo });
+  // ?resync=<orderNo> APPLIES the re-load for that one order and nothing else.
+  const resync = params.get("resync") || null;
+  return run({ commit: true, shipToBackfillDays: days, commitBacklog, backlogFrom, backlogTo, resync });
 }
 
 // One-off maintenance: remove synced QuickBooks orders so the next sync re-pulls
@@ -167,7 +171,7 @@ async function fetchTxns(path, conductorKey, endUserId, since, extra = "") {
   return out;
 }
 
-async function run({ commit, shipToBackfillDays, commitBacklog, backlogFrom, backlogTo }) {
+async function run({ commit, shipToBackfillDays, commitBacklog, backlogFrom, backlogTo, resync }) {
   const conductorKey = process.env.CONDUCTOR_SECRET_KEY;
   const endUserId = process.env.CONDUCTOR_END_USER_ID;
   const url = process.env.VITE_SUPABASE_URL;
@@ -183,6 +187,10 @@ async function run({ commit, shipToBackfillDays, commitBacklog, backlogFrom, bac
 
   // One-time backfill: fill ship_to on existing orders, no inserts.
   if (shipToBackfillDays > 0) return backfillShipTo({ days: shipToBackfillDays, conductorKey, endUserId, url, serviceKey });
+
+  // Re-load ONE order from QuickBooks. Entirely self-contained: it touches only
+  // the order asked for and never runs as part of the automatic sync.
+  if (resync) return resyncOrder({ orderNo: String(resync).trim(), commit, conductorKey, endUserId, url, serviceKey });
 
   // --- 1. Pull recent sales orders AND invoices (16-day window keeps QB fast) ---
   const since = new Date(Date.now() - 16 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -473,4 +481,105 @@ async function backfillShipTo({ days, conductorKey, endUserId, url, serviceKey }
 
 function json(status, b) {
   return new Response(JSON.stringify(b), { status, headers: { "Content-Type": "application/json" } });
+}
+
+// --- Re-load ONE order from QuickBooks ------------------------------------
+// Why this exists: the automatic sync can only ADD. It compares line items by
+// name/code, so it genuinely cannot tell a RENAMED line from a new one, or know
+// that a line was deleted in QuickBooks. Guessing produced duplicates (#473450)
+// and, once guarded, blocked a real addition (#336556). A person clicking
+// "re-sync" knows they just edited the order — that's information the code can't
+// derive, so this is deliberately manual.
+//
+// Works for sales orders AND invoices. Preview (GET) computes the plan and
+// writes NOTHING; commit (POST) applies exactly that plan to that one order.
+async function resyncOrder({ orderNo, commit, conductorKey, endUserId, url, serviceKey }) {
+  if (!orderNo) return json(400, { error: "resync needs an order number" });
+  const sb = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" };
+
+  // 1. The board's copy. Only ever a QuickBooks order, never cancelled.
+  const boardRows = await fetch(
+    `${url}/rest/v1/orders?select=id,order_no,source,customer,received_at,items(id,name,qty,note,stage,in_progress,completed_by,needs_material)&order_no=eq.${encodeURIComponent(orderNo)}&cancelled_at=is.null`,
+    { headers: sb }
+  ).then((r) => r.json()).catch(() => []);
+  const bo = Array.isArray(boardRows) ? boardRows[0] : null;
+  if (!bo) return json(404, { error: `Order ${orderNo} isn't on the board.` });
+  if (bo.source !== "QuickBooks") return json(400, { error: `Order ${orderNo} didn't come from QuickBooks (source: ${bo.source}).` });
+
+  // 2. The same order in QuickBooks. Deliberately UNFILTERED — unlike the
+  //    automatic sync we don't skip closed/invoiced sales orders here, because
+  //    the whole point is to re-read whatever QuickBooks holds right now.
+  // Window the QuickBooks pull around THIS order's own date rather than scanning
+  // months of history — that keeps the read fast (and inside the function's time
+  // budget). A few days either side covers clock skew and back-dated entry.
+  const anchor = bo.received_at ? new Date(bo.received_at).getTime() : Date.now();
+  const since = new Date(anchor - 10 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  let qb = null;
+  try {
+    const [soList, invList] = await Promise.all([
+      fetchTxns("sales-orders", conductorKey, endUserId, since),
+      fetchTxns("invoices", conductorKey, endUserId, since),
+    ]);
+    const hit = [...soList, ...invList].find((t) => refNo(t) === orderNo);
+    if (hit) qb = { kind: soList.includes(hit) ? "sales order" : "invoice", items: mapItems(hit) };
+  } catch (e) {
+    return json(502, { error: "Couldn't reach QuickBooks", detail: e.detail || String(e) });
+  }
+  if (!qb) return json(404, { error: `${orderNo} wasn't found in QuickBooks near its own date (${String(bo.received_at || '').slice(0, 10)}). It may have been deleted there.` });
+
+  // 3. Match board items to QuickBooks lines. Prefer the "Item #:" code (stable
+  //    when a description is edited); fall back to the name.
+  const codeOf = (x) => { const m = /item #:\s*(.+)$/i.exec(x.note || ""); return m ? m[1].trim().toLowerCase() : null; };
+  const nameOf = (x) => String(x.name || "").trim().toLowerCase();
+  const keyOf = (x) => codeOf(x) || `name:${nameOf(x)}`;
+
+  const qbByKey = new Map();
+  qb.items.forEach((it) => qbByKey.set(keyOf(it), it));
+  const boardByKey = new Map();
+  (bo.items || []).forEach((it) => boardByKey.set(keyOf(it), it));
+
+  const worked = (it) => !!(it.in_progress || it.completed_by || it.stage === "done" || it.needs_material);
+
+  const toAdd = qb.items.filter((it) => !boardByKey.has(keyOf(it)));
+  const toRemove = (bo.items || []).filter((it) => !qbByKey.has(keyOf(it)))
+    .map((it) => ({ id: it.id, name: it.name, qty: it.qty, hasWork: worked(it), stage: it.stage }));
+  const toUpdate = [];
+  for (const [k, qbIt] of qbByKey) {
+    const cur = boardByKey.get(k);
+    if (!cur) continue;
+    const patch = {};
+    if (String(cur.name || "") !== String(qbIt.name || "")) patch.name = qbIt.name;
+    if (String(cur.qty || "") !== String(qbIt.qty || "")) patch.qty = qbIt.qty;
+    if (Object.keys(patch).length) toUpdate.push({ id: cur.id, from: { name: cur.name, qty: cur.qty }, to: patch });
+  }
+
+  const plan = {
+    orderNo, kind: qb.kind, customer: bo.customer,
+    boardItems: (bo.items || []).length, quickbooksItems: qb.items.length,
+    add: toAdd.map((it) => ({ name: it.name, qty: it.qty })),
+    update: toUpdate,
+    remove: toRemove,
+    inSync: !toAdd.length && !toUpdate.length && !toRemove.length,
+  };
+
+  if (!commit) return json(200, { mode: "resync-preview", ...plan, note: "Nothing was changed. POST the same URL to apply." });
+
+  // 4. Apply — only to this order.
+  let added = 0, updated = 0, removed = 0;
+  let firstError = null;
+  if (toAdd.length) {
+    const base = (bo.items || []).length;
+    const rows = toAdd.map((it, i) => ({ order_id: bo.id, name: it.name, qty: it.qty, note: it.note, dept: it.dept || "Shop", stage: "new", position: base + i }));
+    const res = await fetch(`${url}/rest/v1/items`, { method: "POST", headers: sb, body: JSON.stringify(rows) });
+    if (res.ok) added = rows.length; else firstError = { where: "add", detail: (await res.text()).slice(0, 300) };
+  }
+  for (const u of toUpdate) {
+    const res = await fetch(`${url}/rest/v1/items?id=eq.${u.id}`, { method: "PATCH", headers: sb, body: JSON.stringify(u.to) });
+    if (res.ok) updated++; else if (!firstError) firstError = { where: "update", detail: (await res.text()).slice(0, 300) };
+  }
+  for (const r of toRemove) {
+    const res = await fetch(`${url}/rest/v1/items?id=eq.${r.id}`, { method: "DELETE", headers: sb });
+    if (res.ok) removed++; else if (!firstError) firstError = { where: "remove", detail: (await res.text()).slice(0, 300) };
+  }
+  return json(200, { mode: "resync", orderNo, added, updated, removed, firstError });
 }
