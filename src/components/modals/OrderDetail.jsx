@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { X, Trash2, Clock, ChevronDown, ExternalLink, Check, Store, Truck, AlertTriangle } from "lucide-react";
+import { X, Trash2, Clock, ChevronDown, ExternalLink, Check, Store, Truck, AlertTriangle, RefreshCw } from "lucide-react";
 import { C, PRI, stamp, itemStatusText, trackingUrl } from "../../theme.js";
 import { Pill, Info, Stepper, DeptBadge, DuePill, CompletionPill, MethodBadge, InvoicedBadge, SittingBadge, MoveMenu, Btn } from "../ui.jsx";
 import { ItemTimeline } from "../ItemTimeline.jsx";
@@ -7,7 +7,7 @@ import { ItemTimeline } from "../ItemTimeline.jsx";
 // The office "where's my order?" view — full detail with a per-product
 // progress tracker. Items reconverge here even though they're triaged and
 // routed independently.
-export function OrderDetail({ order, status, now, onDueDate, onCompletion, onInvoice, onMethod, onSaveNotes, onUpdateItem, onMoveItem, onGoToItem, onFinishItem, onLoadEvents, onFulfill, onSendOrderBack, onCancel, onWalkInPickup, onPartialPickup, onClose }) {
+export function OrderDetail({ order, status, now, onDueDate, onCompletion, onInvoice, onMethod, onSaveNotes, onUpdateItem, onMoveItem, onGoToItem, onFinishItem, onLoadEvents, onResync, onFulfill, onSendOrderBack, onCancel, onWalkInPickup, onPartialPickup, onClose }) {
   const [confirming, setConfirming] = useState(false);
   const [reason, setReason] = useState("Customer cancelled");
   const [openTimeline, setOpenTimeline] = useState(null); // item id whose timeline is expanded
@@ -44,6 +44,15 @@ export function OrderDetail({ order, status, now, onDueDate, onCompletion, onInv
             <DuePill o={order} now={now} onChange={onDueDate} />
             <CompletionPill o={order} onChange={onCompletion} showEmpty />
             <InvoicedBadge o={order} onClick={onInvoice} />
+            {/* Re-read this order from QuickBooks — for when it was edited there
+                after it synced. Shows what would change before touching anything. */}
+            {onResync && (
+              <button onClick={onResync} title="Re-load this order from QuickBooks"
+                className="inline-flex items-center gap-1 px-2 py-1 rounded"
+                style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5, background: "rgba(255,255,255,0.16)", color: "#fff", border: "none", cursor: "pointer" }}>
+                <RefreshCw size={12} />Re-sync
+              </button>
+            )}
           </div>
         </div>
         <div className="p-4">

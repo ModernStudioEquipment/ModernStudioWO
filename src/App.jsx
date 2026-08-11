@@ -29,6 +29,7 @@ import { NewOrderModal } from "./components/modals/NewOrderModal.jsx";
 import { NewPurchaseModal } from "./components/modals/NewPurchaseModal.jsx";
 import { NewNoticeModal } from "./components/modals/NewNoticeModal.jsx";
 import { QuoteModal } from "./components/modals/QuoteModal.jsx";
+import { ResyncModal } from "./components/modals/ResyncModal.jsx";
 import { FulfillModal } from "./components/modals/FulfillModal.jsx";
 import { TrackingModal } from "./components/modals/TrackingModal.jsx";
 import { PickedUpModal } from "./components/modals/PickedUpModal.jsx";
@@ -146,6 +147,7 @@ export default function App() {
   const [likeKinds, setLikeKinds] = useState(null); // { o, it, others } — same product on other orders
   const [showNewNotice, setShowNewNotice] = useState(false); // low-stock notice form
   const [quoteTarget, setQuoteTarget] = useState(null); // { materials: [...] } awaiting quote notes
+  const [resyncTarget, setResyncTarget] = useState(null); // QuickBooks order being re-loaded
   const [flashItem, setFlashItem] = useState(null);
   const [detailId, setDetailId] = useState(null);
   const [flashOrderId, setFlashOrderId] = useState(null); // order to scroll to + flash after a search jump
@@ -1383,6 +1385,9 @@ export default function App() {
           onClose={() => setShowNewPurchase(false)}
         />
       )}
+      {resyncTarget && (
+        <ResyncModal order={resyncTarget} onDone={board.refetch} onClose={() => setResyncTarget(null)} />
+      )}
       {quoteTarget && (
         <QuoteModal
           material={quoteTarget.materials[0]}
@@ -1409,6 +1414,7 @@ export default function App() {
           onMoveItem={(itemId, s) => { if (s === "awaiting") { setDetailId(null); setMatTarget(itemId); } else moveItemU(itemId, s); }}
           onFinishItem={(itemId) => finishItemU(itemId)}
           onLoadEvents={board.getItemEvents}
+          onResync={detailOrder.source === "QuickBooks" ? () => setResyncTarget(detailOrder) : undefined}
           onGoToItem={(stage) => {
             // click a product's progress bubbles -> jump to the tab it lives in
             setDetailId(null);
