@@ -1,5 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
 
@@ -27,7 +28,9 @@ if (isFloorHash || stickyFloor) {
   import("./floor/FloorEntry.jsx").then(({ default: FloorEntry }) => {
     root.render(
       <React.StrictMode>
-        <FloorEntry />
+        <ErrorBoundary>
+          <FloorEntry />
+        </ErrorBoundary>
       </React.StrictMode>
     );
   });
@@ -35,7 +38,9 @@ if (isFloorHash || stickyFloor) {
   Promise.all([import("./App.jsx"), import("./index.css")]).then(([{ default: App }]) => {
     root.render(
       <React.StrictMode>
-        <App />
+        <ErrorBoundary>
+          <App />
+        </ErrorBoundary>
       </React.StrictMode>
     );
   });
