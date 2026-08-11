@@ -531,22 +531,30 @@ async function resyncOrder({ orderNo, commit, conductorKey, endUserId, url, serv
   //    when a description is edited); fall back to the name.
   const codeOf = (x) => { const m = /item #:\s*(.+)$/i.exec(x.note || ""); return m ? m[1].trim().toLowerCase() : null; };
   const nameOf = (x) => String(x.name || "").trim().toLowerCase();
-  const keyOf = (x) => codeOf(x) || `name:${nameOf(x)}`;
-
-  const qbByKey = new Map();
-  qb.items.forEach((it) => qbByKey.set(keyOf(it), it));
-  const boardByKey = new Map();
-  (bo.items || []).forEach((it) => boardByKey.set(keyOf(it), it));
-
   const worked = (it) => !!(it.in_progress || it.completed_by || it.stage === "done" || it.needs_material);
 
-  const toAdd = qb.items.filter((it) => !boardByKey.has(keyOf(it)));
-  const toRemove = (bo.items || []).filter((it) => !qbByKey.has(keyOf(it)))
-    .map((it) => ({ id: it.id, name: it.name, qty: it.qty, hasWork: worked(it), stage: it.stage }));
+  // TWO-PASS pairing. A single "code or else name" key is not enough: if one side
+  // carries an "Item #:" note and the other doesn't, IDENTICAL lines fail to pair
+  // and come out as a delete + re-add — which would destroy the work logged
+  // against the existing item. So: pair on code first, then pair whatever's left
+  // on name, and only genuinely unpaired lines count as added/removed.
+  const boardLeft = [...(bo.items || [])];
+  const qbLeft = [...qb.items];
+  const pairs = []; // [boardItem, qbItem]
+  const take = (matchFn) => {
+    for (let i = qbLeft.length - 1; i >= 0; i--) {
+      const qbIt = qbLeft[i];
+      const j = boardLeft.findIndex((b2) => matchFn(b2, qbIt));
+      if (j >= 0) { pairs.push([boardLeft[j], qbIt]); boardLeft.splice(j, 1); qbLeft.splice(i, 1); }
+    }
+  };
+  take((b2, q2) => { const bc = codeOf(b2), qc = codeOf(q2); return bc && qc && bc === qc; }); // 1: same item code
+  take((b2, q2) => nameOf(b2) === nameOf(q2));                                                 // 2: same name
+
+  const toAdd = qbLeft;
+  const toRemove = boardLeft.map((it) => ({ id: it.id, name: it.name, qty: it.qty, hasWork: worked(it), stage: it.stage }));
   const toUpdate = [];
-  for (const [k, qbIt] of qbByKey) {
-    const cur = boardByKey.get(k);
-    if (!cur) continue;
+  for (const [cur, qbIt] of pairs) {
     const patch = {};
     if (String(cur.name || "") !== String(qbIt.name || "")) patch.name = qbIt.name;
     if (String(cur.qty || "") !== String(qbIt.qty || "")) patch.qty = qbIt.qty;
