@@ -32,13 +32,16 @@ export async function GET() {
 
   // --- QuickBooks, via Conductor. Ask for a single record: cheap, and it fails
   //     the same way a real sync would if the Web Connector is down.
+  //
+  //     This is a round trip to a PC in the office, not a cloud API call, so it
+  //     is genuinely slow — 40s, well inside the function's own limit.
   let quickbooks = "down";
   let detail = null;
   try {
     const since = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const res = await fetch(`${CONDUCTOR_BASE}/sales-orders?limit=1&transactionDateFrom=${since}`, {
       headers: { Authorization: `Bearer ${conductorKey}`, "Conductor-End-User-Id": endUserId },
-      signal: AbortSignal.timeout(20000),
+      signal: AbortSignal.timeout(40000),
     });
     if (res.ok) {
       quickbooks = "connected";
@@ -49,7 +52,12 @@ export async function GET() {
       detail = body.slice(0, 300) || `Conductor returned ${res.status}`;
     }
   } catch (e) {
-    detail = e?.name === "TimeoutError" ? "QuickBooks did not respond within 20s" : String(e?.message || e);
+    if (e?.name === "TimeoutError") {
+      quickbooks = "no answer";
+      detail = "QuickBooks didn't answer within 40s.";
+    } else {
+      detail = String(e?.message || e);
+    }
   }
 
   // --- Database + how fresh the board is. A long gap since the newest synced
@@ -73,8 +81,21 @@ export async function GET() {
     if (!detail) detail = `Database unreachable: ${String(e?.message || e)}`;
   }
 
-  const ok = quickbooks === "connected" && database === "connected";
-  return json(ok ? 200 : 503, { ok, quickbooks, database, lastOrderAgeHours, detail, checkedAt });
+  // --- The verdict. Deliberately NOT "both pinged fine". ---------------------
+  // The Web Connector lives on an office PC that sleeps overnight and at
+  // weekends, so a failed live ping is normal outside working hours and would
+  // page someone every single night. What actually went wrong last time was
+  // ELEVEN DAYS with no orders arriving — so a failed ping only counts as a
+  // problem when nothing has synced in a day either.
+  const stale = lastOrderAgeHours == null || lastOrderAgeHours > 24;
+  const ok = database === "connected" && (quickbooks === "connected" || !stale);
+  const hint =
+    database !== "connected" ? "The board's database is unreachable — this is the urgent one."
+      : quickbooks === "connected" ? null
+      : stale ? "Nothing has synced from QuickBooks in over a day. Check that the office PC is on, signed in, and running QuickBooks with the Web Connector."
+      : "QuickBooks didn't answer, but orders synced recently — most likely the office PC is just asleep. Worth a look if it repeats during working hours.";
+
+  return json(ok ? 200 : 503, { ok, quickbooks, database, lastOrderAgeHours, stale, detail, hint, checkedAt });
 }
 
 function json(status, body) {
