@@ -49,51 +49,59 @@ async function loadProductPhotos() {
 let channelSeq = 0; // unique realtime channel names — one channel per subscriber
 
 // DB row (snake_case) -> the normalized in-memory shape the UI consumes.
-function mapOrder(row, productPhotos = {}, fulfillmentsByOrder = {}, photoBySku = {}) {
-  const items = (row.items || [])
-    .slice()
-    .sort((a, b) => (a.position ?? 0) - (b.position ?? 0) || a.created_at.localeCompare(b.created_at))
-    .map((it) => ({
-      id: it.id,
-      name: it.name,
-      qty: it.qty,
-      dept: it.dept,
-      color: it.color,
-      stage: it.stage,
-      needsMaterial: it.needs_material,
-      fulfilledQty: it.fulfilled_qty || 0,
-      completedBy: it.completed_by,
-      sku: itemSku(it),
-      imageUrl: it.image_url || photoBySku[(itemSku(it) || "").toLowerCase()] || productPhotos[it.name] || null,
-      note: it.note || null,
-      inProgress: it.in_progress || false,
-      stageEnteredAt: it.stage_entered_at ? new Date(it.stage_entered_at).getTime() : null,
-      events: [], // loaded on demand — see getItemEvents()
-      materials: (it.materials || [])
-        .slice()
-        .sort((a, b) => a.created_at.localeCompare(b.created_at))
-        .map((m) => ({
-          id: m.id,
-          name: m.name,
-          amount: m.amount,               // requested — what the order needs
-          orderedQty: m.ordered_qty || null, // what was actually bought
-          progress: m.progress || null,      // "being worked on" state, e.g. Quote requested
-          progressAt: m.progress_at ? new Date(m.progress_at).getTime() : null,
-          progressBy: m.progress_by || null,
-          ordered: m.ordered,
-          received: m.received,
-          orderedBy: m.ordered_by || null,
-          vendor: m.vendor || null,
-          poNumber: m.po_number || null,
-          orderedAt: m.ordered_at || null,
-          expectedAt: m.expected_at || null,
-          contact: m.contact || null,
-          note: m.note || null,
-          receivedQty: m.received_qty || null,
-          receivedNote: m.received_note || null,
-          forInventory: !!m.for_inventory,
-        })),
-    }));
+//
+// These three are split apart so realtime can reuse them. A change event carries
+// the changed row and nothing else, and mapping it with the SAME function the
+// full load uses is the only way the two can't drift apart — a second, subtly
+// different copy of this mapping would show wrong values on the board until the
+// next full reload, which is exactly the kind of bug nobody reports clearly.
+//
+// Each maps ONLY its own columns. Children (an item's materials, an order's
+// items) are merged in by the caller, because a change event never includes them.
+export function mapMaterialRow(m) {
+  return {
+    id: m.id,
+    name: m.name,
+    amount: m.amount,               // requested — what the order needs
+    orderedQty: m.ordered_qty || null, // what was actually bought
+    progress: m.progress || null,      // "being worked on" state, e.g. Quote requested
+    progressAt: m.progress_at ? new Date(m.progress_at).getTime() : null,
+    progressBy: m.progress_by || null,
+    ordered: m.ordered,
+    received: m.received,
+    orderedBy: m.ordered_by || null,
+    vendor: m.vendor || null,
+    poNumber: m.po_number || null,
+    orderedAt: m.ordered_at || null,
+    expectedAt: m.expected_at || null,
+    contact: m.contact || null,
+    note: m.note || null,
+    receivedQty: m.received_qty || null,
+    receivedNote: m.received_note || null,
+    forInventory: !!m.for_inventory,
+  };
+}
+
+export function mapItemRow(it, productPhotos = {}, photoBySku = {}) {
+  return {
+    id: it.id,
+    name: it.name,
+    qty: it.qty,
+    dept: it.dept,
+    color: it.color,
+    stage: it.stage,
+    needsMaterial: it.needs_material,
+    fulfilledQty: it.fulfilled_qty || 0,
+    completedBy: it.completed_by,
+    sku: itemSku(it),
+    imageUrl: it.image_url || photoBySku[(itemSku(it) || "").toLowerCase()] || productPhotos[it.name] || null,
+    note: it.note || null,
+    inProgress: it.in_progress || false,
+    stageEnteredAt: it.stage_entered_at ? new Date(it.stage_entered_at).getTime() : null,
+  };
+}
+
+export function mapOrderRow(row) {
   return {
     id: row.id,
     orderNo: row.order_no,
@@ -122,6 +130,25 @@ function mapOrder(row, productPhotos = {}, fulfillmentsByOrder = {}, photoBySku 
     pickedUpBy: row.picked_up_by || null,
     cancelledAt: row.cancelled_at || null,
     cancelReason: row.cancel_reason || null,
+  };
+}
+
+// The full-load shape: an order row plus its children, assembled from the same
+// per-row mappers realtime uses.
+function mapOrder(row, productPhotos = {}, fulfillmentsByOrder = {}, photoBySku = {}) {
+  const items = (row.items || [])
+    .slice()
+    .sort((a, b) => (a.position ?? 0) - (b.position ?? 0) || a.created_at.localeCompare(b.created_at))
+    .map((it) => ({
+      ...mapItemRow(it, productPhotos, photoBySku),
+      events: [], // loaded on demand — see getItemEvents()
+      materials: (it.materials || [])
+        .slice()
+        .sort((a, b) => a.created_at.localeCompare(b.created_at))
+        .map(mapMaterialRow),
+    }));
+  return {
+    ...mapOrderRow(row),
     fulfillments: fulfillmentsByOrder[row.id] || [], // partial pickup/shipment log
     items,
   };
@@ -163,9 +190,21 @@ export const supabaseAdapter = {
     // by the SKU in their "Item #:" note. Paged + cached; tolerates the table missing.
     const photoBySku = await loadPhotoBySku();
     // Partial pickup/shipment log, grouped by order (tolerate the table missing).
+    // MUST be paged: this passed 1000 rows and, being sorted oldest-first, the
+    // API silently returned the oldest 1000 and dropped the NEWEST ones — so
+    // every partial pickup and shipment from the previous week vanished off the
+    // board, getting worse by the day. Same 1000-row cap that once halved photo
+    // coverage; see loadPaged.
     const fulfillmentsByOrder = {};
-    const { data: ff } = await supabase.from("fulfillments").select("*").order("created_at", { ascending: true });
-    if (Array.isArray(ff)) ff.forEach((f) => {
+    const ff = [];
+    for (let from = 0; ; from += 1000) {
+      const { data: page } = await supabase.from("fulfillments").select("*")
+        .order("created_at", { ascending: true }).range(from, from + 999);
+      if (!Array.isArray(page) || !page.length) break;
+      ff.push(...page);
+      if (page.length < 1000) break;
+    }
+    ff.forEach((f) => {
       (fulfillmentsByOrder[f.order_id] = fulfillmentsByOrder[f.order_id] || []).push({
         id: f.id, kind: f.kind, person: f.person || null, carrier: f.carrier || null,
         trackingNumber: f.tracking_number || null, note: f.note || null, lines: f.lines || [], at: f.created_at,
@@ -199,6 +238,20 @@ export const supabaseAdapter = {
       .from("app_settings")
       .upsert({ key, value: ids, updated_at: new Date().toISOString() }, { onConflict: "key" });
     if (error && error.code !== "42P01") fail(error); // 42P01 = table missing (migration not run yet)
+  },
+
+  // Map one realtime change row into board shape, using the very same mappers
+  // the full load uses. Returns null for tables the board can't patch in place
+  // (item_events, work_orders, app_settings) — the caller reloads for those.
+  //
+  // Only the row's OWN columns come back: a change event never carries an item's
+  // materials or an order's items, so the caller must merge, not replace.
+  mapRealtimeRow(table, row) {
+    if (!row || !row.id) return null;
+    if (table === "materials") return mapMaterialRow(row);
+    if (table === "items") return mapItemRow(row, _productPhotos || {}, _photoBySku || {});
+    if (table === "orders") return mapOrderRow(row);
+    return null;
   },
 
   subscribe(cb) {

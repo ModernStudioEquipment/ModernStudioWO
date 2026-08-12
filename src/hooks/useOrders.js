@@ -13,20 +13,77 @@ export function useOrders(enabled) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const debounceRef = useRef(null);
+  const inFlightRef = useRef(null);
 
   const refetch = useCallback(async () => {
+    // COALESCE. Every mutation refetched immediately AND realtime scheduled its
+    // own refetch ~150ms later, so a single click cost two full board loads —
+    // 2.6 MB each. Whoever asks second now rides along with the load already
+    // running instead of starting an identical one. Nothing is skipped: a change
+    // arriving after this finishes still gets its own fetch.
+    if (inFlightRef.current) return inFlightRef.current;
+
+    const run = (async () => {
+      try {
+        const data = await db.getOrders();
+        setOrders(data);
+        // The shared Orders-tab arrangement rides the same refetch, so any realtime
+        // change (including a reorder, via app_settings) refreshes it for everyone.
+        setArrangementState((await db.getArrangement?.()) || []);
+        setError(null);
+        return data;
+      } catch (e) {
+        setError(e.message || String(e));
+        return [];
+      }
+    })();
+
+    inFlightRef.current = run;
+    // Clear the slot however it settles. If this were left set after a failure,
+    // the board would never refetch again for the life of the session.
     try {
-      const data = await db.getOrders();
-      setOrders(data);
-      // The shared Orders-tab arrangement rides the same refetch, so any realtime
-      // change (including a reorder, via app_settings) refreshes it for everyone.
-      setArrangementState((await db.getArrangement?.()) || []);
-      setError(null);
-      return data;
-    } catch (e) {
-      setError(e.message || String(e));
-      return [];
+      return await run;
+    } finally {
+      inFlightRef.current = null;
     }
+  }, []);
+
+  // --- Local patchers -------------------------------------------------------
+  // Update one row in the board copy we already hold, instead of re-downloading
+  // the lot. Used both for optimistic clicks and for applying realtime changes.
+  //
+  // They MERGE (`...existing, ...patch`) rather than replace, because a patch
+  // carries only its own columns — an item's materials and an order's items must
+  // survive it. They must also be declared above the effect that lists them as
+  // dependencies: naming them in a dependency array before their `const` would
+  // be a temporal-dead-zone crash on first render.
+
+  // Patch one material. Makes small toggles feel instant: a full refetch is
+  // megabytes and a second of work, far too heavy to sit behind one click. The
+  // write still goes to the server; realtime confirms it a moment later.
+  const patchMaterial = useCallback((materialId, patch) => {
+    setOrders((prev) =>
+      prev.map((o) => ({
+        ...o,
+        items: (o.items || []).map((it) => ({
+          ...it,
+          materials: (it.materials || []).map((m) => (m.id === materialId ? { ...m, ...patch } : m)),
+        })),
+      }))
+    );
+  }, []);
+
+  const patchItem = useCallback((itemId, patch) => {
+    setOrders((prev) =>
+      prev.map((o) => ({
+        ...o,
+        items: (o.items || []).map((it) => (it.id === itemId ? { ...it, ...patch } : it)),
+      }))
+    );
+  }, []);
+
+  const patchOrder = useCallback((orderId, patch) => {
+    setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, ...patch } : o)));
   }, []);
 
   useEffect(() => {
@@ -42,29 +99,36 @@ export function useOrders(enabled) {
       clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => refetch(), 150);
     };
-    const unsubscribe = db.subscribe(scheduleRefetch);
+
+    // Realtime used to reload the ENTIRE board on every change anyone made —
+    // 3.7 MB per event, on every open screen in the building. With 30 people
+    // working that is a lot of traffic to learn that one checkbox moved.
+    //
+    // An UPDATE to a single row is the overwhelming majority of that traffic
+    // (progress toggles, stage moves, priority changes) and carries everything
+    // needed to patch in place. Anything structural — a new order, a deleted
+    // item, a table we can't map — still triggers the full reload, because that
+    // can change which orders exist and where items belong.
+    const onChange = (payload) => {
+      const row = payload?.new;
+      const mapped = payload?.eventType === "UPDATE" && row
+        ? db.mapRealtimeRow?.(payload.table, row)
+        : null;
+      if (!mapped) return scheduleRefetch();
+
+      if (payload.table === "materials") return patchMaterial(mapped.id, mapped);
+      if (payload.table === "items") return patchItem(mapped.id, mapped);
+      if (payload.table === "orders") return patchOrder(mapped.id, mapped);
+      return scheduleRefetch();
+    };
+
+    const unsubscribe = db.subscribe(onChange);
     return () => {
       active = false;
       clearTimeout(debounceRef.current);
       unsubscribe?.();
     };
-  }, [enabled, refetch]);
-
-  // Patch one material in the local board copy. Used to make small toggles feel
-  // instant: a full refetch is ~2 MB and a second of work, which is far too heavy
-  // to sit behind a single click. The write still goes to the server; realtime
-  // brings the authoritative state a moment later.
-  const patchMaterial = useCallback((materialId, patch) => {
-    setOrders((prev) =>
-      prev.map((o) => ({
-        ...o,
-        items: (o.items || []).map((it) => ({
-          ...it,
-          materials: (it.materials || []).map((m) => (m.id === materialId ? { ...m, ...patch } : m)),
-        })),
-      }))
-    );
-  }, []);
+  }, [enabled, refetch, patchMaterial, patchItem, patchOrder]);
 
   // Optimistic toggle: show it immediately, persist in the background, and only
   // fall back to a refetch if the write actually fails.
