@@ -14,6 +14,18 @@ export function useOrders(enabled) {
   const [error, setError] = useState(null);
   const debounceRef = useRef(null);
   const inFlightRef = useRef(null);
+  // The board as it stands right now, readable synchronously. setOrders alone
+  // can't give us that — React may not have applied it yet — and callers need
+  // the RESULT of a patch immediately: finishing the last product on an order
+  // pops the "will call or shipping?" prompt, and that decision is made from
+  // the board as it is after the click, not before it.
+  const ordersRef = useRef([]);
+
+  const setBoard = useCallback((next) => {
+    ordersRef.current = next;
+    setOrders(next);
+    return next;
+  }, []);
 
   const refetch = useCallback(async () => {
     // COALESCE. Every mutation refetched immediately AND realtime scheduled its
@@ -26,7 +38,7 @@ export function useOrders(enabled) {
     const run = (async () => {
       try {
         const data = await db.getOrders();
-        setOrders(data);
+        setBoard(data);
         // The shared Orders-tab arrangement rides the same refetch, so any realtime
         // change (including a reorder, via app_settings) refreshes it for everyone.
         setArrangementState((await db.getArrangement?.()) || []);
@@ -61,30 +73,25 @@ export function useOrders(enabled) {
   // Patch one material. Makes small toggles feel instant: a full refetch is
   // megabytes and a second of work, far too heavy to sit behind one click. The
   // write still goes to the server; realtime confirms it a moment later.
-  const patchMaterial = useCallback((materialId, patch) => {
-    setOrders((prev) =>
-      prev.map((o) => ({
-        ...o,
-        items: (o.items || []).map((it) => ({
-          ...it,
-          materials: (it.materials || []).map((m) => (m.id === materialId ? { ...m, ...patch } : m)),
-        })),
-      }))
-    );
-  }, []);
+  // Each returns the board as it now stands, so a caller can act on the result
+  // without waiting for a round trip.
+  const patchMaterial = useCallback((materialId, patch) =>
+    setBoard(ordersRef.current.map((o) => ({
+      ...o,
+      items: (o.items || []).map((it) => ({
+        ...it,
+        materials: (it.materials || []).map((m) => (m.id === materialId ? { ...m, ...patch } : m)),
+      })),
+    }))), [setBoard]);
 
-  const patchItem = useCallback((itemId, patch) => {
-    setOrders((prev) =>
-      prev.map((o) => ({
-        ...o,
-        items: (o.items || []).map((it) => (it.id === itemId ? { ...it, ...patch } : it)),
-      }))
-    );
-  }, []);
+  const patchItem = useCallback((itemId, patch) =>
+    setBoard(ordersRef.current.map((o) => ({
+      ...o,
+      items: (o.items || []).map((it) => (it.id === itemId ? { ...it, ...patch } : it)),
+    }))), [setBoard]);
 
-  const patchOrder = useCallback((orderId, patch) => {
-    setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, ...patch } : o)));
-  }, []);
+  const patchOrder = useCallback((orderId, patch) =>
+    setBoard(ordersRef.current.map((o) => (o.id === orderId ? { ...o, ...patch } : o))), [setBoard]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -130,20 +137,34 @@ export function useOrders(enabled) {
     };
   }, [enabled, refetch, patchMaterial, patchItem, patchOrder]);
 
-  // Optimistic toggle: show it immediately, persist in the background, and only
-  // fall back to a refetch if the write actually fails.
-  const optimisticMaterial = useCallback(
-    (patch, fn) => async (materialId, ...rest) => {
-      patchMaterial(materialId, typeof patch === "function" ? patch(...rest) : patch);
+  // Optimistic mutation: show it immediately, persist in the background, and
+  // only fall back to a full reload if the write actually fails. Returns the
+  // board as patched, so callers that used to read the refetched board still can.
+  //
+  // These skip the after-the-fact reload entirely — realtime now delivers the
+  // authoritative row surgically a moment later, so re-downloading the whole
+  // board to learn about a change we already applied is pure waste.
+  const optimistic = useCallback(
+    (applyPatch) => (patch, fn) => async (id, ...rest) => {
+      const patched = applyPatch(id, typeof patch === "function" ? patch(...rest) : patch);
       try {
-        await fn(materialId, ...rest);
+        await fn(id, ...rest);
+        return patched;
       } catch (e) {
+        // Go and get the truth first, THEN report. refetch clears the error on
+        // success, so reporting first would wipe the very message the user needs
+        // — they'd watch their click quietly undo itself with no explanation.
+        const fresh = await refetch();
         setError(e.message || String(e));
-        await refetch();
+        return fresh;
       }
     },
-    [patchMaterial, refetch]
+    [refetch]
   );
+
+  const optimisticMaterial = useCallback(optimistic(patchMaterial), [optimistic, patchMaterial]);
+  const optimisticItem = useCallback(optimistic(patchItem), [optimistic, patchItem]);
+  const optimisticOrder = useCallback(optimistic(patchOrder), [optimistic, patchOrder]);
 
   // Wrap a db mutation so it refetches afterward and returns fresh orders.
   const act = useCallback(
@@ -174,7 +195,11 @@ export function useOrders(enabled) {
     createPurchase: act((payload) => db.createPurchase(payload)),
     triageItem: act((itemId, decision) => db.triageItem(itemId, decision)),
     addMaterials: act((itemId, rows) => db.addMaterials(itemId, rows)),
-    finishItem: act((itemId) => db.finishItem(itemId)),
+    // The three most-clicked actions on the board, made instant. Each is a
+    // single-column server update, so the local patch can't disagree with it.
+    // finishItem still returns the resulting board: finishing the last product
+    // is what pops the will-call/shipping prompt.
+    finishItem: optimisticItem({ stage: "done" }, (itemId) => db.finishItem(itemId)),
     getItemEvents: (itemId) => db.getItemEvents(itemId),
     updateItem: act((itemId, patch) => db.updateItem(itemId, patch)),
     uploadItemPhoto: act((itemId, file) => db.uploadItemPhoto(itemId, file)),
@@ -194,7 +219,7 @@ export function useOrders(enabled) {
       (materialId, forInventory) => db.setForInventory(materialId, forInventory)
     ),
     receiveMaterial: act((materialId, opts) => db.receiveMaterial(materialId, opts)),
-    setPriority: act((orderId, priority) => db.setPriority(orderId, priority)),
+    setPriority: optimisticOrder((priority) => ({ priority }), (orderId, priority) => db.setPriority(orderId, priority)),
     setDueDate: act((orderId, dueDate, dueTime) => db.setDueDate(orderId, dueDate, dueTime)),
     setCompletionDate: act((orderId, date) => db.setCompletionDate(orderId, date)),
     setInvoiced: act((orderId, invoiced, invoiceNumber) => db.setInvoiced(orderId, invoiced, invoiceNumber)),
@@ -208,7 +233,8 @@ export function useOrders(enabled) {
     deleteOrder: act((orderId) => db.deleteOrder(orderId)),
     cancelOrder: act((orderId, reason) => db.cancelOrder(orderId, reason)),
     unpickItem: act((itemId) => db.unpickItem(itemId)),
-    moveItem: act((itemId, stage) => db.moveItem(itemId, stage)),
+    // Mirrors the server write exactly: stage, and needs_material cleared.
+    moveItem: optimisticItem((stage) => ({ stage, needsMaterial: false }), (itemId, stage) => db.moveItem(itemId, stage)),
     markPickedUp: act((orderId, by) => db.markPickedUp(orderId, by)),
   };
 }

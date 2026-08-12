@@ -11,11 +11,17 @@ import { renderHook, act, waitFor } from "@testing-library/react";
 
 let handler;                 // the realtime callback the hook registers
 const getOrders = vi.fn();
+const finishItem = vi.fn();
+const moveItem = vi.fn();
+const setPriority = vi.fn();
 
 vi.mock("../lib/db.js", () => ({
   db: {
     getOrders: (...a) => getOrders(...a),
     getArrangement: async () => [],
+    finishItem: (...a) => finishItem(...a),
+    moveItem: (...a) => moveItem(...a),
+    setPriority: (...a) => setPriority(...a),
     subscribe: (cb) => { handler = cb; return () => {}; },
     // Stand-in for the adapter's mapper: returns the row's OWN columns only,
     // exactly like the real one.
@@ -37,6 +43,7 @@ const board = () => [{
 beforeEach(() => {
   handler = undefined;
   getOrders.mockReset().mockResolvedValue(board());
+  [finishItem, moveItem, setPriority].forEach((m) => m.mockReset().mockResolvedValue(undefined));
 });
 
 const mount = async () => {
@@ -98,6 +105,63 @@ describe("anything structural still reloads", () => {
 
   it("reloads when the adapter gives no payload at all (demo mode)", async () => {
     await reloads(undefined);
+  });
+});
+
+describe("the most-clicked actions apply instantly", () => {
+  it("marks an item done on screen without reloading the board", async () => {
+    const h = await mount();
+    await act(async () => { await h.result.current.finishItem("i1"); });
+
+    expect(h.result.current.orders[0].items[0].stage).toBe("done");
+    expect(finishItem).toHaveBeenCalledWith("i1");
+    expect(getOrders).not.toHaveBeenCalled();
+  });
+
+  // finishItem's RETURN drives the "will call or shipping?" prompt that fires
+  // when the last product on an order is finished. It used to be the refetched
+  // board; it must still describe the order as it is AFTER the click.
+  it("returns a board showing the item done, so the fulfillment prompt still fires", async () => {
+    const h = await mount();
+    let returned;
+    await act(async () => { returned = await h.result.current.finishItem("i1"); });
+
+    const order = (returned || []).find((o) => o.id === "o1");
+    expect(order, "finishItem must return the board").toBeTruthy();
+    expect(order.items.every((i) => i.stage === "done")).toBe(true);
+  });
+
+  it("moves an item and clears needs-material, mirroring the server write", async () => {
+    const h = await mount();
+    await act(async () => { await h.result.current.moveItem("i1", "workorder"); });
+
+    const item = h.result.current.orders[0].items[0];
+    expect(item.stage).toBe("workorder");
+    expect(item.needsMaterial).toBe(false);
+    expect(item.materials).toHaveLength(1);      // still merged, not replaced
+    expect(getOrders).not.toHaveBeenCalled();
+  });
+
+  it("changes priority instantly", async () => {
+    const h = await mount();
+    await act(async () => { await h.result.current.setPriority("o1", "RUSH"); });
+
+    expect(h.result.current.orders[0].priority).toBe("RUSH");
+    expect(h.result.current.orders[0].items).toHaveLength(1);
+    expect(getOrders).not.toHaveBeenCalled();
+  });
+
+  // The risk of showing something before it's saved: if the save fails, the
+  // screen must not keep showing a change that never happened.
+  it("reloads the real state when the write fails", async () => {
+    const h = await mount();
+    finishItem.mockRejectedValue(new Error("network down"));
+
+    await act(async () => { await h.result.current.finishItem("i1"); });
+
+    await waitFor(() => expect(getOrders).toHaveBeenCalled());   // went for the truth
+    expect(h.result.current.orders[0].items[0].stage).toBe("picklist"); // reverted
+    expect(h.result.current.error).toMatch(/network down/);
   });
 });
 

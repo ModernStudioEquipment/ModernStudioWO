@@ -46,6 +46,12 @@ async function loadProductPhotos() {
   return m;
 }
 
+// How far back the board loads finished history. Anything still live is loaded
+// regardless of age, so this only ever drops orders that are already done and
+// gone. A year keeps every plausible "what happened with that one?" lookup on
+// the board; without a limit the load grows forever.
+const BOARD_WINDOW_DAYS = 365;
+
 let channelSeq = 0; // unique realtime channel names — one channel per subscriber
 
 // DB row (snake_case) -> the normalized in-memory shape the UI consumes.
@@ -177,11 +183,32 @@ export const supabaseAdapter = {
     // item_events is deliberately NOT joined here. It's ~14,000 rows and made this
     // query take ~28s / 3.8 MB; the board only needs items.stage_entered_at (0053).
     // Full timelines load on demand via getItemEvents().
-    let { data, error } = await supabase
-      .from("orders")
-      .select("*, items(*, materials(*))")
-      .order("received_at", { ascending: false });
+    // PAGED. A plain select stops at 1000 rows, and the board had 1767 orders —
+    // so the oldest 767 simply weren't there. That's why an old order sometimes
+    // "wasn't on the board" and had to be dragged forward by hand.
+    //
+    // Also WINDOWED, so this can't grow without bound as the years pass: an
+    // order is loaded if it arrived within the window OR is still live (nothing
+    // in progress is ever hidden, however old it gets). Every order today falls
+    // inside the window — the whole board is under three months old — so this
+    // changes nothing now; it's the ceiling that stops a 20 MB board later.
+    const cutoff = new Date(Date.now() - BOARD_WINDOW_DAYS * 86400000).toISOString();
+    const rows = [];
+    let error = null;
+    for (let from = 0; ; from += 1000) {
+      const page = await supabase
+        .from("orders")
+        .select("*, items(*, materials(*))")
+        .or(`received_at.gte.${cutoff},fulfillment.is.null`)
+        .order("received_at", { ascending: false })
+        .range(from, from + 999);
+      if (page.error) { error = page.error; break; }
+      const got = page.data || [];
+      rows.push(...got);
+      if (got.length < 1000) break;
+    }
     fail(error);
+    const data = rows;
     // Product photo library: a photo remembered per product name fills in for any
     // item that doesn't have its own — this is how Shopify items get matched.
     // Paged + cached; tolerates the table not existing yet (0028).
