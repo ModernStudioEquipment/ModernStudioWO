@@ -147,7 +147,7 @@ export default function App() {
   const [likeKinds, setLikeKinds] = useState(null); // { o, it, others } — same product on other orders
   const [showNewNotice, setShowNewNotice] = useState(false); // low-stock notice form
   const [quoteTarget, setQuoteTarget] = useState(null); // { materials: [...] } awaiting quote notes
-  const [resyncTarget, setResyncTarget] = useState(null); // QuickBooks order being re-loaded
+  const [resyncTarget, setResyncTarget] = useState(null); // order being re-loaded (QuickBooks or Shopify)
   const [flashItem, setFlashItem] = useState(null);
   const [detailId, setDetailId] = useState(null);
   const [flashOrderId, setFlashOrderId] = useState(null); // order to scroll to + flash after a search jump
@@ -1414,7 +1414,7 @@ export default function App() {
           onMoveItem={(itemId, s) => { if (s === "awaiting") { setDetailId(null); setMatTarget(itemId); } else moveItemU(itemId, s); }}
           onFinishItem={(itemId) => finishItemU(itemId)}
           onLoadEvents={board.getItemEvents}
-          onResync={detailOrder.source === "QuickBooks" ? () => setResyncTarget(detailOrder) : undefined}
+          onResync={detailOrder.source === "QuickBooks" || detailOrder.source === "Shopify" ? () => setResyncTarget(detailOrder) : undefined}
           onGoToItem={(stage) => {
             // click a product's progress bubbles -> jump to the tab it lives in
             setDetailId(null);

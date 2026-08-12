@@ -44,10 +44,11 @@ export function OrderDetail({ order, status, now, onDueDate, onCompletion, onInv
             <DuePill o={order} now={now} onChange={onDueDate} />
             <CompletionPill o={order} onChange={onCompletion} showEmpty />
             <InvoicedBadge o={order} onClick={onInvoice} />
-            {/* Re-read this order from QuickBooks — for when it was edited there
-                after it synced. Shows what would change before touching anything. */}
+            {/* Re-read this order from wherever it came from (QuickBooks or
+                Shopify) — for when it was edited there after it synced. Shows
+                what would change before touching anything. */}
             {onResync && (
-              <button onClick={onResync} title="Re-load this order from QuickBooks"
+              <button onClick={onResync} title={`Re-load this order from ${order.source === "Shopify" ? "Shopify" : "QuickBooks"}`}
                 className="inline-flex items-center gap-1 px-2 py-1 rounded"
                 style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5, background: "rgba(255,255,255,0.16)", color: "#fff", border: "none", cursor: "pointer" }}>
                 <RefreshCw size={12} />Re-sync

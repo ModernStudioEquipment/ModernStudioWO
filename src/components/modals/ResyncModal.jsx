@@ -3,36 +3,47 @@ import { X, RefreshCw, Plus, Trash2, Pencil, AlertTriangle, Check } from "lucide
 import { C } from "../../theme.js";
 import { Btn } from "../ui.jsx";
 
-// Re-load one order from QuickBooks. Always shows what WILL change before
-// anything does — the endpoint's GET is a dry run, and only the confirm button
-// POSTs. Nothing here writes on open.
+// Re-load one order from whichever system it came from. Always shows what WILL
+// change before anything does — the endpoint's GET is a dry run, and only the
+// confirm button POSTs. Nothing here writes on open.
+//
+// Both intake paths have the same blind spot: they only ever ADD. QuickBooks
+// can't tell a renamed line from a new one, and the Shopify webhook fires once
+// at order creation and then de-dupes forever. Either way, an order edited after
+// it synced silently stays wrong on the board until someone re-loads it.
 export function ResyncModal({ order, onClose, onDone }) {
   const [plan, setPlan] = useState(null);
   const [error, setError] = useState(null);
   const [applying, setApplying] = useState(false);
   const [result, setResult] = useState(null);
 
+  // Same request shape either way; only the endpoint differs.
+  const system = order.source === "Shopify" ? "Shopify" : "QuickBooks";
+  const endpoint = order.source === "Shopify"
+    ? `/api/shopify-resync?order=${encodeURIComponent(order.orderNo)}`
+    : `/api/conductor-sync?resync=${encodeURIComponent(order.orderNo)}`;
+
   useEffect(() => {
     let live = true;
     (async () => {
       try {
-        const res = await fetch(`/api/conductor-sync?resync=${encodeURIComponent(order.orderNo)}`);
+        const res = await fetch(endpoint);
         const body = await res.json();
         if (!live) return;
-        if (!res.ok) setError(body.error || "Couldn't read this order from QuickBooks.");
+        if (!res.ok) setError(body.error || `Couldn't read this order from ${system}.`);
         else setPlan(body);
       } catch (e) {
         if (live) setError(String(e));
       }
     })();
     return () => { live = false; };
-  }, [order.orderNo]);
+  }, [endpoint, system]);
 
   const apply = async () => {
     if (applying) return;
     setApplying(true);
     try {
-      const res = await fetch(`/api/conductor-sync?resync=${encodeURIComponent(order.orderNo)}`, { method: "POST" });
+      const res = await fetch(endpoint, { method: "POST" });
       const body = await res.json();
       if (!res.ok) setError(body.error || "Couldn't apply the changes.");
       else { setResult(body); onDone?.(); }
@@ -56,7 +67,7 @@ export function ResyncModal({ order, onClose, onDone }) {
     <div style={overlay} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: 520, maxWidth: "95vw", background: C.concrete, borderRadius: 8, overflow: "hidden" }}>
         <div className="flex items-center gap-2 px-4 py-3 font-bold" style={{ background: C.fill, color: "#fff" }}>
-          <RefreshCw size={17} />Re-sync #{order.orderNo} from QuickBooks
+          <RefreshCw size={17} />Re-sync #{order.orderNo} from {system}
           <button onClick={onClose} className="ml-auto" style={{ color: "#fff" }}><X size={18} /></button>
         </div>
 
@@ -78,12 +89,21 @@ export function ResyncModal({ order, onClose, onDone }) {
           {plan && !result && (
             <>
               <div style={{ fontSize: 12.5, color: C.gray, marginBottom: 12 }}>
-                Board has {plan.boardItems} item{plan.boardItems === 1 ? "" : "s"} · this {plan.kind} has {plan.quickbooksItems} in QuickBooks.
+                Board has {plan.boardItems} item{plan.boardItems === 1 ? "" : "s"} · this {plan.kind} has {plan.sourceItems ?? plan.quickbooksItems} in {system}.
               </div>
+
+              {/* Cancelled upstream is worth saying out loud — but it stays a
+                  warning, not an action. Cancelling the order is a person's call. */}
+              {plan.cancelledInShopify && (
+                <div className="flex items-start gap-2 mb-3" style={{ border: `1px solid ${C.rush}`, background: C.rushBg, borderRadius: 6, padding: "9px 11px", fontSize: 12.5, color: C.inkSoft }}>
+                  <AlertTriangle size={14} style={{ color: C.rush, flexShrink: 0, marginTop: 1 }} />
+                  <span>This order is <b>cancelled in Shopify</b>. Re-syncing won't cancel it here — do that from the order if it should come off the board.</span>
+                </div>
+              )}
 
               {plan.inSync ? (
                 <div style={{ border: `1px solid ${C.green}`, background: C.greenBg, color: C.green, borderRadius: 6, padding: "10px 12px", fontSize: 13, fontWeight: 700 }}>
-                  <Check size={14} style={{ verticalAlign: "-2px" }} /> Already matches QuickBooks — nothing to change.
+                  <Check size={14} style={{ verticalAlign: "-2px" }} /> Already matches {system} — nothing to change.
                 </div>
               ) : (
                 <>
@@ -113,7 +133,7 @@ export function ResyncModal({ order, onClose, onDone }) {
 
                   {!!plan.remove.length && (
                     <div className="mb-3">
-                      <Label>Will be removed (no longer in QuickBooks)</Label>
+                      <Label>Will be removed (no longer in {system})</Label>
                       {plan.remove.map((r, i) => (
                         <Row key={i} icon={<Trash2 size={14} />} color={r.hasWork ? C.rush : C.gray}>
                           <b>{r.name}</b> <span style={{ color: C.gray }}>×{r.qty}</span>
