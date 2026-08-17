@@ -28,6 +28,9 @@ export const WO_FORMS = {
       { key: "order", label: "Order", type: "text" },
       { key: "total", label: "Total", type: "text" },
       { key: "orderedOn", label: "Ordered on", type: "text", default: today },
+      // The official work-order date — stamped the first time a sheet is printed
+      // for this order and identical on every sheet printed from it afterwards.
+      { key: "woDate", label: "W/O date", type: "text", default: today },
       { key: "dueDate", label: "Due date", type: "text" },
       { key: "color", label: "Color", type: "text" },
       { key: "notes", label: "Notes", type: "textarea", full: true },
@@ -44,6 +47,9 @@ export const WO_FORMS = {
       { key: "order", label: "Order", type: "text" },
       { key: "total", label: "Total", type: "text" },
       { key: "orderedOn", label: "Ordered on", type: "text", default: today },
+      // The official work-order date — stamped the first time a sheet is printed
+      // for this order and identical on every sheet printed from it afterwards.
+      { key: "woDate", label: "W/O date", type: "text", default: today },
       { key: "dueDate", label: "Due date", type: "text" },
       { key: "step1", label: "Step 1", type: "text", full: true },
       { key: "step2", label: "Step 2", type: "text", full: true },
@@ -61,6 +67,8 @@ export const WO_FORMS = {
     lineLabel: "Products",
     header: [
       { key: "orderDate", label: "Order date", default: todayShort },
+      // Locked on first print — see woDate on the shop/CNC sheets.
+      { key: "woDate", label: "W/O date", default: todayShort },
       { key: "dueDate", label: "Due date" },
       { key: "time", label: "Time" },
       { key: "invoices", label: "Invoice(s)" },
@@ -77,7 +85,10 @@ export const WO_FORMS = {
     label: "Saw work order",
     layout: "lineItems",
     lineLabel: "Cut list",
-    header: [],
+    header: [
+      // Locked on first print — see woDate on the shop/CNC sheets.
+      { key: "woDate", label: "W/O date", default: todayShort },
+    ],
     line: [
       { key: "item", label: "Material / item", grow: true },
       { key: "size", label: "Size", width: 100 },

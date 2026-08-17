@@ -430,6 +430,19 @@ export const localAdapter = {
     mutateMaterial(materialId, (m) => { m.forInventory = !!forInventory; });
   },
 
+  // First print wins — see the Supabase adapter and migration 0054. Written only
+  // when it's still empty, so every later sheet from this order keeps that date.
+  async markWorkOrderPrinted(orderId) {
+    const orders = read();
+    const o = orders.find((x) => x.id === orderId);
+    if (!o) return null;
+    if (!o.woPrintedAt) {
+      o.woPrintedAt = new Date().toISOString();
+      write(orders);
+    }
+    return o.woPrintedAt;
+  },
+
   async setMaterialProgress(materialId, progress, meta = {}) {
     const { by = null, note, keepStamp = false } = meta || {};
     mutateMaterial(materialId, (m) => {

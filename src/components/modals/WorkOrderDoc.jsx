@@ -12,15 +12,22 @@ const DEPT_TO_TYPE = { Shop: "shop", CNC: "cnc", Sewing: "sewing", Saw: "saw" };
 // that department's items go on a single sheet. Sewing/Saw list them as rows;
 // Shop/CNC use one product (or a combined line for several). "Completed by"
 // saves to every item on the sheet.
-export function WorkOrderDoc({ order, items, onSave, onUploadPhoto, onClose }) {
+export function WorkOrderDoc({ order, items, onSave, onPrinted, onUploadPhoto, onClose }) {
   const type = DEPT_TO_TYPE[items[0]?.dept] || "shop";
   const form = WO_FORMS[type];
   const isLines = form.layout === "lineItems";
   const orderedOn = fmtDate(order.receivedAt);
+  // The official work-order date for this order. Once a sheet has been printed
+  // it's fixed, so a reprint — or another department's sheet, or one product
+  // printed on its own — all carry that same first date. Before the first print
+  // there's nothing to show yet, so the sheet previews today.
+  const [woDate, setWoDate] = useState(() => fmtDate(order.woPrintedAt || Date.now()));
 
   const [fields, setFields] = useState(() => {
     const base = initFields(form);
     if ("orderedOn" in base) base.orderedOn = orderedOn;
+    if ("woDate" in base) base.woDate = fmtDate(order.woPrintedAt || Date.now());
+    if ("orderDate" in base) base.orderDate = orderedOn;   // the customer's order date, not today
     if ("dueDate" in base && order.dueDate) base.dueDate = dueLabel(order.dueDate);
     base.completedBy = items[0]?.completedBy || "";
     if (isLines) {
@@ -65,7 +72,20 @@ export function WorkOrderDoc({ order, items, onSave, onUploadPhoto, onClose }) {
     setSaving(true);
     try {
       if (onSave) await onSave({ completedBy: fields.completedBy || null });
-      if (thenPrint) setTimeout(() => window.print(), 50);
+      if (thenPrint) {
+        // Stamp the official date BEFORE the paper comes out, so what's printed
+        // is what's recorded. The stamp only takes on the very first print; after
+        // that this returns the original date and the sheet is unchanged.
+        if (onPrinted) {
+          const at = await onPrinted();
+          if (at) {
+            const shown = fmtDate(at);
+            setWoDate(shown);
+            setFields((f) => ("woDate" in f ? { ...f, woDate: shown } : f));
+          }
+        }
+        setTimeout(() => window.print(), 50);
+      }
     } finally {
       setSaving(false);
     }

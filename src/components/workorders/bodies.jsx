@@ -143,6 +143,9 @@ export function BasicBody({ fields, set, orderNo, numLabel = "WO #", imageUrl, i
           <FieldEdit label="Product"><EI value={fields.product} onChange={(v) => set("product", v)} bold full /></FieldEdit>
         )}
         <FieldEdit label="Ordered on"><EI value={fields.orderedOn} onChange={(v) => set("orderedOn", v)} bold full /></FieldEdit>
+        {/* Fixed the first time this order is printed — every sheet after that
+            carries the same date, so two printouts can never disagree. */}
+        <FieldEdit label="W/O date"><EI value={fields.woDate} onChange={(v) => set("woDate", v)} bold full /></FieldEdit>
         <FieldEdit label="Color"><EI value={fields.color} onChange={(v) => set("color", v)} bold full /></FieldEdit>
         <FieldEdit label="Notes"><EI value={fields.notes} onChange={(v) => set("notes", v)} size={15} full /></FieldEdit>
       </div>
@@ -172,6 +175,8 @@ export function CncBody({ fields, set, orderNo, numLabel = "WO #", imageUrl, onU
         <div style={{ flex: 1 }}>
           <FieldEdit label="Product"><EI value={fields.product} onChange={(v) => set("product", v)} bold full /></FieldEdit>
           <FieldEdit label="Ordered on"><EI value={fields.orderedOn} onChange={(v) => set("orderedOn", v)} bold full /></FieldEdit>
+          {/* Fixed on the first print of this order — see BasicBody. */}
+          <FieldEdit label="W/O date"><EI value={fields.woDate} onChange={(v) => set("woDate", v)} bold full /></FieldEdit>
         </div>
         <div style={{ width: 170, textAlign: "right" }}>
           <div className="font-bold uppercase tracking-wide" style={{ fontSize: 11, color: C.inkSoft }}>Part #</div>
@@ -206,6 +211,8 @@ export function SewingBody({ fields, set, setLineCell, addLine, form, orderNo, n
           <div className="font-bold uppercase tracking-wide" style={{ fontSize: 14, marginBottom: 6 }}>Work order:</div>
           <RowEdit label={numLabel}><ONo value={orderNo} /></RowEdit>
           <RowEdit label="Order date"><EI value={fields.orderDate} onChange={(v) => set("orderDate", v)} size={13} bold full /></RowEdit>
+          {/* Fixed on the first print of this order — see BasicBody. */}
+          <RowEdit label="W/O date"><EI value={fields.woDate} onChange={(v) => set("woDate", v)} size={13} bold full /></RowEdit>
           <RowEdit label="Due date"><EI value={fields.dueDate} onChange={(v) => set("dueDate", v)} size={13} bold full /></RowEdit>
           <RowEdit label="Time"><EI value={fields.time} onChange={(v) => set("time", v)} size={13} bold full /></RowEdit>
         </div>
@@ -246,7 +253,13 @@ export function SawBody({ fields, set, setLineCell, addLine, form, orderNo, numL
     <>
       <div className="flex items-end justify-between" style={{ marginBottom: 16 }}>
         <Wordmark height={26} variant="dark" showSub={false} subAlign="left" />
-        <span className="font-bold" style={{ fontFamily: "ui-monospace,monospace", fontSize: 16 }}>{numLabel} {orderNo}</span>
+        <span className="flex items-baseline gap-4">
+          {/* Fixed on the first print of this order — see BasicBody. */}
+          <span style={{ fontSize: 12, color: C.inkSoft }}>
+            W/O date <EI value={fields.woDate} onChange={(v) => set("woDate", v)} size={13} bold />
+          </span>
+          <span className="font-bold" style={{ fontFamily: "ui-monospace,monospace", fontSize: 16 }}>{numLabel} {orderNo}</span>
+        </span>
       </div>
       {Array.from({ length: rows }).map((_, i) => {
         const ln = fields.lines[i] || { item: "", size: "", qty: "" };

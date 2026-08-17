@@ -136,6 +136,9 @@ export function mapOrderRow(row) {
     pickedUpBy: row.picked_up_by || null,
     cancelledAt: row.cancelled_at || null,
     cancelReason: row.cancel_reason || null,
+    // The official work-order date: when a sheet for this order was FIRST
+    // printed. Immutable — every later sheet shows this same date (0054).
+    woPrintedAt: row.wo_printed_at || null,
   };
 }
 
@@ -550,6 +553,18 @@ export const supabaseAdapter = {
 
   // Flag a material as actively being worked on (quote requested, etc). Passing
   // null clears it. Stamped with when + who, like every other completed action.
+  // Stamp the first print of a work order for this order and return the official
+  // date. Calling it again never moves the date — the SQL only writes when the
+  // column is still null — so a reprint, another department's sheet, or a single
+  // product printed on its own all carry the date of that first print.
+  // Returns null if 0054 hasn't been run yet; the sheet then just falls back to
+  // today rather than failing the print.
+  async markWorkOrderPrinted(orderId) {
+    const { data, error } = await supabase.rpc("mark_wo_printed", { p_order_id: orderId });
+    if (error) return null;
+    return data || null;
+  },
+
   async setMaterialProgress(materialId, progress, meta = {}) {
     const { by = null, note, keepStamp = false } = meta || {};
     // keepStamp: re-opening an existing flag to read or edit its note must not

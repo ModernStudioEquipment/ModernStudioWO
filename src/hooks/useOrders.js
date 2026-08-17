@@ -201,6 +201,14 @@ export function useOrders(enabled) {
     // is what pops the will-call/shipping prompt.
     finishItem: optimisticItem({ stage: "done" }, (itemId) => db.finishItem(itemId)),
     getItemEvents: (itemId) => db.getItemEvents(itemId),
+    // Returns the order's official work-order date — the first print's. Patches
+    // the board locally so a second sheet opened straight after shows the same
+    // date without waiting for a reload.
+    markWorkOrderPrinted: async (orderId) => {
+      const at = await db.markWorkOrderPrinted?.(orderId);
+      if (at) patchOrder(orderId, { woPrintedAt: at });
+      return at || null;
+    },
     updateItem: act((itemId, patch) => db.updateItem(itemId, patch)),
     uploadItemPhoto: act((itemId, file) => db.uploadItemPhoto(itemId, file)),
     markOrdered: act((materialId, details) => db.markOrdered(materialId, details)),

@@ -1495,7 +1495,29 @@ export default function App() {
           onClose={() => setPickItem(null)}
         />
       )}
-      {doc && <WorkOrderDoc order={doc.o} items={doc.items} onSave={(patch) => Promise.all((doc.saveTargets || doc.items).map((it) => board.updateItem(it.id, patch)))} onUploadPhoto={(file) => board.uploadItemPhoto((doc.saveTargets || doc.items)[0].id, file)} onClose={() => setDoc(null)} />}
+      {doc && (
+        <WorkOrderDoc
+          order={doc.o}
+          items={doc.items}
+          onSave={(patch) => Promise.all((doc.saveTargets || doc.items).map((it) => board.updateItem(it.id, patch)))}
+          // Stamps the order's official work-order date on the FIRST print and
+          // returns it. Resolved from the items rather than doc.o, because a
+          // combined sheet is a synthetic order — its products belong to several
+          // real orders, and each of those is what needs stamping.
+          onPrinted={async () => {
+            const printed = doc.saveTargets || doc.items;
+            const ids = [...new Set(printed
+              .map((it) => orders.find((o) => (o.items || []).some((i) => i.id === it.id))?.id)
+              .filter(Boolean))];
+            const targets = ids.length ? ids : [doc.o?.id].filter(Boolean);
+            if (!targets.length) return null;   // blank sheet from a stock notice
+            const stamps = await Promise.all(targets.map((id) => board.markWorkOrderPrinted(id)));
+            return stamps.filter(Boolean).sort()[0] || null;   // the earliest first-print wins
+          }}
+          onUploadPhoto={(file) => board.uploadItemPhoto((doc.saveTargets || doc.items)[0].id, file)}
+          onClose={() => setDoc(null)}
+        />
+      )}
 
       {/* Same product waiting on other orders — offer one sheet for all of them
           instead of running the same part twice. */}
