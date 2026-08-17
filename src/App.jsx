@@ -631,15 +631,23 @@ export default function App() {
   // Will Call tab = still awaiting pickup. Once picked up, an order is complete
   // and moves to the Completed tab (alongside shipped orders).
   const willCallOrders = orders.filter((o) => o.fulfillment === "willcall" && !o.pickedUpAt);
-  const pickedUpOrders = orders.filter((o) => o.fulfillment === "willcall" && o.pickedUpAt);
+  const pickedUpOrders = orders.filter((o) => o.fulfillment === "willcall" && o.pickedUpAt && oDone(o));
   // Shipping = staged, no tracking yet. Shipped = tracking logged, out the door.
   const shippingOrders = orders.filter((o) => o.fulfillment === "shipping" && !o.trackingNumber);
-  const shippedOrders = orders.filter((o) => o.fulfillment === "shipping" && o.trackingNumber);
-  // Completed tab = finished orders: shipped + picked up.
+  const shippedOrders = orders.filter((o) => o.fulfillment === "shipping" && o.trackingNumber && oDone(o));
+  // Completed tab = finished orders: shipped + picked up. Both lists above also
+  // require everything on the order to be MADE (oDone), because an order doesn't
+  // stay finished just because it once shipped: a QuickBooks re-sync can add a
+  // line the customer tacked on afterwards, and that line still has to be built.
+  // Without that check the same order sat in Completed and in New Orders at once,
+  // which reads as a glitch — so the natural way to resolve it was to mark the new
+  // product done, and a real product never got made. Such an order returns here by
+  // itself once the new line is finished; tracking and dates are never touched.
   const completedOrders = [...shippedOrders, ...pickedUpOrders];
   // The Orders tab is the active worklist: drop orders that have shipped or been
-  // picked up (they still live on in the Shipped / Will Call tabs).
-  const ordersForList = customerOrders.filter((o) => !o.trackingNumber && !o.pickedUpAt);
+  // picked up (they still live on in the Shipped / Will Call tabs) — unless they
+  // have unfinished work again, in which case they belong back on the worklist.
+  const ordersForList = customerOrders.filter((o) => (!o.trackingNumber && !o.pickedUpAt) || !oDone(o));
   // Orders tab can be narrowed to QuickBooks / Shopify; the counts follow it.
   const ordersSourced = ordersForList.filter((o) => orderSource === "all" || o.source === orderSource);
   const OFILTERS = [
