@@ -222,6 +222,24 @@ export const dueLabel = (d, time) => {
   return time ? `${datePart}, ${fmtTime(time)}` : datePart;
 };
 
+// What to write into ONE material's note when "quote requested" is confirmed.
+//
+// A note belongs to a single material. Flagging one material edits its own note,
+// so anything typed wins — including clearing it. Flagging a whole order at once
+// must never disturb a note somebody already wrote: it only fills in blanks.
+//
+// Returns `undefined` to mean "leave this material's note alone" — the value
+// setMaterialProgress checks before it touches the column.
+//
+// Both halves of this were real data loss: the bulk flow wrote the same note to
+// every material on the order (one material's note landed on a dozen unrelated
+// ones), and confirming with an empty box wrote null over all of them.
+export function quoteNoteFor(typedNote, material, single) {
+  if (single) return typedNote;                               // its own note; clearing is allowed
+  if (typedNote && !(material && material.note)) return typedNote;  // bulk: fill a blank only
+  return undefined;                                           // bulk: never overwrite, never clear
+}
+
 // Two buyers type the same material differently — `1" aluminum bar` vs
 // `1in aluminum bar` — so demand has to group on a normalized key, not the raw
 // text. Unifies inch/foot marks and drops spacing/punctuation noise. `/` is

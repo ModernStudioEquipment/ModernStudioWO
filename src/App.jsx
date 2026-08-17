@@ -3,7 +3,7 @@ import {
   Clock, Printer, Plus, Truck, CheckCircle2, AlertTriangle, Hammer,
   Flag, Check, ArrowRight, ShoppingCart, LogOut, Store, MapPin, Package, X, Bell, ExternalLink, RefreshCw, Pencil, RotateCcw, ChevronsDownUp, ChevronsUpDown, Sun, Moon, MonitorPlay, Layers, ArrowUpDown, ChevronLeft, ChevronRight, PackageSearch, Trash2, DollarSign,
 } from "lucide-react";
-import { C, PRI, PRI_CYCLE, PRI_RANK, elapsed, stamp, materialKey, blocked, pct, dueLabel, priLabel, effectivePriority, trackingUrl, stagedTooLong, stagedDwellMs, STAGE_LABELS } from "./theme.js";
+import { C, PRI, PRI_CYCLE, PRI_RANK, elapsed, stamp, materialKey, quoteNoteFor, blocked, pct, dueLabel, priLabel, effectivePriority, trackingUrl, stagedTooLong, stagedDwellMs, STAGE_LABELS } from "./theme.js";
 import { backendMode, db } from "./lib/db.js";
 import { useAuth } from "./hooks/useAuth.js";
 import { useOrders } from "./hooks/useOrders.js";
@@ -355,17 +355,22 @@ export default function App() {
     const orderNo = quoteTarget?.orderNo;
     setQuoteTarget(null);
     if (!targets.length) return;
+    const single = targets.length === 1;
+    const noteFor = (m) => quoteNoteFor(note, m, single);
+
     // Paint immediately, then persist — a refetch behind the click would
     // re-download the whole board just to show a flag that's already known.
-    const paint = (on) => targets.forEach((m) =>
+    const paint = (on) => targets.forEach((m) => {
+      const n = noteFor(m);
       board.patchMaterial(m.id, {
         progress: on ? "Quote requested" : null,
         progressAt: on ? Date.now() : null,
         progressBy: on ? by : null,
-        ...(note !== undefined ? { note: on ? note : m.note } : {}),
-      }));
+        ...(n !== undefined ? { note: on ? n : m.note } : {}),
+      });
+    });
     paint(true);
-    await Promise.all(targets.map((m) => db.setMaterialProgress(m.id, "Quote requested", { by, note })));
+    await Promise.all(targets.map((m) => db.setMaterialProgress(m.id, "Quote requested", { by, note: noteFor(m) })));
     undoer.record(
       `Quote requested — ${targets.length} material${targets.length === 1 ? "" : "s"}${orderNo ? ` (#${orderNo})` : ""}`,
       async () => {

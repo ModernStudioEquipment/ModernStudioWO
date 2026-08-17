@@ -7,10 +7,14 @@ import { Btn } from "../ui.jsx";
 // asked for. The note is the material's own note (not a separate field), so the
 // context carries forward and is already there when someone marks it ordered.
 export function QuoteModal({ material, count = 1, onConfirm, onClose }) {
-  const [note, setNote] = useState(material?.note || "");
+  const bulk = count > 1;
+  // Pre-fill ONLY when flagging a single material — then this is that material's
+  // own note and editing it is the point. Flagging a whole order used to pre-fill
+  // from whichever material happened to be first and then write it onto all of
+  // them, which is how one material's note ended up on a dozen unrelated ones.
+  const [note, setNote] = useState(bulk ? "" : material?.note || "");
   const [by, setBy] = useState("");
   const [saving, setSaving] = useState(false);
-  const bulk = count > 1;
 
   const confirm = async () => {
     if (saving) return;
@@ -37,8 +41,9 @@ export function QuoteModal({ material, count = 1, onConfirm, onClose }) {
             {bulk ? `${count} materials on this order` : material?.name}
           </div>
           <div style={{ fontSize: 12, color: C.gray, marginBottom: 14 }}>
-            Jot down what you asked for — it stays on the material and is already
-            filled in when you come back to mark it ordered.
+            {bulk
+              ? "Jot down what you asked for. This goes only on materials that don’t already have a note — anything already written stays as it is."
+              : "Jot down what you asked for — it stays on the material and is already filled in when you come back to mark it ordered."}
           </div>
 
           <div className="mb-3">

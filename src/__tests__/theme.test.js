@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { fmtDate, materialKey, totalAmounts, elapsed, stamp } from "../theme.js";
+import { fmtDate, materialKey, totalAmounts, elapsed, stamp, quoteNoteFor } from "../theme.js";
 
 // Pure helpers that quietly drive real decisions on the board — a wrong answer
 // here shows up as a wrong date on a work order or two materials that should
@@ -65,6 +65,42 @@ describe("totalAmounts — add up free-text quantities", () => {
   });
   it("carries unparseable text through rather than silently dropping it", () => {
     expect(totalAmounts(["a box"])).toContain("a box");
+  });
+});
+
+// A purchasing note describes ONE material. Quote-requesting a whole order used
+// to write the same note onto every material on it, and confirming with an empty
+// box wrote null over all of them. Both destroyed what people had typed — on the
+// live board a note reading "Claycoat is for an order that is awaiting approval"
+// ended up sitting on 13 unrelated materials.
+describe("quoteNoteFor — a note stays on its own material", () => {
+  const withNote = { note: "asked Tube Service for 20ft" };
+  const blank = { note: null };
+
+  describe("one material at a time — it's that material's own note", () => {
+    it("writes what was typed", () => {
+      expect(quoteNoteFor("new note", withNote, true)).toBe("new note");
+    });
+    it("allows clearing it", () => {
+      expect(quoteNoteFor(null, withNote, true)).toBe(null);
+    });
+  });
+
+  describe("whole order at once — never disturb what's already written", () => {
+    it("fills in a material that has no note", () => {
+      expect(quoteNoteFor("chasing all of these", blank, false)).toBe("chasing all of these");
+    });
+    it("LEAVES an existing note alone instead of overwriting it", () => {
+      expect(quoteNoteFor("chasing all of these", withNote, false)).toBeUndefined();
+    });
+    it("never erases notes when the box is left empty", () => {
+      expect(quoteNoteFor(null, withNote, false)).toBeUndefined();
+      expect(quoteNoteFor("", withNote, false)).toBeUndefined();
+      expect(quoteNoteFor(null, blank, false)).toBeUndefined();
+    });
+    it("treats a missing material safely", () => {
+      expect(quoteNoteFor("x", undefined, false)).toBe("x");
+    });
   });
 });
 
