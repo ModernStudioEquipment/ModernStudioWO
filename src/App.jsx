@@ -358,26 +358,59 @@ export default function App() {
     const single = targets.length === 1;
     const noteFor = (m) => quoteNoteFor(note, m, single);
 
+    // Exactly how each material stood before this click, so undo restores it
+    // rather than assuming everything started unflagged — re-opening a flag to
+    // edit its note must undo back to "flagged, old note", not to "not flagged".
+    const before = targets.map((m) => ({
+      id: m.id, progress: m.progress || null, progressAt: m.progressAt || null,
+      progressBy: m.progressBy || null, note: m.note ?? null,
+    }));
+    // Editing rather than requesting: every target was already flagged.
+    const editing = targets.every((m) => m.progress);
+
     // Paint immediately, then persist — a refetch behind the click would
     // re-download the whole board just to show a flag that's already known.
-    const paint = (on) => targets.forEach((m) => {
+    targets.forEach((m) => {
       const n = noteFor(m);
       board.patchMaterial(m.id, {
-        progress: on ? "Quote requested" : null,
-        progressAt: on ? Date.now() : null,
-        progressBy: on ? by : null,
-        ...(n !== undefined ? { note: on ? n : m.note } : {}),
+        progress: "Quote requested",
+        // Already flagged: keep the original stamp. Re-saving a note must not
+        // restyle "asked 3 days ago" as "just now".
+        ...(m.progress ? {} : { progressAt: Date.now(), progressBy: by }),
+        ...(n !== undefined ? { note: n } : {}),
       });
     });
-    paint(true);
-    await Promise.all(targets.map((m) => db.setMaterialProgress(m.id, "Quote requested", { by, note: noteFor(m) })));
+    await Promise.all(targets.map((m) =>
+      db.setMaterialProgress(m.id, "Quote requested", { by, note: noteFor(m), keepStamp: !!m.progress })));
+
     undoer.record(
-      `Quote requested — ${targets.length} material${targets.length === 1 ? "" : "s"}${orderNo ? ` (#${orderNo})` : ""}`,
+      editing
+        ? `Note updated — ${targets.length === 1 ? targets[0].name : `${targets.length} materials`}${orderNo ? ` (#${orderNo})` : ""}`
+        : `Quote requested — ${targets.length} material${targets.length === 1 ? "" : "s"}${orderNo ? ` (#${orderNo})` : ""}`,
       async () => {
-        paint(false);
-        await Promise.all(targets.map((m) => db.setMaterialProgress(m.id, null)));
+        before.forEach((b) => board.patchMaterial(b.id, { progress: b.progress, progressAt: b.progressAt, progressBy: b.progressBy, note: b.note }));
+        await Promise.all(before.map((b) =>
+          b.progress
+            ? db.setMaterialProgress(b.id, b.progress, { by: b.progressBy, note: b.note, keepStamp: true })
+            : db.setMaterialProgress(b.id, null, { note: b.note })));
       }
     );
+  };
+
+  // "No quote was requested after all" — the deliberate way to take the flag off,
+  // from inside the pop-up rather than a stray tap on the row. The note is kept:
+  // whatever was written about the material is still worth having.
+  const clearQuote = async () => {
+    const m = quoteTarget?.materials?.[0];
+    setQuoteTarget(null);
+    if (!m) return;
+    const before = { progress: m.progress || null, progressAt: m.progressAt || null, progressBy: m.progressBy || null };
+    board.patchMaterial(m.id, { progress: null, progressAt: null, progressBy: null });
+    await db.setMaterialProgress(m.id, null);
+    undoer.record(`Quote flag cleared — ${m.name}`, async () => {
+      board.patchMaterial(m.id, before);
+      await db.setMaterialProgress(m.id, before.progress, { by: before.progressBy, keepStamp: true });
+    });
   };
 
   const markOrderedU = async (materialId, details) => {
@@ -1204,11 +1237,16 @@ export default function App() {
                                 </Pill>
                               )}
                               {/* One toggle: quote requested or not. Ticked once set so
-                                  it's obvious at a glance that someone's on it. */}
+                                  it's obvious at a glance that someone's on it.
+                                  Clicking ALWAYS opens the note. It used to clear the
+                                  flag instead, so one stray tap wiped both the flag and
+                                  the record of who was chasing it — and there was no way
+                                  to read the note back without doing that. Clearing is
+                                  still possible, but from inside the pop-up. */}
                               {!m.ordered && (
                                 <button
-                                  onClick={() => (m.progress ? board.setMaterialProgress(m.id, null) : setQuoteTarget({ materials: [m] }))}
-                                  title={m.progress ? `Quote requested${m.progressAt ? ` · ${stamp(m.progressAt, now)}` : ""} — click to clear` : "Mark that a quote has been requested"}
+                                  onClick={() => setQuoteTarget({ materials: [m] })}
+                                  title={m.progress ? `Quote requested${m.progressAt ? ` · ${stamp(m.progressAt, now)}` : ""} — click to read the note` : "Mark that a quote has been requested"}
                                   className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded btn-pop"
                                   style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5, cursor: "pointer", whiteSpace: "nowrap",
                                     ...(m.progress
@@ -1397,7 +1435,9 @@ export default function App() {
         <QuoteModal
           material={quoteTarget.materials[0]}
           count={quoteTarget.materials.length}
+          now={now}
           onConfirm={confirmQuote}
+          onClear={clearQuote}
           onClose={() => setQuoteTarget(null)}
         />
       )}

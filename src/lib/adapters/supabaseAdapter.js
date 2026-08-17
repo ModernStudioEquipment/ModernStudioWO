@@ -551,9 +551,12 @@ export const supabaseAdapter = {
   // Flag a material as actively being worked on (quote requested, etc). Passing
   // null clears it. Stamped with when + who, like every other completed action.
   async setMaterialProgress(materialId, progress, meta = {}) {
-    const { by = null, note } = meta || {};
+    const { by = null, note, keepStamp = false } = meta || {};
+    // keepStamp: re-opening an existing flag to read or edit its note must not
+    // restamp when the quote was requested, or "asked 3 days ago" quietly
+    // becomes "just now" and the buyer loses track of how long they've waited.
     const patch = progress
-      ? { progress, progress_at: new Date().toISOString(), progress_by: by }
+      ? (keepStamp ? { progress } : { progress, progress_at: new Date().toISOString(), progress_by: by })
       : { progress: null, progress_at: null, progress_by: null };
     // The note lives on the material itself, so it's still there when the buyer
     // comes back to mark it ordered. Only written when one was actually given.

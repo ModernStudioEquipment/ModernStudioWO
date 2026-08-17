@@ -431,11 +431,15 @@ export const localAdapter = {
   },
 
   async setMaterialProgress(materialId, progress, meta = {}) {
-    const { by = null, note } = meta || {};
+    const { by = null, note, keepStamp = false } = meta || {};
     mutateMaterial(materialId, (m) => {
       m.progress = progress || null;
-      m.progressAt = progress ? Date.now() : null;
-      m.progressBy = progress ? by : null;
+      // keepStamp: re-opening a flag to read or edit its note must not restamp
+      // when it was requested, or "asked 3 days ago" silently becomes "just now".
+      if (!(progress && keepStamp)) {
+        m.progressAt = progress ? Date.now() : null;
+        m.progressBy = progress ? by : null;
+      }
       if (note !== undefined) m.note = note;
     });
   },

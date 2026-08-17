@@ -1,13 +1,16 @@
 import React, { useState } from "react";
 import { X, Check } from "lucide-react";
-import { C } from "../../theme.js";
+import { C, stamp } from "../../theme.js";
 import { Btn } from "../ui.jsx";
 
 // Flagging a material "quote requested" — with room to say what was actually
 // asked for. The note is the material's own note (not a separate field), so the
 // context carries forward and is already there when someone marks it ordered.
-export function QuoteModal({ material, count = 1, onConfirm, onClose }) {
+export function QuoteModal({ material, count = 1, now = Date.now(), onConfirm, onClear, onClose }) {
   const bulk = count > 1;
+  // Already flagged: this is now a read/edit view of the existing note rather
+  // than a fresh request, so it keeps the original "requested" stamp.
+  const flagged = !bulk && !!material?.progress;
   // Pre-fill ONLY when flagging a single material — then this is that material's
   // own note and editing it is the point. Flagging a whole order used to pre-fill
   // from whichever material happened to be first and then write it onto all of
@@ -40,9 +43,17 @@ export function QuoteModal({ material, count = 1, onConfirm, onClose }) {
           <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2 }}>
             {bulk ? `${count} materials on this order` : material?.name}
           </div>
+          {flagged && (
+            <div style={{ fontSize: 12, color: C.high, fontWeight: 700, marginBottom: 8 }}>
+              Quote requested{material.progressBy ? ` by ${material.progressBy}` : ""}
+              {material.progressAt ? ` · ${stamp(material.progressAt, now)}` : ""}
+            </div>
+          )}
           <div style={{ fontSize: 12, color: C.gray, marginBottom: 14 }}>
             {bulk
               ? "Jot down what you asked for. This goes only on materials that don’t already have a note — anything already written stays as it is."
+              : flagged
+              ? "What was asked for. Edit it as you hear back — it stays on the material and is already filled in when you come to mark it ordered."
               : "Jot down what you asked for — it stays on the material and is already filled in when you come back to mark it ordered."}
           </div>
 
@@ -61,8 +72,21 @@ export function QuoteModal({ material, count = 1, onConfirm, onClose }) {
           </div>
 
           <Btn kind="dark" onClick={confirm} disabled={saving}>
-            <Check size={15} />{saving ? "Saving…" : bulk ? `Mark all ${count} quote requested` : "Mark quote requested"}
+            <Check size={15} />
+            {saving ? "Saving…" : bulk ? `Mark all ${count} quote requested` : flagged ? "Save note" : "Mark quote requested"}
           </Btn>
+
+          {/* Clearing lives here, not on the row's button — deliberate rather
+              than one stray tap, and it says what it actually does. */}
+          {flagged && onClear && (
+            <button
+              onClick={onClear} disabled={saving}
+              style={{ display: "block", marginTop: 12, background: "none", border: "none", padding: 0,
+                cursor: "pointer", fontSize: 12, color: C.gray, textDecoration: "underline" }}
+            >
+              No quote was requested after all — clear this
+            </button>
+          )}
         </div>
       </div>
     </div>
