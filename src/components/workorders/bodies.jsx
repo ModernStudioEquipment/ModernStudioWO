@@ -51,6 +51,38 @@ function ONo({ value }) {
   return <span className="font-bold" style={{ fontFamily: "ui-monospace,monospace", fontSize: 14 }}>{value || "—"}</span>;
 }
 
+// The order number(s) on the letterhead.
+//
+// A combined sheet batches the same product from several orders, and the sheet
+// used to print only the list of order numbers — so once the batch was made
+// there was no way to tell how many belonged to which order, and no way to
+// split the finished pile back up. With more than one order it prints a line
+// each, with that order's quantity.
+export function OrderNos({ label, orderNo, orderLines }) {
+  if (!orderLines || orderLines.length < 2) {
+    return <RowEdit label={label}><ONo value={orderNo} /></RowEdit>;
+  }
+  const total = orderLines.reduce((n, l) => n + (Number(l.qty) || 0), 0);
+  return (
+    <div className="flex items-start justify-end gap-2 mb-1">
+      <span className="font-bold uppercase tracking-wide" style={{ color: C.inkSoft, whiteSpace: "nowrap" }}>{label}:</span>
+      <div style={{ minWidth: 120 }}>
+        {orderLines.map((l) => (
+          <div key={l.no} className="flex items-baseline justify-end gap-2" style={{ lineHeight: 1.35 }}>
+            <span className="font-bold" style={{ fontFamily: "ui-monospace,monospace", fontSize: 14 }}>#{l.no}</span>
+            <span className="font-bold" style={{ fontFamily: "ui-monospace,monospace", fontSize: 14, minWidth: 30, textAlign: "right" }}>×{l.qty}</span>
+          </div>
+        ))}
+        <div className="flex items-baseline justify-end gap-2"
+          style={{ borderTop: `1px solid ${C.line}`, marginTop: 2, paddingTop: 2 }}>
+          <span className="font-bold uppercase tracking-wide" style={{ fontSize: 10, color: C.inkSoft }}>Total</span>
+          <span className="font-bold" style={{ fontFamily: "ui-monospace,monospace", fontSize: 14, minWidth: 30, textAlign: "right" }}>×{total}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PhotoBox({ minHeight = 220, imageUrl, onUpload }) {
   const [dragOver, setDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -102,14 +134,14 @@ function AddRow({ onClick }) {
 const tag = { fontSize: 11, fontWeight: 700, color: C.inkSoft, background: C.grayBg, padding: "2px 6px", letterSpacing: 0.5 };
 
 // ---- Shop (basic) ----
-export function BasicBody({ fields, set, orderNo, numLabel = "WO #", imageUrl, items, onUploadPhoto }) {
+export function BasicBody({ fields, set, orderNo, orderLines, numLabel = "WO #", imageUrl, items, onUploadPhoto }) {
   const multi = items && items.length > 1;
   return (
     <>
       <div className="flex items-start justify-between" style={{ marginBottom: 18 }}>
         <Wordmark height={36} variant="dark" subText="WORK ORDER" subAlign="left" />
         <div style={{ textAlign: "right", minWidth: 200 }}>
-          <RowEdit label={numLabel}><ONo value={orderNo} /></RowEdit>
+          <OrderNos label={numLabel} orderNo={orderNo} orderLines={orderLines} />
           <RowEdit label="Due date"><EI value={fields.dueDate} onChange={(v) => set("dueDate", v)} size={13} bold full /></RowEdit>
           <RowEdit label="Order"><EI value={fields.order} onChange={(v) => set("order", v)} size={13} bold mono full /></RowEdit>
           <RowEdit label="Total"><EI value={fields.total} onChange={(v) => set("total", v)} size={13} bold mono full /></RowEdit>
@@ -157,14 +189,14 @@ export function BasicBody({ fields, set, orderNo, numLabel = "WO #", imageUrl, i
 }
 
 // ---- CNC: MODERN sheet + part # + 6 step lines ----
-export function CncBody({ fields, set, orderNo, numLabel = "WO #", imageUrl, onUploadPhoto }) {
+export function CncBody({ fields, set, orderNo, orderLines, numLabel = "WO #", imageUrl, onUploadPhoto }) {
   const steps = ["step1", "step2", "step3", "step4", "step5", "step6"];
   return (
     <>
       <div className="flex items-start justify-between" style={{ marginBottom: 16 }}>
         <Wordmark height={36} variant="dark" subText="WORK ORDER" subAlign="left" />
         <div style={{ textAlign: "right", minWidth: 200 }}>
-          <RowEdit label={numLabel}><ONo value={orderNo} /></RowEdit>
+          <OrderNos label={numLabel} orderNo={orderNo} orderLines={orderLines} />
           <RowEdit label="Due date"><EI value={fields.dueDate} onChange={(v) => set("dueDate", v)} size={13} bold full /></RowEdit>
           <RowEdit label="Order"><EI value={fields.order} onChange={(v) => set("order", v)} size={13} bold mono full /></RowEdit>
           <RowEdit label="Total"><EI value={fields.total} onChange={(v) => set("total", v)} size={13} bold mono full /></RowEdit>
@@ -200,7 +232,7 @@ export function CncBody({ fields, set, orderNo, numLabel = "WO #", imageUrl, onU
 }
 
 // ---- Sewing: header + PRODUCT/QTY list ----
-export function SewingBody({ fields, set, setLineCell, addLine, form, orderNo, numLabel = "WO #" }) {
+export function SewingBody({ fields, set, setLineCell, addLine, form, orderNo, orderLines, numLabel = "WO #" }) {
   const minRows = form.minRows || 18;
   const rows = Math.max(fields.lines.length, minRows);
   return (
@@ -209,7 +241,7 @@ export function SewingBody({ fields, set, setLineCell, addLine, form, orderNo, n
         <Wordmark height={34} variant="dark" subText="WORK ORDER" subAlign="left" />
         <div style={{ textAlign: "right", minWidth: 240 }}>
           <div className="font-bold uppercase tracking-wide" style={{ fontSize: 14, marginBottom: 6 }}>Work order:</div>
-          <RowEdit label={numLabel}><ONo value={orderNo} /></RowEdit>
+          <OrderNos label={numLabel} orderNo={orderNo} orderLines={orderLines} />
           <RowEdit label="Order date"><EI value={fields.orderDate} onChange={(v) => set("orderDate", v)} size={13} bold full /></RowEdit>
           {/* Fixed on the first print of this order — see BasicBody. */}
           <RowEdit label="W/O date"><EI value={fields.woDate} onChange={(v) => set("woDate", v)} size={13} bold full /></RowEdit>
@@ -246,7 +278,7 @@ export function SewingBody({ fields, set, setLineCell, addLine, form, orderNo, n
 }
 
 // ---- Saw: plain Order # + cut list ----
-export function SawBody({ fields, set, setLineCell, addLine, form, orderNo, numLabel = "WO #" }) {
+export function SawBody({ fields, set, setLineCell, addLine, form, orderNo, orderLines, numLabel = "WO #" }) {
   const minRows = form.minRows || 12;
   const rows = Math.max(fields.lines.length, minRows);
   return (

@@ -95,6 +95,9 @@ export function WorkOrderDoc({ order, items, onSave, onPrinted, onUploadPhoto, o
   const bodyProps = {
     fields, set, setLineCell, addLine, form, items,
     orderNo: order.orderNo, numLabel: "Order #",
+    // Combined sheets carry a per-order breakdown so the shop can see how many
+    // of the batch belong to each order (see makeCombinedDoc).
+    orderLines: order.orderLines,
     imageUrl: items.length === 1 ? items[0].imageUrl : null,
     onUploadPhoto,
   };

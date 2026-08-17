@@ -448,12 +448,23 @@ export default function App() {
     const reals = row.entries.map((e) => e.it);
     const orders = row.entries.map((e) => e.o);
     const orderNos = [...new Set(orders.map((o) => o.orderNo))];
+    // How many of this product each order actually wants. Printing just the list
+    // of order numbers left the shop with no way to tell how many of a batch
+    // belonged to which order — so nobody could split the finished pile back up.
+    // Same product listed twice on one order is summed rather than shown twice.
+    const perOrder = new Map();
+    row.entries.forEach(({ o, it }) => {
+      const n = parseFloat(it.qty);
+      perOrder.set(o.orderNo, (perOrder.get(o.orderNo) || 0) + (Number.isFinite(n) ? n : 1));
+    });
+    const orderLines = [...perOrder].map(([no, qty]) => ({ no, qty }));
     const topPriority = orders
       .map((o) => o.priority || "Normal")
       .reduce((best, p) => (PRI_RANK[p] > PRI_RANK[best] ? p : best), "Normal");
     const dueDates = orders.map((o) => o.dueDate).filter(Boolean).sort();
     const synthOrder = {
       orderNo: orderNos.map((n) => `#${n}`).join(", "),
+      orderLines,   // printed as a per-order breakdown when there's more than one
       receivedAt: Math.min(...orders.map((o) => +new Date(o.receivedAt))),
       contact: "",
       priority: topPriority,
