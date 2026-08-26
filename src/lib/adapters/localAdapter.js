@@ -469,6 +469,7 @@ export const localAdapter = {
   async receiveMaterial(materialId, opts = {}) {
     mutateMaterial(materialId, (m, it) => {
       m.received = true;
+      m.receivedAt = new Date().toISOString();
       m.receivedQty = opts.qtyReceived || null;
       m.receivedNote = opts.note || null;
       // Item leaves Purchasing once ALL its materials are in, moving to the

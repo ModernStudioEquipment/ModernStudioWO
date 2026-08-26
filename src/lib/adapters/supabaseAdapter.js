@@ -82,6 +82,7 @@ export function mapMaterialRow(m) {
     expectedAt: m.expected_at || null,
     contact: m.contact || null,
     note: m.note || null,
+    receivedAt: m.received_at || null,
     receivedQty: m.received_qty || null,
     receivedNote: m.received_note || null,
     forInventory: !!m.for_inventory,
@@ -591,7 +592,7 @@ export const supabaseAdapter = {
   async receiveMaterial(materialId, opts = {}) {
     // Mark received (+ qty/note); fall back if the 0026 columns aren't there yet.
     let res = await supabase.from("materials")
-      .update({ received: true, received_qty: opts.qtyReceived || null, received_note: opts.note || null })
+      .update({ received: true, received_at: new Date().toISOString(), received_qty: opts.qtyReceived || null, received_note: opts.note || null })
       .eq("id", materialId).select("item_id").single();
     if (res.error) {
       res = await supabase.from("materials").update({ received: true }).eq("id", materialId).select("item_id").single();

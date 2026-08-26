@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   Clock, Printer, Plus, Truck, CheckCircle2, AlertTriangle, Hammer,
-  Flag, Check, ArrowRight, ShoppingCart, LogOut, Store, MapPin, Package, X, Bell, ExternalLink, RefreshCw, Pencil, RotateCcw, ChevronsDownUp, ChevronsUpDown, Sun, Moon, MonitorPlay, Layers, ArrowUpDown, ChevronLeft, ChevronRight, PackageSearch, Trash2, DollarSign,
+  Flag, Check, ArrowRight, ShoppingCart, LogOut, Store, MapPin, Package, X, Bell, ExternalLink, RefreshCw, Pencil, RotateCcw, ChevronsDownUp, ChevronsUpDown, Sun, Moon, MonitorPlay, Layers, ArrowUpDown, ChevronLeft, ChevronRight, PackageSearch, PackageCheck, Trash2, DollarSign,
 } from "lucide-react";
-import { C, PRI, PRI_CYCLE, PRI_RANK, elapsed, stamp, materialKey, quoteNoteFor, blocked, pct, dueLabel, priLabel, effectivePriority, trackingUrl, stagedTooLong, stagedDwellMs, STAGE_LABELS } from "./theme.js";
+import { C, PRI, PRI_CYCLE, PRI_RANK, elapsed, stamp, materialKey, quoteNoteFor, whereIsItem, blocked, pct, dueLabel, priLabel, effectivePriority, trackingUrl, stagedTooLong, stagedDwellMs, STAGE_LABELS } from "./theme.js";
 import { backendMode, db } from "./lib/db.js";
 import { useAuth } from "./hooks/useAuth.js";
 import { useOrders } from "./hooks/useOrders.js";
@@ -625,6 +625,20 @@ export default function App() {
   const workOrders = orders.filter((o) => o.items.some((it) => it.stage === "workorder"));
   const qbActive = wo.workOrders.filter((w) => !w.done); // QuickBooks work orders not yet done
   const buyOrders = orders.filter((o) => o.items.some((it) => it.needsMaterial && it.materials.some((m) => !m.received)));
+  // Everything that HAS come in, newest first. Purchasing only lists orders still
+  // waiting on something, so a product dropped off this tab the moment its last
+  // material landed and whoever runs purchasing had no way to see where it went.
+  // Bounded to the last 30 days so it stays a "what came in lately" list rather
+  // than growing forever; anything with no received date yet (before 0055 ran)
+  // is kept rather than hidden.
+  const RECEIVED_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+  const receivedRows = orders
+    .flatMap((o) => (o.items || []).flatMap((it) =>
+      (it.materials || [])
+        .filter((m) => m.received)
+        .map((m) => ({ o, it, m, at: m.receivedAt ? new Date(m.receivedAt).getTime() : null }))))
+    .filter((r) => r.at == null || now - r.at <= RECEIVED_WINDOW_MS)
+    .sort((a, b) => (b.at ?? 0) - (a.at ?? 0));
   // Standalone purchases (source='purchase') live only in Purchasing — keep them
   // out of the Orders list, its counts, and the dashboard.
   // Low-stock notices: open ones are the queue; handled ones stay for reference.
@@ -1041,6 +1055,7 @@ export default function App() {
                     ))}
                   </Group>
                 ))}
+
               </Tabwrap>
             )}
 
@@ -1303,6 +1318,45 @@ export default function App() {
                     )}
                   </Group>
                 ))}
+                {/* Received — the answer to "it's come in, so where did it go?".
+                    This is the only place that question is asked, because the
+                    order itself has already left the Purchasing list. */}
+                {!!receivedRows.length && (
+                  <div style={{ marginTop: 26 }}>
+                    <SectionHeader label="Received" count={receivedRows.length} />
+                    <div style={{ fontSize: 12, color: C.gray, margin: "6px 0 10px" }}>
+                      Came in over the last 30 days, and where the product is now. Click one to open its order.
+                    </div>
+                    <div style={{ border: `1px solid ${C.line}`, borderRadius: 6, overflow: "hidden", background: C.surface }}>
+                      {receivedRows.map(({ o, it, m, at }) => (
+                        <button
+                          key={m.id}
+                          onClick={() => setDetailId(o.id)}
+                          className="w-full text-left px-4 py-3 flex items-center gap-3 flex-wrap"
+                          style={{ borderBottom: `1px solid ${C.line}`, background: "none", border: "none", cursor: "pointer" }}
+                          title="Open this order"
+                        >
+                          <PackageCheck size={14} style={{ color: C.green, flexShrink: 0 }} />
+                          <span className="min-w-0">
+                            <span className="font-bold" style={{ fontSize: 13.5 }}>{m.name}</span>
+                            {m.receivedQty && <span style={{ fontSize: 12, color: C.inkSoft, marginLeft: 6 }}>{m.receivedQty} in</span>}
+                            <div style={{ fontSize: 12, color: C.gray }}>
+                              for {it.name} · #{o.orderNo} {o.customer}
+                            </div>
+                            {m.receivedNote && (
+                              <div style={{ fontSize: 12, color: C.inkSoft, marginTop: 2 }}>{m.receivedNote}</div>
+                            )}
+                          </span>
+                          <span className="ml-auto flex items-center gap-2 flex-wrap justify-end">
+                            {at && <span style={{ fontSize: 11.5, color: C.gray, whiteSpace: "nowrap" }}>{stamp(at, now)}</span>}
+                            {/* Where the product actually is now — the whole point. */}
+                            <Pill c={C.blue} bg={C.blueBg} Icon={ArrowRight}>{whereIsItem(it, o)}</Pill>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </Tabwrap>
             )}
 

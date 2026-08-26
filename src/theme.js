@@ -222,6 +222,24 @@ export const dueLabel = (d, time) => {
   return time ? `${datePart}, ${fmtTime(time)}` : datePart;
 };
 
+// Where a product actually IS right now, in words the office uses.
+//
+// Purchasing lists only orders still waiting on something, so a product used to
+// vanish off the tab the moment its last material landed — whoever runs
+// purchasing had no way to see where it went. The answer isn't just the item's
+// stage: once the order ships or is collected, "Work Order" is stale and the
+// truthful answer is about the ORDER, so that takes precedence.
+export function whereIsItem(item, order) {
+  if (order) {
+    if (order.cancelledAt) return "Cancelled";
+    if (order.pickedUpAt) return "Picked up";
+    if (order.trackingNumber) return "Shipped";
+    if (order.fulfillment === "willcall") return "Will Call";
+    if (order.fulfillment === "shipping") return "Shipping";
+  }
+  return STAGE_LABELS[item && item.stage] || (item && item.stage) || "—";
+}
+
 // A line's quantity as a whole number. Order quantities are free text ("6",
 // "12 ea"), and a partial pickup has to count against something — so a
 // unparseable or missing qty means one, never zero.

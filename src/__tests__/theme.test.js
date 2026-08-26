@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { fmtDate, materialKey, totalAmounts, elapsed, stamp, quoteNoteFor, numQty, pickedUpLabel } from "../theme.js";
+import { fmtDate, materialKey, totalAmounts, elapsed, stamp, quoteNoteFor, numQty, pickedUpLabel, whereIsItem } from "../theme.js";
 
 // Pure helpers that quietly drive real decisions on the board — a wrong answer
 // here shows up as a wrong date on a work order or two materials that should
@@ -136,6 +136,37 @@ describe("pickedUpLabel — how much of a line has actually left", () => {
     expect(numQty("a box")).toBe(1);
     expect(numQty(null)).toBe(1);
     expect(pickedUpLabel(item("a box", 1), "willcall")).toBe("all 1 picked up");
+  });
+});
+
+// A received material drops off Purchasing, and the person who runs purchasing
+// then can't tell where the product went. This is the answer that gets shown.
+describe("whereIsItem — where a product actually is now", () => {
+  const item = (stage) => ({ stage });
+
+  it("names the tab a live product is sitting in", () => {
+    expect(whereIsItem(item("picklist"), {})).toBe("Pick List");
+    expect(whereIsItem(item("workorder"), {})).toBe("Work Order");
+    expect(whereIsItem(item("awaiting"), {})).toBe("Purchasing");
+    expect(whereIsItem(item("done"), {})).toBe("Done");
+  });
+
+  // Once the order has left, the item's stage is stale — "Work Order" would be
+  // a lie about a box that is already on a truck.
+  it("prefers the order's fate over a stale item stage", () => {
+    expect(whereIsItem(item("workorder"), { fulfillment: "willcall" })).toBe("Will Call");
+    expect(whereIsItem(item("workorder"), { fulfillment: "shipping" })).toBe("Shipping");
+    expect(whereIsItem(item("workorder"), { fulfillment: "shipping", trackingNumber: "1Z999" })).toBe("Shipped");
+    expect(whereIsItem(item("workorder"), { fulfillment: "willcall", pickedUpAt: "2026-08-01" })).toBe("Picked up");
+  });
+
+  it("says cancelled above everything else", () => {
+    expect(whereIsItem(item("done"), { cancelledAt: "2026-08-01", trackingNumber: "1Z999" })).toBe("Cancelled");
+  });
+
+  it("never renders blank", () => {
+    expect(whereIsItem({}, {})).toBe("—");
+    expect(whereIsItem(undefined, undefined)).toBe("—");
   });
 });
 
