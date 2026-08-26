@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { fmtDate, materialKey, totalAmounts, elapsed, stamp, quoteNoteFor } from "../theme.js";
+import { fmtDate, materialKey, totalAmounts, elapsed, stamp, quoteNoteFor, numQty, pickedUpLabel } from "../theme.js";
 
 // Pure helpers that quietly drive real decisions on the board — a wrong answer
 // here shows up as a wrong date on a work order or two materials that should
@@ -101,6 +101,41 @@ describe("quoteNoteFor — a note stays on its own material", () => {
     it("treats a missing material safely", () => {
       expect(quoteNoteFor("x", undefined, false)).toBe("x");
     });
+  });
+});
+
+// A partly-collected order used to look untouched: the products still showed
+// their full ordered quantity, and only the fulfillment card's order-level badge
+// knew anything had gone out.
+describe("pickedUpLabel — how much of a line has actually left", () => {
+  const item = (qty, out) => ({ qty, fulfilledQty: out });
+
+  it("says nothing when nothing has gone out", () => {
+    expect(pickedUpLabel(item("20", 0), "willcall")).toBe(null);
+    expect(pickedUpLabel(item("20", undefined), "willcall")).toBe(null);
+  });
+
+  it("counts a partial collection against what was ordered", () => {
+    expect(pickedUpLabel(item("20", 8), "willcall")).toBe("8 of 20 picked up");
+  });
+
+  it("says so plainly once the whole line is out", () => {
+    expect(pickedUpLabel(item("20", 20), "willcall")).toBe("all 20 picked up");
+    expect(pickedUpLabel(item("20", 25), "willcall")).toBe("all 20 picked up"); // over-collected still reads done
+  });
+
+  it("uses the right word for a shipment", () => {
+    expect(pickedUpLabel(item("10", 4), "shipping")).toBe("4 of 10 shipped");
+    expect(pickedUpLabel(item("10", 10), "shipping")).toBe("all 10 shipped");
+  });
+
+  it("treats an unparseable quantity as one rather than zero", () => {
+    // "12 ea" parses to 12; a bare word can't, and 0 would make every line
+    // instantly read as fully out.
+    expect(numQty("12 ea")).toBe(12);
+    expect(numQty("a box")).toBe(1);
+    expect(numQty(null)).toBe(1);
+    expect(pickedUpLabel(item("a box", 1), "willcall")).toBe("all 1 picked up");
   });
 });
 

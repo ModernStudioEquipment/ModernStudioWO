@@ -1,13 +1,11 @@
 import React, { useState } from "react";
 import { X, Store, Truck, Package } from "lucide-react";
-import { C } from "../../theme.js";
+import { C, numQty } from "../../theme.js";
 import { Btn } from "../ui.jsx";
 
 // Record a partial (or full) pickup/shipment: per item, how many went out this
 // time, plus who collected it (pickup) or carrier + tracking (shipment). The
 // order stays live until every item is fully out, then it auto-completes.
-const numQty = (q) => Math.max(parseInt(q, 10) || 1, 1);
-
 export function PartialModal({ order, kind, onConfirm, onClose }) {
   const isPickup = kind === "pickup";
   const items = order.items.map((it) => ({ id: it.id, name: it.name, ordered: numQty(it.qty), out: it.fulfilledQty || 0 }))

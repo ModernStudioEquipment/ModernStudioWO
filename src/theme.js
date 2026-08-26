@@ -222,6 +222,23 @@ export const dueLabel = (d, time) => {
   return time ? `${datePart}, ${fmtTime(time)}` : datePart;
 };
 
+// A line's quantity as a whole number. Order quantities are free text ("6",
+// "12 ea"), and a partial pickup has to count against something — so a
+// unparseable or missing qty means one, never zero.
+export const numQty = (q) => Math.max(parseInt(q, 10) || 1, 1);
+
+// How much of a line has physically left, and what to call it. Partial pickups
+// increment items.fulfilled_qty, but until now that number only showed on the
+// fulfillment card's order-level badge — the products themselves still read
+// their full ordered quantity, so a half-collected order looked untouched.
+export function pickedUpLabel(item, fulfillment) {
+  const out = (item && item.fulfilledQty) || 0;
+  if (out <= 0) return null;
+  const ordered = numQty(item.qty);
+  const verb = fulfillment === "shipping" ? "shipped" : "picked up";
+  return out >= ordered ? `all ${ordered} ${verb}` : `${out} of ${ordered} ${verb}`;
+}
+
 // What to write into ONE material's note when "quote requested" is confirmed.
 //
 // A note belongs to a single material. Flagging one material edits its own note,

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { X, Trash2, Clock, ChevronDown, ExternalLink, Check, Store, Truck, AlertTriangle, RefreshCw } from "lucide-react";
-import { C, PRI, stamp, itemStatusText, trackingUrl } from "../../theme.js";
+import { C, PRI, stamp, itemStatusText, trackingUrl, numQty, pickedUpLabel } from "../../theme.js";
 import { Pill, Info, Stepper, DeptBadge, DuePill, CompletionPill, MethodBadge, InvoicedBadge, SittingBadge, MoveMenu, Btn } from "../ui.jsx";
 import { ItemTimeline } from "../ItemTimeline.jsx";
 
@@ -30,6 +30,12 @@ export function OrderDetail({ order, status, now, onDueDate, onCompletion, onInv
 
   const done = order.items.filter((i) => i.stage === "done").length;
   const total = order.items.length;
+  // How much of the order has physically gone out. "Done" means made, which is a
+  // different question from collected — a fully-made order can still be sitting
+  // here half picked up, and that was invisible in this view.
+  const totalOrdered = order.items.reduce((n, it) => n + numQty(it.qty), 0);
+  const totalOut = order.items.reduce((n, it) => n + (it.fulfilledQty || 0), 0);
+  const outVerb = order.fulfillment === "shipping" ? "shipped" : "picked up";
   return (
     <div style={overlay} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: 580, maxWidth: "96vw", background: C.concrete, borderRadius: 8, overflow: "hidden" }}>
@@ -67,6 +73,11 @@ export function OrderDetail({ order, status, now, onDueDate, onCompletion, onInv
           <div className="flex items-center gap-2 mb-1">
             <Pill c={status.c} bg={status.bg} Icon={status.Icon}>{status.label}</Pill>
             <span style={{ fontSize: 13, color: C.gray }}>{done} of {total} items done</span>
+            {totalOut > 0 && (
+              <Pill c={totalOut >= totalOrdered ? C.green : C.gold} bg={totalOut >= totalOrdered ? C.greenBg : C.goldBg}>
+                {totalOut >= totalOrdered ? `all ${totalOrdered} ${outVerb}` : `${totalOut} of ${totalOrdered} ${outVerb}`}
+              </Pill>
+            )}
             {order.willCall && <Pill c={C.blue} bg={C.blueBg}>Will call</Pill>}
           </div>
           {order.fulfillment && (
@@ -149,12 +160,23 @@ export function OrderDetail({ order, status, now, onDueDate, onCompletion, onInv
           </div>
           {order.items.map((it) => {
             const open = openTimeline === it.id;
+            const outLabel = pickedUpLabel(it, order.fulfillment);
+            const fullyOut = (it.fulfilledQty || 0) >= numQty(it.qty);
             return (
             <div key={it.id} className="rounded mb-2 p-3" style={{ background: C.surface, border: `1px solid ${C.line}` }}>
               <div className="flex items-center gap-2">
                 <DeptBadge d={it.dept} onChange={onUpdateItem ? (dep) => onUpdateItem(it.id, { dept: dep }) : undefined} />
                 <span className="font-bold" style={{ fontSize: 14 }}>{it.name}</span>
                 <span style={{ fontFamily: "ui-monospace,monospace", color: C.inkSoft }}>×{it.qty}</span>
+                {/* What has physically left. Without it a half-collected order
+                    still read ×20 and looked untouched. */}
+                {outLabel && (
+                  <span className="rounded" style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.4,
+                    padding: "2px 7px", whiteSpace: "nowrap",
+                    color: fullyOut ? C.green : C.gold, background: fullyOut ? C.greenBg : C.goldBg }}>
+                    {outLabel}
+                  </span>
+                )}
                 <SittingBadge it={it} now={now} />
                 <span className="ml-auto font-bold" style={{ fontSize: 12, color: it.stage === "done" ? C.green : C.inkSoft }}>
                   {itemStatusText(it)}
