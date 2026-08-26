@@ -1435,6 +1435,12 @@ export default function App() {
       {receiveTarget && (
         <ReceiveModal
           material={receiveTarget.m}
+          // What else this product is still waiting on. The destination question
+          // only gets asked when the answer can actually be honoured — the item
+          // leaves Purchasing once EVERY material is in, not on the first one.
+          stillWaiting={(receiveTarget.it?.materials || [])
+            .filter((x) => x.id !== receiveTarget.m.id && !x.received)
+            .map((x) => x.name)}
           onConfirm={confirmReceive}
           onClose={() => setReceiveTarget(null)}
         />
