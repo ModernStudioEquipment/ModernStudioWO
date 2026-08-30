@@ -222,6 +222,46 @@ export const dueLabel = (d, time) => {
   return time ? `${datePart}, ${fmtTime(time)}` : datePart;
 };
 
+// Who to record against a note. The shop has one login per person, so the
+// name comes from the account rather than being typed — "anoush@modernstudio.com"
+// records as "Anoush". Typed-name fields elsewhere (ordered by, completed by)
+// stay as they are: those record who did a physical thing, which isn't always
+// whoever is at the keyboard.
+export function noteAuthorName(user) {
+  const email = (user && user.email) || "";
+  const named = user && user.user_metadata && (user.user_metadata.name || user.user_metadata.full_name);
+  if (named) return String(named).trim();
+  const local = email.split("@")[0] || "";
+  if (!local) return null;
+  // first.last / first_last / first-last -> First Last
+  return local
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ") || null;
+}
+
+// The authorship columns to write when a note changes.
+//
+// A note has two facts worth keeping: who first wrote it, and who last changed
+// it. Writing the author on every save would lose the first, and writing only
+// the author would hide that anyone edited it — so both are tracked, and the
+// distinction is decided HERE rather than at each of the three call sites, so
+// they can't drift.
+//
+//   nothing -> something   first author, no edit yet
+//   something -> changed   original author kept, edit recorded
+//   something -> same      untouched (an idle save must not fake an edit)
+//   something -> empty     cleared out entirely, so a new note starts fresh
+export function noteStamp(prevNote, nextNote, who, at = new Date().toISOString()) {
+  const before = (prevNote ?? "").trim();
+  const after = (nextNote ?? "").trim();
+  if (before === after) return null;                    // nothing changed
+  if (!after) return { by: null, at: null, editedBy: null, editedAt: null };
+  if (!before) return { by: who || null, at, editedBy: null, editedAt: null };
+  return { editedBy: who || null, editedAt: at };       // leaves the original author alone
+}
+
 // Where a product actually IS right now, in words the office uses.
 //
 // Purchasing lists only orders still waiting on something, so a product used to

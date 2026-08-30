@@ -4,6 +4,7 @@
 // the realtime that Supabase provides for real multi-user use).
 
 import { buildSeed } from "../seed.js";
+import { noteStamp } from "../../theme.js";
 
 const KEY = "mse_orders_v1";
 const WO_KEY = "mse_workorders_v1";
@@ -104,6 +105,20 @@ function nextWoNoFrom(records) {
     .filter((n) => !Number.isNaN(n) && n >= WO_BASE);
   return nums.length ? Math.max(...nums) + 1 : WO_BASE;
 }
+
+// Note authorship, mirroring the Supabase adapter (0056). Local mode has no
+// login, so there's no name to record — the timestamps still work, which is
+// what demo mode needs to show the shape of the feature.
+function applyNoteStamp(rec, prev, next, keys) {
+  const stamp = noteStamp(prev, next, null);
+  if (!stamp) return;
+  if (stamp.by !== undefined) rec[keys.by] = stamp.by;
+  if (stamp.at !== undefined) rec[keys.at] = stamp.at;
+  if (stamp.editedBy !== undefined) rec[keys.editedBy] = stamp.editedBy;
+  if (stamp.editedAt !== undefined) rec[keys.editedAt] = stamp.editedAt;
+}
+const ORDER_NOTE_KEYS = { by: "notesBy", at: "notesAt", editedBy: "notesEditedBy", editedAt: "notesEditedAt" };
+const NOTE_KEYS = { by: "noteBy", at: "noteAt", editedBy: "noteEditedBy", editedAt: "noteEditedAt" };
 
 // Apply fn to a single item (found by id) inside the stored orders, persist.
 function mutateItem(itemId, fn) {
@@ -386,7 +401,10 @@ export const localAdapter = {
       if (patch.dept !== undefined) it.dept = patch.dept;
       if (patch.completedBy !== undefined) it.completedBy = patch.completedBy || null;
       if (patch.imageUrl !== undefined) it.imageUrl = patch.imageUrl || null;
-      if (patch.note !== undefined) it.note = patch.note || null;
+      if (patch.note !== undefined) {
+        applyNoteStamp(it, it.note, patch.note, NOTE_KEYS);
+        it.note = patch.note || null;
+      }
       if (patch.inProgress !== undefined) it.inProgress = !!patch.inProgress;
     });
   },
@@ -453,7 +471,10 @@ export const localAdapter = {
         m.progressAt = progress ? Date.now() : null;
         m.progressBy = progress ? by : null;
       }
-      if (note !== undefined) m.note = note;
+      if (note !== undefined) {
+        applyNoteStamp(m, m.note, note, NOTE_KEYS);
+        m.note = note;
+      }
     });
   },
 
@@ -519,7 +540,10 @@ export const localAdapter = {
   async setOrderNotes(orderId, notes) {
     const orders = read();
     const o = orders.find((x) => x.id === orderId);
-    if (o) o.notes = notes || null;
+    if (o) {
+      applyNoteStamp(o, o.notes, notes, ORDER_NOTE_KEYS);
+      o.notes = notes || null;
+    }
     write(orders);
   },
 

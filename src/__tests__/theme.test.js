@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { fmtDate, materialKey, totalAmounts, elapsed, stamp, quoteNoteFor, numQty, pickedUpLabel, whereIsItem } from "../theme.js";
+import { fmtDate, materialKey, totalAmounts, elapsed, stamp, quoteNoteFor, numQty, pickedUpLabel, whereIsItem, noteAuthorName, noteStamp } from "../theme.js";
 
 // Pure helpers that quietly drive real decisions on the board — a wrong answer
 // here shows up as a wrong date on a work order or two materials that should
@@ -167,6 +167,59 @@ describe("whereIsItem — where a product actually is now", () => {
   it("never renders blank", () => {
     expect(whereIsItem({}, {})).toBe("—");
     expect(whereIsItem(undefined, undefined)).toBe("—");
+  });
+});
+
+// On a board 30 people share, an anonymous note is only half useful — you can't
+// tell who to ask about it, and a note someone quietly rewrote read exactly like
+// the original.
+describe("noteAuthorName — who gets recorded", () => {
+  it("reads a name out of the work email", () => {
+    expect(noteAuthorName({ email: "anoush@modernstudio.com" })).toBe("Anoush");
+    expect(noteAuthorName({ email: "rosy@modernstudio.com" })).toBe("Rosy");
+  });
+  it("handles first.last style addresses", () => {
+    expect(noteAuthorName({ email: "maddox.leach@modernstudio.com" })).toBe("Maddox Leach");
+    expect(noteAuthorName({ email: "jean-luc@modernstudio.com" })).toBe("Jean Luc");
+  });
+  it("prefers a real name when the account has one", () => {
+    expect(noteAuthorName({ email: "a@b.com", user_metadata: { name: "Anoush K." } })).toBe("Anoush K.");
+  });
+  it("returns null rather than a blank byline", () => {
+    expect(noteAuthorName(null)).toBe(null);
+    expect(noteAuthorName({})).toBe(null);
+  });
+});
+
+describe("noteStamp — first author kept, later edits recorded separately", () => {
+  const AT = "2026-08-26T21:00:00.000Z";
+
+  it("records the author when a note is first written", () => {
+    expect(noteStamp(null, "call vendor back", "Rosy", AT))
+      .toEqual({ by: "Rosy", at: AT, editedBy: null, editedAt: null });
+  });
+
+  it("records an EDIT without losing who wrote it originally", () => {
+    // no `by`/`at` in the patch, so the original author column is left alone
+    expect(noteStamp("call vendor back", "vendor called back", "Anoush", AT))
+      .toEqual({ editedBy: "Anoush", editedAt: AT });
+  });
+
+  it("does nothing when the text hasn't actually changed", () => {
+    // opening a note and saving without typing must not fake an edit
+    expect(noteStamp("same words", "same words", "Rosy", AT)).toBe(null);
+    expect(noteStamp("same words", "  same words  ", "Rosy", AT)).toBe(null);
+    expect(noteStamp(null, "", "Rosy", AT)).toBe(null);
+  });
+
+  it("clears the byline when the note is deleted, so the next one starts fresh", () => {
+    expect(noteStamp("old note", "", "Rosy", AT))
+      .toEqual({ by: null, at: null, editedBy: null, editedAt: null });
+  });
+
+  it("still stamps when nobody is identified", () => {
+    expect(noteStamp(null, "written by an unknown login", null, AT))
+      .toEqual({ by: null, at: AT, editedBy: null, editedAt: null });
   });
 });
 

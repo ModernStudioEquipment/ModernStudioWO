@@ -53,6 +53,27 @@ export function InlineMenu({ children, options, onSelect, align = "left" }) {
   );
 }
 
+// Who wrote a note and when — and separately, who last changed it.
+//
+// On a shared board an anonymous note is only half useful: you can't tell who
+// to ask about it, or whether it's from this morning or three weeks ago. Both
+// facts are shown because a note that was quietly rewritten used to read exactly
+// like the original.
+//
+// Renders nothing at all when there's no note or nothing recorded, so notes
+// written before 0056 simply look the way they always did.
+export function NoteByline({ by, at, editedBy, editedAt, now }) {
+  if (!at && !editedAt) return null;
+  const bit = (who, when) =>
+    `${who || "someone"} · ${stamp(new Date(when).getTime(), now)}`;
+  return (
+    <div style={{ fontSize: 11, color: C.gray, marginTop: 4, lineHeight: 1.5 }}>
+      {at && <div>Written by {bit(by, at)}</div>}
+      {editedAt && <div>Edited by {bit(editedBy, editedAt)}</div>}
+    </div>
+  );
+}
+
 export function Pill({ children, c, bg, Icon }) {
   return (
     <span

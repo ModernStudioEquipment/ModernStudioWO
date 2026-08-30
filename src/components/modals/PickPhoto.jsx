@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { X, Camera, Check, ImagePlus } from "lucide-react";
 import { C } from "../../theme.js";
-import { Btn, Info } from "../ui.jsx";
+import { Btn, Info, NoteByline} from "../ui.jsx";
 import { ItemTimeline } from "../ItemTimeline.jsx";
 
 // Fetched on open — the event log isn't shipped with the board (migration 0053).
@@ -116,6 +116,7 @@ export function PickPhoto({ order, item, onPicked, onSetImage, onUploadImage, on
               />
               <div className="flex justify-end mt-2">
                 <Btn onClick={saveNote} disabled={savingNote || !noteDirty}>{savingNote ? "Saving…" : "Save note"}</Btn>
+                <NoteByline by={item.noteBy} at={item.noteAt} editedBy={item.noteEditedBy} editedAt={item.noteEditedAt} />
               </div>
             </div>
           )}

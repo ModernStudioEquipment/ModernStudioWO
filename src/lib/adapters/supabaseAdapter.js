@@ -4,6 +4,31 @@
 // concurrency-safe across users.
 
 import { supabase } from "../supabase.js";
+import { noteStamp, noteAuthorName } from "../../theme.js";
+
+// Who is writing. Read from the session rather than passed down through the
+// hooks — the adapter is the only layer that touches a note write, and every
+// path would otherwise have to remember to forward a name.
+async function currentAuthor() {
+  try {
+    const { data } = await supabase.auth.getUser();
+    return noteAuthorName(data && data.user);
+  } catch {
+    return null;   // never block a save on not knowing who
+  }
+}
+
+// Merge a noteStamp into an update, using the given column names. Returns the
+// patch unchanged when nothing about the note actually changed.
+function withNoteStamp(patch, stamp, cols) {
+  if (!stamp) return patch;
+  const out = { ...patch };
+  if (stamp.by !== undefined) out[cols.by] = stamp.by;
+  if (stamp.at !== undefined) out[cols.at] = stamp.at;
+  if (stamp.editedBy !== undefined) out[cols.editedBy] = stamp.editedBy;
+  if (stamp.editedAt !== undefined) out[cols.editedAt] = stamp.editedAt;
+  return out;
+}
 
 const fail = (error) => {
   if (error) throw new Error(error.message || String(error));
@@ -82,6 +107,10 @@ export function mapMaterialRow(m) {
     expectedAt: m.expected_at || null,
     contact: m.contact || null,
     note: m.note || null,
+    noteBy: m.note_by || null,
+    noteAt: m.note_at || null,
+    noteEditedBy: m.note_edited_by || null,
+    noteEditedAt: m.note_edited_at || null,
     receivedAt: m.received_at || null,
     receivedQty: m.received_qty || null,
     receivedNote: m.received_note || null,
@@ -103,6 +132,10 @@ export function mapItemRow(it, productPhotos = {}, photoBySku = {}) {
     sku: itemSku(it),
     imageUrl: it.image_url || photoBySku[(itemSku(it) || "").toLowerCase()] || productPhotos[it.name] || null,
     note: it.note || null,
+    noteBy: it.note_by || null,
+    noteAt: it.note_at || null,
+    noteEditedBy: it.note_edited_by || null,
+    noteEditedAt: it.note_edited_at || null,
     inProgress: it.in_progress || false,
     stageEnteredAt: it.stage_entered_at ? new Date(it.stage_entered_at).getTime() : null,
   };
@@ -122,6 +155,10 @@ export function mapOrderRow(row) {
     dueTime: row.due_time || null,
     completionDate: row.completion_date || null, // shop's estimated ready-by date
     notes: row.notes || null,
+    notesBy: row.notes_by || null,
+    notesAt: row.notes_at || null,
+    notesEditedBy: row.notes_edited_by || null,
+    notesEditedAt: row.notes_edited_at || null,
     shipTo: row.ship_to || null, // drop-ship recipient (who it's really going to)
     shipVia: row.ship_via || null, // shipping method ("Ship Via" from QB / Shopify line)
     invoiced: !!row.invoiced, // QB: came in as / been marked an invoice
@@ -408,7 +445,19 @@ export const supabaseAdapter = {
     if (patch.imageUrl !== undefined) upd.image_url = patch.imageUrl || null;
     if (patch.note !== undefined) upd.note = patch.note || null;
     if (patch.inProgress !== undefined) upd.in_progress = !!patch.inProgress;
-    const { error } = await supabase.from("items").update(upd).eq("id", itemId);
+    // Note authorship — same rule as order notes (0056).
+    const bare = { ...upd };   // the same update minus the authorship columns
+    if (patch.note !== undefined) {
+      const { data: prevIt } = await supabase.from("items").select("note").eq("id", itemId).single();
+      const stamp = noteStamp(prevIt && prevIt.note, patch.note, await currentAuthor());
+      Object.assign(upd, withNoteStamp({}, stamp,
+        { by: "note_by", at: "note_at", editedBy: "note_edited_by", editedAt: "note_edited_at" }));
+    }
+
+    let { error } = await supabase.from("items").update(upd).eq("id", itemId);
+    // Degrade to the plain update if 0056 hasn't been run — a missing byline
+    // must never stop someone saving a note.
+    if (error) ({ error } = await supabase.from("items").update(bare).eq("id", itemId));
     fail(error);
     // A pasted photo URL is also remembered for the product (same as an upload).
     if (patch.imageUrl) {
@@ -577,7 +626,20 @@ export const supabaseAdapter = {
     // The note lives on the material itself, so it's still there when the buyer
     // comes back to mark it ordered. Only written when one was actually given.
     if (note !== undefined) patch.note = note;
-    const { error } = await supabase.from("materials").update(patch).eq("id", materialId);
+    // Note authorship (0056), on the same rule as order and item notes.
+    if (note !== undefined) {
+      const { data: prevM } = await supabase.from("materials").select("note").eq("id", materialId).single();
+      const stamp = noteStamp(prevM && prevM.note, note, await currentAuthor());
+      Object.assign(patch, withNoteStamp({}, stamp,
+        { by: "note_by", at: "note_at", editedBy: "note_edited_by", editedAt: "note_edited_at" }));
+    }
+    let { error } = await supabase.from("materials").update(patch).eq("id", materialId);
+    // Retry without the authorship columns if 0056 hasn't been run.
+    if (error) {
+      const bare = { ...patch };
+      ["note_by", "note_at", "note_edited_by", "note_edited_at"].forEach((k) => delete bare[k]);
+      ({ error } = await supabase.from("materials").update(bare).eq("id", materialId));
+    }
     // No-op quietly if 0052 hasn't been run yet.
     if (error && !/progress/.test(error.message || "")) fail(error);
   },
@@ -639,8 +701,19 @@ export const supabaseAdapter = {
     fail(error);
   },
 
-  async setOrderNotes(orderId, notes) {
-    const { error } = await supabase.from("orders").update({ notes: notes || null }).eq("id", orderId);
+  async setOrderNotes(orderId, notes, who) {
+    // Read the note back first so authorship can tell a NEW note from an edit.
+    // One extra round trip on a rare action, in exchange for never mislabelling
+    // who wrote something.
+    const { data: prev } = await supabase.from("orders").select("notes").eq("id", orderId).single();
+    const stamp = noteStamp(prev && prev.notes, notes, who ?? (await currentAuthor()));
+    const base = { notes: notes || null };
+    const full = withNoteStamp(base, stamp,
+      { by: "notes_by", at: "notes_at", editedBy: "notes_edited_by", editedAt: "notes_edited_at" });
+    // Falls back to writing just the text if 0056 hasn't been run — a missing
+    // byline must never stop someone saving a note.
+    let { error } = await supabase.from("orders").update(full).eq("id", orderId);
+    if (error) ({ error } = await supabase.from("orders").update(base).eq("id", orderId));
     fail(error);
   },
 

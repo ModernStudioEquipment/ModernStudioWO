@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { X, Trash2, Clock, ChevronDown, ExternalLink, Check, Store, Truck, AlertTriangle, RefreshCw } from "lucide-react";
 import { C, PRI, stamp, itemStatusText, trackingUrl, numQty, pickedUpLabel } from "../../theme.js";
-import { Pill, Info, Stepper, DeptBadge, DuePill, CompletionPill, MethodBadge, InvoicedBadge, SittingBadge, MoveMenu, Btn } from "../ui.jsx";
+import { Pill, Info, Stepper, DeptBadge, DuePill, CompletionPill, MethodBadge, InvoicedBadge, SittingBadge, MoveMenu, Btn, NoteByline } from "../ui.jsx";
 import { ItemTimeline } from "../ItemTimeline.jsx";
 
 // The office "where's my order?" view — full detail with a per-product
@@ -150,6 +150,8 @@ export function OrderDetail({ order, status, now, onDueDate, onCompletion, onInv
                   Save note
                 </button>
               )}
+              <NoteByline by={order.notesBy} at={order.notesAt}
+                editedBy={order.notesEditedBy} editedAt={order.notesEditedAt} now={now} />
             </div>
           )}
           <div style={{ height: 6, background: C.line, borderRadius: 3, overflow: "hidden", marginBottom: 18 }}>

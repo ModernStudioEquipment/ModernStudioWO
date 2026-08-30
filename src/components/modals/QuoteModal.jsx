@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { X, Check } from "lucide-react";
 import { C, stamp } from "../../theme.js";
-import { Btn } from "../ui.jsx";
+import { Btn, NoteByline } from "../ui.jsx";
 
 // Flagging a material "quote requested" — with room to say what was actually
 // asked for. The note is the material's own note (not a separate field), so the
@@ -64,6 +64,8 @@ export function QuoteModal({ material, count = 1, now = Date.now(), onConfirm, o
               placeholder="e.g. asked Tube Service for 20 ft, waiting on price"
               className="w-full px-2 py-2 outline-none" style={{ ...inp, resize: "vertical" }}
             />
+            <NoteByline by={material?.noteBy} at={material?.noteAt}
+              editedBy={material?.noteEditedBy} editedAt={material?.noteEditedAt} now={now} />
           </div>
 
           <div className="mb-4">
