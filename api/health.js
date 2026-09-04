@@ -37,6 +37,7 @@ export async function GET() {
   //     is genuinely slow — 40s, well inside the function's own limit.
   let quickbooks = "down";
   let detail = null;
+  let lastHeartbeat = null;   // Conductor's "last active ..." phrase, when it gives one
   try {
     const since = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const res = await fetch(`${CONDUCTOR_BASE}/sales-orders?limit=1&transactionDateFrom=${since}`, {
@@ -49,10 +50,19 @@ export async function GET() {
       const body = await res.text().catch(() => "");
       // Conductor spells out "connection is not active / Web Connector is not
       // running" — pass that straight through, it's the actionable bit.
-      detail = body.slice(0, 300) || `Conductor returned ${res.status}`;
+      detail = body.slice(0, 900) || `Conductor returned ${res.status}`;
+      // These are DIFFERENT faults with different fixes, and collapsing both to
+      // "down" threw away the one thing worth knowing. Conductor answering at
+      // all means the machine is reachable; it's the Web Connector that stopped.
+      if (/not active|Web Connector is not running/i.test(body)) quickbooks = "not active";
+      // Conductor usually says how long ago it last heard from QuickBooks.
+      const ago = body.match(/last active ([^."]+)/i);
+      if (ago) lastHeartbeat = ago[1].trim();
     }
   } catch (e) {
     if (e?.name === "TimeoutError") {
+      // Nothing answered at all — the usual shape of a machine that's off,
+      // asleep, or off the network.
       quickbooks = "no answer";
       detail = "QuickBooks didn't answer within 40s.";
     } else {
@@ -88,14 +98,38 @@ export async function GET() {
   // ELEVEN DAYS with no orders arriving — so a failed ping only counts as a
   // problem when nothing has synced in a day either.
   const stale = lastOrderAgeHours == null || lastOrderAgeHours > 24;
-  const ok = database === "connected" && (quickbooks === "connected" || !stale);
+
+  // Is the shop actually working right now? The overnight rule below exists so a
+  // sleeping office PC doesn't page anyone at 3am — but it was too generous: on
+  // a weekday MORNING, with the connector dead for an hour, "nothing has synced
+  // in under 24h" still read as fine. It isn't. Orders stop arriving the moment
+  // the connector stops, and nobody finds out until someone goes looking.
+  const la = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles", weekday: "short", hour: "numeric", hour12: false,
+  }).formatToParts(new Date());
+  const part = (t) => la.find((p) => p.type === t)?.value;
+  const day = part("weekday");
+  const hour = Number(part("hour"));
+  const workingHours = !["Sat", "Sun"].includes(day) && hour >= 7 && hour < 18;
+
+  // During working hours the connector simply has to be up. Outside them, fall
+  // back to the freshness test so an overnight sleep stays quiet.
+  const ok = database === "connected"
+    && (quickbooks === "connected" || (!workingHours && !stale));
+
   const hint =
     database !== "connected" ? "The board's database is unreachable — this is the urgent one."
       : quickbooks === "connected" ? null
+      : quickbooks === "no answer"
+        ? `Nothing answered at all${workingHours ? " during working hours" : ""} — the office PC is likely off, asleep, or off the network. Wake it, then open the Web Connector.`
+      : quickbooks === "not active"
+        ? `The office PC is reachable but its Web Connector has stopped polling${lastHeartbeat ? ` (last active ${lastHeartbeat})` : ""}. Open QuickBooks with the company file, then File > App Management > Update Web Services, and make sure Auto-Run is ticked.`
       : stale ? "Nothing has synced from QuickBooks in over a day. Check that the office PC is on, signed in, and running QuickBooks with the Web Connector."
-      : "QuickBooks didn't answer, but orders synced recently — most likely the office PC is just asleep. Worth a look if it repeats during working hours.";
+      : "QuickBooks didn't answer, but orders synced recently. Worth a look if it repeats.";
 
-  return json(ok ? 200 : 503, { ok, quickbooks, database, lastOrderAgeHours, stale, detail, hint, checkedAt });
+  return json(ok ? 200 : 503, {
+    ok, quickbooks, database, lastOrderAgeHours, stale, workingHours, lastHeartbeat, detail, hint, checkedAt,
+  });
 }
 
 function json(status, body) {
