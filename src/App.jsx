@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   Clock, Printer, Plus, Truck, CheckCircle2, AlertTriangle, Hammer,
-  Flag, Check, ArrowRight, ShoppingCart, LogOut, Store, MapPin, Package, X, Bell, ExternalLink, RefreshCw, Pencil, RotateCcw, ChevronsDownUp, ChevronsUpDown, Sun, Moon, MonitorPlay, Layers, ArrowUpDown, ChevronLeft, ChevronRight, PackageSearch, PackageCheck, Trash2, DollarSign,
+  Flag, Check, ArrowRight, ShoppingCart, LogOut, Store, MapPin, Package, X, Bell, ExternalLink, RefreshCw, Pencil, RotateCcw, ChevronsDownUp, ChevronsUpDown, Sun, Moon, MonitorPlay, Layers, ArrowUpDown, ChevronLeft, ChevronRight, PackageSearch, PackageCheck, Trash2, DollarSign, ChevronDown,
 } from "lucide-react";
 import { C, PRI, PRI_CYCLE, PRI_RANK, elapsed, stamp, materialKey, quoteNoteFor, noteTrailOf, whereIsItem, noteAuthorName, blocked, pct, dueLabel, priLabel, effectivePriority, trackingUrl, stagedTooLong, stagedDwellMs, STAGE_LABELS } from "./theme.js";
 import { backendMode, db } from "./lib/db.js";
@@ -39,7 +39,7 @@ import { OrderedModal } from "./components/modals/OrderedModal.jsx";
 import { BulkMaterialModal } from "./components/modals/BulkMaterialModal.jsx";
 import { ReceiveModal } from "./components/modals/ReceiveModal.jsx";
 import { CustomWorkOrderDoc } from "./components/modals/CustomWorkOrderDoc.jsx";
-import { WO_TYPES } from "./components/workorders/forms.js";
+import { WO_TYPES, fieldsLostSwitching, remapFields } from "./components/workorders/forms.js";
 
 export default function App() {
   const auth = useAuth();
@@ -195,6 +195,7 @@ export default function App() {
   // retyping their own name on every line (one person places ~90% of orders).
   const me = noteAuthorName(auth.user);
 
+  const [deptSwitch, setDeptSwitch] = useState(null); // { wo, next, lost } — work order changing department
   const [orderTarget, setOrderTarget] = useState(null); // purchasing material being marked ordered (asks who/vendor/PO)
   const [receiveTarget, setReceiveTarget] = useState(null); // { it, m } material being received (asks dest tab/qty/note)
   const [syncing, setSyncing] = useState(false); // QuickBooks sync in progress
@@ -724,10 +725,28 @@ export default function App() {
   // Returns the id so a freshly-saved new sheet keeps editing the same record.
   const saveWorkOrder = async (woPayload) => {
     if (woPayload.id) {
-      await wo.updateWorkOrder(woPayload.id, { title: woPayload.title, fields: woPayload.fields });
+      await wo.updateWorkOrder(woPayload.id, { title: woPayload.title, fields: woPayload.fields, type: woPayload.type });
       return woPayload.id;
     }
     return await wo.createWorkOrder(woPayload);
+  };
+
+  // Change which department makes a work order, from the card — the same switch
+  // the sheet offers, with the same warning. The four sheets are not the same
+  // form (Shop/CNC are field sheets, Sewing/Saw are line-item sheets), so a
+  // department change is a real edit: anything the target sheet has nowhere to
+  // put is named before it goes, never dropped silently.
+  const switchWoDept = async (w, next) => {
+    if (!w || next === w.type) return;
+    const fields = remapFields(w.type, next, w.fields || {});
+    setDeptSwitch(null);
+    await wo.updateWorkOrder(w.id, { type: next, fields });
+  };
+  const askSwitchWoDept = (w, next) => {
+    if (next === w.type) return;
+    const lost = fieldsLostSwitching(w.type, next, w.fields || {});
+    if (!lost.length) return switchWoDept(w, next);
+    setDeptSwitch({ wo: w, next, lost });
   };
 
   // ---- derived views ----
@@ -1238,7 +1257,21 @@ export default function App() {
                   >
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
                       <span className="font-bold" style={{ fontFamily: "ui-monospace,monospace", fontSize: 15 }}>WO #{w.orderNo}</span>
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-bold uppercase" style={{ background: C.grayBg, color: C.inkSoft }}>{w.type}</span>
+                      <span onClick={(e) => e.stopPropagation()}>
+                        <InlineMenu
+                          options={WO_TYPES.map((t) => ({ value: t.key, label: t.label }))}
+                          onSelect={(next) => askSwitchWoDept(w, next)}
+                        >
+                          <span
+                            title="Which department makes it — click to change"
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-bold uppercase"
+                            style={{ background: C.grayBg, color: C.inkSoft, cursor: "pointer" }}
+                          >
+                            {w.type}
+                            <ChevronDown size={12} />
+                          </span>
+                        </InlineMenu>
+                      </span>
                       <div className="min-w-0">
                         <div className="font-bold" style={{ fontSize: 14 }}>{w.title || "(untitled)"}</div>
                         <div style={{ fontSize: 12, color: C.gray }}>QuickBooks work order</div>
@@ -1860,6 +1893,36 @@ export default function App() {
           onUnorder={async () => { await board.unmarkOrdered(orderTarget.id); setOrderTarget(null); }}
           onClose={() => setOrderTarget(null)}
         />
+      )}
+      {/* A department change that can't carry everything over says what goes
+          before it goes — the sheets are different forms, not four labels for
+          the same one. */}
+      {deptSwitch && (
+        <div
+          onClick={() => setDeptSwitch(null)}
+          style={{ position: "fixed", inset: 0, background: "rgba(20,28,38,0.5)", display: "flex", alignItems: "flex-start", justifyContent: "center", overflowY: "auto", zIndex: 60, padding: "24px 12px" }}
+        >
+          <div onClick={(e) => e.stopPropagation()} style={{ width: 420, maxWidth: "92vw", background: C.concrete, borderRadius: 8, overflow: "hidden", marginTop: "12vh" }}>
+            <div className="flex items-center gap-2 px-4 py-3 font-bold" style={{ background: C.fill, color: "#fff" }}>
+              <AlertTriangle size={16} />Move WO #{deptSwitch.wo.orderNo} to {WO_TYPES.find((t) => t.key === deptSwitch.next)?.label}?
+              <button onClick={() => setDeptSwitch(null)} className="ml-auto" style={{ color: "#fff" }}><X size={18} /></button>
+            </div>
+            <div className="p-4">
+              <div style={{ fontSize: 14, marginBottom: 10 }}>
+                {WO_TYPES.find((t) => t.key === deptSwitch.wo.type)?.label} and{" "}
+                {WO_TYPES.find((t) => t.key === deptSwitch.next)?.label} aren't the same sheet, and the{" "}
+                {WO_TYPES.find((t) => t.key === deptSwitch.next)?.label} one has nowhere to put:
+              </div>
+              <ul style={{ fontSize: 13, color: C.inkSoft, marginBottom: 16, paddingLeft: 18, listStyle: "disc" }}>
+                {deptSwitch.lost.map((l) => <li key={l}>{l}</li>)}
+              </ul>
+              <div className="flex gap-2">
+                <button onClick={() => switchWoDept(deptSwitch.wo, deptSwitch.next)} className="flex-1 py-2.5 rounded font-bold uppercase tracking-wide text-xs" style={{ background: C.rush, color: "#fff" }}>Change it — lose those</button>
+                <button onClick={() => setDeptSwitch(null)} className="flex-1 py-2.5 rounded font-bold uppercase tracking-wide text-xs" style={{ background: C.surface, color: C.inkSoft, border: `1px solid ${C.line}` }}>Keep it as it is</button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
       {confirmStock && (
         <div

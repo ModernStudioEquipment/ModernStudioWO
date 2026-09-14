@@ -9,21 +9,51 @@ import { Wordmark } from "../Logo.jsx";
 // number line — "WO #" for work orders, "Order #" for Shopify orders.
 
 // ---- editable input styled to look like the sheet ----
-export function EI({ value, onChange, size = 16, bold, mono, width, align = "left", placeholder, full }) {
+//
+// `wrap` is for anything that can run long — a product name, a note. An <input>
+// is one line forever: a name wider than the field just stopped, on screen and
+// on the printed sheet, with no sign there was more of it. Those fields grow to
+// as many lines as they need instead.
+export function EI({ value, onChange, size = 16, bold, mono, width, align = "left", placeholder, full, wrap }) {
+  const ref = useRef(null);
+  // Height follows the content. Measured after every change and on first paint,
+  // so what's on screen is what comes out of the printer.
+  const fit = () => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  };
+  useEffect(() => { if (wrap) fit(); }, [wrap, value, size]);
+
+  const style = {
+    fontSize: size,
+    fontWeight: bold ? 700 : 400,
+    fontFamily: mono ? "ui-monospace,monospace" : "inherit",
+    textAlign: align,
+    width: full ? "100%" : width || "auto",
+    minWidth: 36,
+  };
+  if (!wrap) {
+    return (
+      <input
+        className="wo-edit"
+        value={value || ""}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        style={style}
+      />
+    );
+  }
   return (
-    <input
-      className="wo-edit"
+    <textarea
+      ref={ref}
+      rows={1}
+      className="wo-edit wo-wrap"
       value={value || ""}
-      onChange={(e) => onChange(e.target.value)}
+      onChange={(e) => { onChange(e.target.value); fit(); }}
       placeholder={placeholder}
-      style={{
-        fontSize: size,
-        fontWeight: bold ? 700 : 400,
-        fontFamily: mono ? "ui-monospace,monospace" : "inherit",
-        textAlign: align,
-        width: full ? "100%" : width || "auto",
-        minWidth: 36,
-      }}
+      style={{ ...style, resize: "none", overflow: "hidden", lineHeight: 1.25, display: "block" }}
     />
   );
 }
@@ -307,14 +337,14 @@ export function BasicBody({ fields, set, orderNo, orderLines, numLabel = "WO #",
             </div>
           </div>
         ) : (
-          <FieldEdit label="Product"><EI value={fields.product} onChange={(v) => set("product", v)} bold full /></FieldEdit>
+          <FieldEdit label="Product"><EI value={fields.product} onChange={(v) => set("product", v)} bold full wrap /></FieldEdit>
         )}
         <FieldEdit label="Ordered on"><DateEI value={fields.orderedOn} onChange={(v) => set("orderedOn", v)} bold full /></FieldEdit>
         {/* Fixed the first time this order is printed — every sheet after that
             carries the same date, so two printouts can never disagree. */}
         <FieldEdit label="W/O date"><DateEI value={fields.woDate} onChange={(v) => set("woDate", v)} bold full /></FieldEdit>
         <FieldEdit label="Color"><EI value={fields.color} onChange={(v) => set("color", v)} bold full /></FieldEdit>
-        <FieldEdit label="Notes"><EI value={fields.notes} onChange={(v) => set("notes", v)} size={15} full /></FieldEdit>
+        <FieldEdit label="Notes"><EI value={fields.notes} onChange={(v) => set("notes", v)} size={15} full wrap /></FieldEdit>
       </div>
 
       <PhotoBox minHeight={440} imageUrl={imageUrl} onUpload={onUploadPhoto} onRevert={onRevertPhoto} onHistory={onPhotoHistory} />
@@ -340,7 +370,7 @@ export function CncBody({ fields, set, orderNo, orderLines, numLabel = "WO #", i
 
       <div className="wo-head flex items-start justify-between" style={{ marginBottom: 6 }}>
         <div style={{ flex: 1 }}>
-          <FieldEdit label="Product"><EI value={fields.product} onChange={(v) => set("product", v)} bold full /></FieldEdit>
+          <FieldEdit label="Product"><EI value={fields.product} onChange={(v) => set("product", v)} bold full wrap /></FieldEdit>
           <FieldEdit label="Ordered on"><DateEI value={fields.orderedOn} onChange={(v) => set("orderedOn", v)} bold full /></FieldEdit>
           {/* Fixed on the first print of this order — see BasicBody. */}
           <FieldEdit label="W/O date"><DateEI value={fields.woDate} onChange={(v) => set("woDate", v)} bold full /></FieldEdit>
@@ -355,7 +385,7 @@ export function CncBody({ fields, set, orderNo, orderLines, numLabel = "WO #", i
         {steps.map((s, i) => (
           <div key={s} className="flex items-center gap-3" style={{ marginBottom: 8 }}>
             <span className="font-bold uppercase tracking-wide" style={{ fontSize: 12, color: C.inkSoft, background: C.grayBg, padding: "3px 7px", width: 64, flexShrink: 0 }}>Step {i + 1}:</span>
-            <EI value={fields[s]} onChange={(v) => set(s, v)} size={14} bold full />
+            <EI value={fields[s]} onChange={(v) => set(s, v)} size={14} bold full wrap />
           </div>
         ))}
       </div>
@@ -397,7 +427,7 @@ export function SewingBody({ fields, set, setLineCell, addLine, form, orderNo, o
             <div key={i} className="flex items-stretch" style={{ borderTop: i === 0 ? "none" : `1px solid ${C.line}`, minHeight: 30 }}>
               <div className="flex items-center" style={{ flex: 1, padding: "2px 10px", gap: 8, minWidth: 0 }}>
                 <span style={tag}>PRODUCT:</span>
-                <EI value={ln.product} onChange={(v) => setLineCell(i, "product", v)} size={14} bold full />
+                <EI value={ln.product} onChange={(v) => setLineCell(i, "product", v)} size={14} bold full wrap />
               </div>
               <div className="flex items-center" style={{ borderLeft: `1px solid ${C.line}`, padding: "2px 10px", gap: 8, width: 150 }}>
                 <span style={tag}>QTY:</span>
@@ -432,7 +462,7 @@ export function SawBody({ fields, set, setLineCell, addLine, form, orderNo, orde
         const ln = fields.lines[i] || { item: "", size: "", qty: "" };
         return (
           <div key={i} style={{ marginBottom: 12 }}>
-            <EI value={ln.item} onChange={(v) => setLineCell(i, "item", v)} size={15} bold full placeholder="Material / item" />
+            <EI value={ln.item} onChange={(v) => setLineCell(i, "item", v)} size={15} bold full wrap placeholder="Material / item" />
             <div className="flex items-end gap-3" style={{ marginTop: 4 }}>
               <EI value={ln.size} onChange={(v) => setLineCell(i, "size", v)} size={14} bold full placeholder="Size" />
               <EI value={ln.qty} onChange={(v) => setLineCell(i, "qty", v)} size={14} bold mono align="right" width={60} placeholder="Qty" />

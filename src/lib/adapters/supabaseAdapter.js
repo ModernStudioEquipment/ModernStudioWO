@@ -972,10 +972,14 @@ export const supabaseAdapter = {
     fail(error);
   },
 
-  async updateWorkOrder(id, { title, fields }) {
+  // `type` is the department that makes it. It was missing here, so changing the
+  // department on a sheet that had already been saved wrote everything EXCEPT
+  // the department — the selector moved, the record didn't.
+  async updateWorkOrder(id, { title, fields, type }) {
     const patch = {};
     if (title !== undefined) patch.title = title || "";
     if (fields !== undefined) patch.fields = fields || {};
+    if (type !== undefined) patch.type = type;
     const { error } = await supabase.from("work_orders").update(patch).eq("id", id);
     fail(error);
   },

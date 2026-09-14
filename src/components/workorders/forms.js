@@ -128,6 +128,13 @@ const keysOf = (form) => (form?.fields || []).map((f) => f.key);
 const labelOf = (form, key) => (form?.fields || []).find((f) => f.key === key)?.label || key;
 const filled = (v) => v != null && String(v).trim() !== "";
 
+// The two line-item sheets don't use the same column keys: Sewing is
+// product + qty, Saw is item + size + qty. The wide column is the thing being
+// made on both, whatever it's called, so that's what carries across.
+const lineCols = (form) => form?.line || [];
+const growKey = (form) => (lineCols(form).find((c) => c.grow) || {}).key || null;
+const lineLabel = (form, key) => (lineCols(form).find((c) => c.key === key) || {}).label || key;
+
 /** The labels of anything currently filled in that the target sheet has nowhere to put. */
 export function fieldsLostSwitching(from, to, fields) {
   const a = WO_FORMS[from];
@@ -142,7 +149,18 @@ export function fieldsLostSwitching(from, to, fields) {
     return lost;
   }
   const keep = new Set(keysOf(b));
-  return keysOf(a).filter((k) => !keep.has(k) && filled(fields?.[k])).map((k) => labelOf(a, k));
+  const lost = keysOf(a).filter((k) => !keep.has(k) && filled(fields?.[k])).map((k) => labelOf(a, k));
+  // Same layout, different columns: a Saw cut list carries a Size that a Sewing
+  // sheet has no column for. Say so rather than emptying it on the way over.
+  if (a.layout === "lineItems") {
+    const bKeys = new Set(lineCols(b).map((c) => c.key));
+    const carried = growKey(a);          // the wide column maps to the wide one
+    lineCols(a).forEach((c) => {
+      if (bKeys.has(c.key) || c.key === carried) return;
+      if ((fields?.lines || []).some((l) => filled(l?.[c.key]))) lost.push(lineLabel(a, c.key));
+    });
+  }
+  return lost;
 }
 
 /** The same sheet's values, reshaped for the target department. Common keys carry; nothing else. */
@@ -155,6 +173,20 @@ export function remapFields(from, to, fields) {
   const keep = new Set(keysOf(b));
   const out = { ...base };
   for (const k of keysOf(a)) if (keep.has(k) && filled(fields?.[k])) out[k] = fields[k];
-  if (b.layout === "lineItems" && Array.isArray(fields?.lines)) out.lines = fields.lines;
+  if (b.layout === "lineItems" && Array.isArray(fields?.lines)) {
+    // Carry each row across by column key, and the wide column by its job — the
+    // product/material text is the row. Copying the rows verbatim left a Sewing
+    // list looking empty on a Saw sheet: the words were still there, under a key
+    // that sheet never reads.
+    const bKeys = new Set(lineCols(b).map((c) => c.key));
+    const from = growKey(a);
+    const to = growKey(b);
+    out.lines = fields.lines.map((ln) => {
+      const next = emptyLine(b);
+      Object.keys(ln || {}).forEach((k) => { if (bKeys.has(k)) next[k] = ln[k]; });
+      if (from && to && from !== to && filled(ln?.[from])) next[to] = ln[from];
+      return next;
+    });
+  }
   return out;
 }

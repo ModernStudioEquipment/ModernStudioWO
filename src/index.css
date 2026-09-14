@@ -147,6 +147,13 @@ button:not(.navtab):not(.no-pop),
 .wo-edit::placeholder {
   color: var(--c-gray);
 }
+/* Fields that can run long (product names, notes, cut lines) are textareas that
+   grow with their content — see EI's `wrap`. They keep the sheet's look: no
+   scrollbar, no resize handle, the same dashed underline as every other field. */
+.wo-wrap {
+  overflow: hidden;
+  resize: none;
+}
 
 /* "Completed by" signature line — editable, but keeps its solid underline when
    printed (so there's a line whether or not a name was typed). */

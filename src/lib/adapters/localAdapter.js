@@ -730,12 +730,13 @@ export const localAdapter = {
     writeWO(list);
   },
 
-  async updateWorkOrder(id, { title, fields }) {
+  async updateWorkOrder(id, { title, fields, type }) {
     const list = readWO();
     const w = list.find((x) => x.id === id);
     if (w) {
       if (title !== undefined) w.title = title;
       if (fields !== undefined) w.fields = fields;
+      if (type !== undefined) w.type = type;   // the department that makes it
     }
     writeWO(list);
   },
