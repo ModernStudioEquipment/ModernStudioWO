@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Camera, Plus } from "lucide-react";
 import { C, priLabel } from "../../theme.js";
 import { Wordmark } from "../Logo.jsx";
@@ -83,40 +83,60 @@ export function OrderNos({ label, orderNo, orderLines }) {
   );
 }
 
-function PhotoBox({ minHeight = 220, imageUrl, onUpload, onRevert }) {
+function PhotoBox({ minHeight = 220, imageUrl, onUpload, onRevert, onHistory }) {
   const [dragOver, setDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
-  // What to show right now, and what it was before the last replace.
-  //
-  // The sheet is handed a snapshot of the product taken when it opened, so an
-  // upload used to change the database and leave the picture on screen stale —
-  // you had to close the work order and open it again to see what you'd just
-  // put there. uploadItemPhoto already returned the new URL; nothing used it.
+  // What to show right now. The sheet is handed a snapshot of the product taken
+  // when it opened, so an upload used to change the database and leave the
+  // picture on screen stale — you had to close the work order and open it again
+  // to see what you'd just put there.
   const [justUploaded, setJustUploaded] = useState(null);
-  const [previous, setPrevious] = useState(null);
+  // Every photo this subject has ever had, newest first, read from storage.
+  // Session memory wasn't enough: Revert disappeared as soon as it was used and
+  // never appeared at all on a sheet opened fresh, even though an earlier photo
+  // was sitting right there. Uploads are never overwritten, so the history is
+  // durable and the button can always be offered when there's something to
+  // go back to.
+  const [history, setHistory] = useState([]);
+  // Fallback for backends with no durable photo store (local/demo mode): what
+  // the picture was before the replace made in this sheet. Storage history is
+  // preferred when it exists because it survives closing the sheet.
+  const [sessionPrev, setSessionPrev] = useState(null);
   const fileRef = useRef(null);
   const shown = justUploaded ?? imageUrl;
+
+  const loadHistory = async () => {
+    if (!onHistory) return;
+    const urls = await onHistory();
+    setHistory(Array.isArray(urls) ? urls : []);
+  };
+  useEffect(() => { loadHistory(); }, [onHistory]);
+
+  // The most recent photo that ISN'T the one on screen. After a revert this
+  // points back at the newer one, so the button keeps working in both
+  // directions rather than stranding you on whichever you picked.
+  const revertTo = history.find((u) => u !== shown) || (sessionPrev !== shown ? sessionPrev : null) || null;
 
   const handle = async (file) => {
     if (!file || !onUpload || uploading) return;
     setUploading(true);
     try {
       const url = await onUpload(file);
-      if (url) { setPrevious(shown || null); setJustUploaded(url); }
+      if (url) { setSessionPrev(shown || null); setJustUploaded(url); await loadHistory(); }
     } finally {
       setUploading(false);
     }
   };
 
-  // Put the previous photo back — the replace is the one photo action that
-  // silently destroys something, and a wrong drag is easy.
+  // Put an earlier photo back. Replacing is the one photo action that destroys
+  // what was there, and a stray drag does it.
   const revert = async () => {
-    if (!previous || uploading) return;
+    if (!revertTo || uploading) return;
     setUploading(true);
     try {
-      if (onRevert) await onRevert(previous);
-      setJustUploaded(previous);
-      setPrevious(null);
+      if (onRevert) await onRevert(revertTo);
+      setSessionPrev(shown || null);   // so it can swap back again
+      setJustUploaded(revertTo);
     } finally {
       setUploading(false);
     }
@@ -135,8 +155,8 @@ function PhotoBox({ minHeight = 220, imageUrl, onUpload, onRevert }) {
       <div {...drop} className="flex items-center justify-center" style={{ position: "relative", margin: "20px 0", minHeight, border: `${dragOver ? 2 : 1}px ${dragOver ? "dashed" : "solid"} ${dragOver ? C.blue : C.line}`, borderRadius: 4, background: C.surface, overflow: "hidden" }}>
         <img src={shown} alt="Product" style={{ maxWidth: "100%", maxHeight: minHeight + 80, objectFit: "contain" }} />
         <div className="no-print" style={{ position: "absolute", top: 6, right: 6, display: "flex", gap: 6 }}>
-          {previous && (
-            <button type="button" onClick={revert} title="Put the previous photo back" style={{ ...pill, color: C.rush }}>
+          {revertTo && (
+            <button type="button" onClick={revert} title="Go back to the previous photo" style={{ ...pill, color: C.rush }}>
               {uploading ? "…" : "Revert"}
             </button>
           )}
@@ -181,7 +201,7 @@ function AddRow({ onClick }) {
 const tag = { fontSize: 11, fontWeight: 700, color: C.inkSoft, background: C.grayBg, padding: "2px 6px", letterSpacing: 0.5 };
 
 // ---- Shop (basic) ----
-export function BasicBody({ fields, set, orderNo, orderLines, numLabel = "WO #", imageUrl, items, onUploadPhoto, onRevertPhoto }) {
+export function BasicBody({ fields, set, orderNo, orderLines, numLabel = "WO #", imageUrl, items, onUploadPhoto, onRevertPhoto, onPhotoHistory }) {
   const multi = items && items.length > 1;
   return (
     <>
@@ -229,14 +249,14 @@ export function BasicBody({ fields, set, orderNo, orderLines, numLabel = "WO #",
         <FieldEdit label="Notes"><EI value={fields.notes} onChange={(v) => set("notes", v)} size={15} full /></FieldEdit>
       </div>
 
-      <PhotoBox minHeight={440} imageUrl={imageUrl} onUpload={onUploadPhoto} onRevert={onRevertPhoto} />
+      <PhotoBox minHeight={440} imageUrl={imageUrl} onUpload={onUploadPhoto} onRevert={onRevertPhoto} onHistory={onPhotoHistory} />
       <CompletedBy value={fields.completedBy} onChange={(v) => set("completedBy", v)} />
     </>
   );
 }
 
 // ---- CNC: MODERN sheet + part # + 6 step lines ----
-export function CncBody({ fields, set, orderNo, orderLines, numLabel = "WO #", imageUrl, onUploadPhoto, onRevertPhoto }) {
+export function CncBody({ fields, set, orderNo, orderLines, numLabel = "WO #", imageUrl, onUploadPhoto, onRevertPhoto, onPhotoHistory }) {
   const steps = ["step1", "step2", "step3", "step4", "step5", "step6"];
   return (
     <>
@@ -272,7 +292,7 @@ export function CncBody({ fields, set, orderNo, orderLines, numLabel = "WO #", i
         ))}
       </div>
 
-      <PhotoBox minHeight={320} imageUrl={imageUrl} onUpload={onUploadPhoto} onRevert={onRevertPhoto} />
+      <PhotoBox minHeight={320} imageUrl={imageUrl} onUpload={onUploadPhoto} onRevert={onRevertPhoto} onHistory={onPhotoHistory} />
       <CompletedBy value={fields.completedBy} onChange={(v) => set("completedBy", v)} />
     </>
   );

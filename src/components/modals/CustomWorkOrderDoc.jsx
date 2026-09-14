@@ -11,7 +11,7 @@ import { bodyFor } from "../workorders/bodies.jsx";
 // Save & Print persists then prints (inputs print clean via the print CSS).
 // Handles both new (no wo.id) and existing work orders. The per-department
 // sheet bodies are shared with the Shopify sheet (see workorders/bodies.jsx).
-export function CustomWorkOrderDoc({ wo, onSave, onUploadPhoto, onClose }) {
+export function CustomWorkOrderDoc({ wo, onSave, onUploadPhoto, onPhotoHistory, onClose }) {
   const t = wo.type;
   const form = WO_FORMS[t];
   const isLines = form.layout === "lineItems";
@@ -77,6 +77,7 @@ export function CustomWorkOrderDoc({ wo, onSave, onUploadPhoto, onClose }) {
       ? async (file) => { const url = await onUploadPhoto(wo.id, file); if (url) set("imageUrl", url); return url; }
       : undefined,
     onRevertPhoto: (url) => set("imageUrl", url),
+    onPhotoHistory: onPhotoHistory ? () => onPhotoHistory(wo.id) : undefined,
   };
 
   return createPortal(

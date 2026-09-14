@@ -419,6 +419,10 @@ export const localAdapter = {
 
   // Demo mode: no Storage — read the dropped file as a data URL and stash it.
   // Local mode has no object storage — a data URL is enough to see it work.
+  // Local mode keeps its uploads as data URLs in memory only, so there is no
+  // durable history to read back. Returning nothing simply hides Revert.
+  async listPhotoHistory() { return []; },
+
   async uploadWorkOrderPhoto(woId, file) {
     return await new Promise((res) => {
       const r = new FileReader();

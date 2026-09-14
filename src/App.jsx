@@ -1689,6 +1689,9 @@ export default function App() {
           // Put the old photo back if a replace was a mistake — the one
           // photo action that destroys what was there.
           onRevertPhoto={(url) => board.updateItem((doc.saveTargets || doc.items)[0].id, { imageUrl: url })}
+          // Uploads live under the item's own folder, so the history is durable
+          // and Revert is offered whenever an earlier photo exists.
+          onPhotoHistory={() => db.listPhotoHistory((doc.saveTargets || doc.items)[0].id)}
           onClose={() => setDoc(null)}
         />
       )}
@@ -1831,7 +1834,7 @@ export default function App() {
         />
       )}
       {customDoc && (
-        <CustomWorkOrderDoc wo={customDoc} onSave={saveWorkOrder} onUploadPhoto={wo.uploadPhoto} onClose={() => setCustomDoc(null)} />
+        <CustomWorkOrderDoc wo={customDoc} onSave={saveWorkOrder} onUploadPhoto={wo.uploadPhoto} onPhotoHistory={(id) => db.listPhotoHistory(`wo/${id || "new"}`)} onClose={() => setCustomDoc(null)} />
       )}
     </div>
   );

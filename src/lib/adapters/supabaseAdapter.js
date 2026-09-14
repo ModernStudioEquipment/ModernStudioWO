@@ -514,6 +514,26 @@ export const supabaseAdapter = {
   // Upload a photo for a CUSTOM work order. These aren't order items, so they
   // have no items row to hang an image on — the URL is stored by the caller in
   // the work order's own `fields` JSON. Returns the URL; writes no row itself.
+  // Every photo ever uploaded for a subject, newest first.
+  //
+  // Revert used to rely on remembering the replace within the open sheet, so it
+  // vanished the moment you used it and never appeared at all if you reopened
+  // the work order later. Uploads are never overwritten — each one lands in the
+  // subject's own folder under a timestamped name — so the real history is
+  // already on disk and can be read back whenever it's needed.
+  async listPhotoHistory(folder) {
+    try {
+      const { data, error } = await supabase.storage.from("item-photos")
+        .list(folder, { limit: 20, sortBy: { column: "name", order: "desc" } });
+      if (error || !Array.isArray(data)) return [];
+      return data
+        .filter((f) => f.name && !f.name.startsWith("."))   // skip the placeholder rows storage adds
+        .map((f) => supabase.storage.from("item-photos").getPublicUrl(`${folder}/${f.name}`).data.publicUrl);
+    } catch {
+      return [];   // history is a convenience; never let it break the sheet
+    }
+  },
+
   async uploadWorkOrderPhoto(woId, file) {
     const ext = ((file.name && file.name.split(".").pop()) || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
     const path = `wo/${woId || "new"}/${Date.now()}.${ext}`;
