@@ -3,7 +3,7 @@ import {
   Clock, Printer, Plus, Truck, CheckCircle2, AlertTriangle, Hammer,
   Flag, Check, ArrowRight, ShoppingCart, LogOut, Store, MapPin, Package, X, Bell, ExternalLink, RefreshCw, Pencil, RotateCcw, ChevronsDownUp, ChevronsUpDown, Sun, Moon, MonitorPlay, Layers, ArrowUpDown, ChevronLeft, ChevronRight, PackageSearch, PackageCheck, Trash2, DollarSign,
 } from "lucide-react";
-import { C, PRI, PRI_CYCLE, PRI_RANK, elapsed, stamp, materialKey, quoteNoteFor, whereIsItem, noteAuthorName, blocked, pct, dueLabel, priLabel, effectivePriority, trackingUrl, stagedTooLong, stagedDwellMs, STAGE_LABELS } from "./theme.js";
+import { C, PRI, PRI_CYCLE, PRI_RANK, elapsed, stamp, materialKey, quoteNoteFor, noteTrailOf, whereIsItem, noteAuthorName, blocked, pct, dueLabel, priLabel, effectivePriority, trackingUrl, stagedTooLong, stagedDwellMs, STAGE_LABELS } from "./theme.js";
 import { backendMode, db } from "./lib/db.js";
 import { useAuth } from "./hooks/useAuth.js";
 import { useOrders } from "./hooks/useOrders.js";
@@ -12,7 +12,7 @@ import { useUndo } from "./hooks/useUndo.js";
 import { useStockNotices } from "./hooks/useStockNotices.js";
 import { useCosting } from "./hooks/useCosting.js";
 import {
-  Pill, Btn, Group, ItemLine, Empty, Tabwrap, DeptBadge, DuePill, CompletionPill, MethodBadge, InvoicedBadge, MoveMenu, SittingBadge, InlineMenu,
+  Pill, Btn, Group, ItemLine, Empty, Tabwrap, DeptBadge, DuePill, CompletionPill, MethodBadge, InvoicedBadge, MoveMenu, SittingBadge, InlineMenu, NoteTrail,
 } from "./components/ui.jsx";
 import { Auth } from "./components/Auth.jsx";
 import { Logo } from "./components/Logo.jsx";
@@ -1355,7 +1355,9 @@ export default function App() {
                               {/* Click the product to open the order pop-up and edit its details. */}
                               <span className="flex items-center gap-1">
                                 <button onClick={() => setOrderTarget(m)} title="Click to edit order details" className="font-bold text-left hover:underline" style={{ fontSize: 14, background: "none", border: "none", padding: 0, cursor: "pointer", color: "inherit" }}>{m.name}</button>
-                                {m.note && <Bell size={13} color={C.gold} title={m.note} style={{ flexShrink: 0 }} />}
+                                {(m.note || m.noteLog?.length > 0) && (
+                                  <Bell size={13} color={C.gold} title={noteTrailOf(m).map((n) => n.body).join("\n\n")} style={{ flexShrink: 0 }} />
+                                )}
                               </span>
                               {o.source !== "purchase" && <div style={{ fontSize: 12, color: C.gray }}>for {it.name}</div>}
                             </div>
@@ -1427,6 +1429,10 @@ export default function App() {
                               {[m.orderedQty && `got ${m.orderedQty}`, m.poNumber && `PO ${m.poNumber}`, m.vendor, m.contact && `talked to ${m.contact}`, m.orderedBy && `by ${m.orderedBy}`, m.orderedAt && `ordered ${stamp(new Date(m.orderedAt).getTime(), now)}`, m.expectedAt && `exp ${dueLabel(m.expectedAt)}`].filter(Boolean).join(" · ")}
                             </div>
                           )}
+                          {/* Every note on this material, not just the newest. A note
+                              added about one line must never push the earlier one out
+                              of sight — nothing is overwritten, so nothing disappears. */}
+                          <NoteTrail notes={m.noteLog} note={m.note} by={m.noteBy} at={m.noteAt} now={now} />
                         </div>
                         );
                       })

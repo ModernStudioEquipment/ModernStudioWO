@@ -91,6 +91,13 @@ export function BulkMaterialModal({ materials = [], defaultBuyer = "", onConfirm
                     {m.amount && <span style={{ color: C.gray, flexShrink: 0 }}>asked for {m.amount}</span>}
                     {m.ordered && <span className="ml-auto" style={{ fontSize: 10.5, fontWeight: 800, color: C.blue, flexShrink: 0 }}>ALREADY ORDERED</span>}
                   </div>
+                  {/* What's already on this line. A new note is added to it, never
+                      over it, and seeing the existing one is how you know that. */}
+                  {m.note && (
+                    <div style={{ fontSize: 11.5, color: C.gray, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      note so far: {m.note}
+                    </div>
+                  )}
                   <div className="flex items-center gap-2 mt-1.5">
                     <input
                       value={l.qty} onChange={(e) => setLine(m.id, "qty", e.target.value)}

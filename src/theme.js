@@ -301,6 +301,24 @@ export function pickedUpLabel(item, fulfillment) {
 //
 // A note belongs to a single material. Flagging one material edits its own note,
 // so anything typed wins — including clearing it. Flagging a whole order at once
+// Every note a subject actually has, oldest first.
+//
+// Notes live in two places for historical reasons: the append-only log (0057),
+// and the subject's own `note` column, which is what the older flows (quote
+// requested, mark ordered) still write and what the ~30 "show me the note"
+// places read. A subject can therefore have log entries AND a newer note that
+// never reached the log — and showing only the log would hide it.
+//
+// So: the log, plus the current note if no entry already says the same thing.
+export function noteTrailOf({ noteLog, note, noteBy, noteAt } = {}) {
+  const list = Array.isArray(noteLog) ? [...noteLog] : [];
+  const current = (note || "").trim();
+  if (current && !list.some((n) => (n.body || "").trim() === current)) {
+    list.push({ id: "current", body: note, author: noteBy || null, at: noteAt || null });
+  }
+  return list;
+}
+
 // must never disturb a note somebody already wrote: it only fills in blanks.
 //
 // Returns `undefined` to mean "leave this material's note alone" — the value

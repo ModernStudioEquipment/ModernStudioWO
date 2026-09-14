@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Clock, Wrench, Scissors, Cpu, Hammer, Flag, Check, ChevronDown, Store, Truck, Bell, CalendarCheck, CheckSquare, Square } from "lucide-react";
-import { C, PRI, PRIORITIES, DEPTS, elapsed, stamp, sittingLevel, stageDwellMs, STAGE_LABELS, dueLabel, dueLevel, DUE } from "../theme.js";
+import { C, PRI, PRIORITIES, DEPTS, elapsed, stamp, sittingLevel, stageDwellMs, STAGE_LABELS, dueLabel, dueLevel, DUE, noteTrailOf } from "../theme.js";
 
 const DEPT_ICONS = { Shop: Hammer, CNC: Cpu, Sewing: Scissors, Saw: Wrench };
 export const DeptIcon = ({ d, size = 12 }) => {
@@ -100,6 +100,37 @@ export function NoteThread({ notes = [], now, onAdd, placeholder = "Add a note�
           )}
         </>
       )}
+    </div>
+  );
+}
+
+// Every note a subject has, oldest first, each with who wrote it and when.
+//
+// Notes are append-only and nothing is ever overwritten — but a purchasing row
+// only ever SHOWED the newest one (the mirrored `note` column), so adding a note
+// about one line pushed the earlier one out of sight and it read as deleted.
+// The whole trail is shown instead.
+//
+// Anything written before the note log existed has no entries, only the mirrored
+// column — so that's the fallback, and those notes don't vanish either.
+export function NoteTrail({ notes = [], note, by, at, now, max = 0 }) {
+  const list = noteTrailOf({ noteLog: notes, note, noteBy: by, noteAt: at });
+  if (!list.length) return null;
+  const shown = max > 0 ? list.slice(-max) : list;
+  return (
+    <div style={{ marginTop: 7 }}>
+      {shown.length < list.length && (
+        <div style={{ fontSize: 11, color: C.gray }}>{list.length - shown.length} earlier note{list.length - shown.length === 1 ? "" : "s"}</div>
+      )}
+      {shown.map((n) => (
+        <div key={n.id} style={{ borderLeft: `2px solid ${C.gold}`, paddingLeft: 8, marginTop: 5 }}>
+          <div style={{ fontSize: 12.5, whiteSpace: "pre-wrap" }}>{n.body}</div>
+          <div style={{ fontSize: 11, color: C.gray }}>
+            {n.author || "author unknown"}
+            {n.at ? ` · ${stamp(new Date(n.at).getTime(), now)}` : ""}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
