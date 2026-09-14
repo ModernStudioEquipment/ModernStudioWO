@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { Printer } from "lucide-react";
 import { C, fmtDate } from "../../theme.js";
 import { Btn } from "../ui.jsx";
+import { useDirty, UnsavedPrompt } from "../UnsavedGuard.jsx";
 import { WO_FORMS, initFields, emptyLine } from "../workorders/forms.js";
 import { bodyFor } from "../workorders/bodies.jsx";
 
@@ -65,6 +66,11 @@ export function CustomWorkOrderDoc({ wo, onSave, onUploadPhoto, onPhotoHistory, 
     }
   };
 
+  // Closing with typing in the form used to bin it silently.
+  const dirty = useDirty({ fields, title });
+  const [askClose, setAskClose] = useState(false);
+  const tryClose = () => (dirty ? setAskClose(true) : onClose());
+
   const Body = bodyFor(t);
   // A custom sheet has no order item to hang a photo on, so the URL lives in the
   // work order's own `fields` JSON — same place as everything else typed here,
@@ -81,17 +87,26 @@ export function CustomWorkOrderDoc({ wo, onSave, onUploadPhoto, onPhotoHistory, 
   };
 
   return createPortal(
-    <div className="print-doc-overlay" style={overlay} onClick={onClose}>
+    <div className="print-doc-overlay" style={overlay} onClick={tryClose}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: 680, maxWidth: "96vw" }}>
         <div className="flex gap-2 mb-2 justify-end no-print">
           <Btn kind="green" onClick={() => save(false)} disabled={saving}>{saving ? "Saving…" : "Save"}</Btn>
           <Btn kind="brass" onClick={() => save(true)} disabled={saving}><Printer size={15} />Save &amp; Print</Btn>
-          <Btn onClick={onClose}>Close</Btn>
+          <Btn onClick={tryClose}>Close</Btn>
         </div>
         <div id="wo" style={{ background: C.surface, border: `1px solid ${C.line}`, padding: "30px 34px" }}>
           <Body {...bodyProps} />
         </div>
       </div>
+      {askClose && (
+        <UnsavedPrompt
+          what="work order"
+          saving={saving}
+          onSave={async () => { await save(false); setAskClose(false); onClose(); }}
+          onDiscard={() => { setAskClose(false); onClose(); }}
+          onCancel={() => setAskClose(false)}
+        />
+      )}
     </div>,
     document.body,
   );
