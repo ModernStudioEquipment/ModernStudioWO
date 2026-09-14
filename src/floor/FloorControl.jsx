@@ -3,6 +3,7 @@ import { ArrowLeft, GripVertical, ExternalLink, Flame, ChevronsUp, StickyNote, B
 import Sortable from "sortablejs";
 import { db } from "../lib/db.js";
 import CncLibrary from "./CncLibrary.jsx";
+import { FLOOR_DEPTS } from "./depts.js";
 import "./floorControl.css";
 
 // The four departments in the dark floor world. Colors match the wall monitors
@@ -41,7 +42,15 @@ function byRush(items) {
   return items.slice().sort((a, b) => Number(b.rush) - Number(a.rush) || a.receivedAt - b.receivedAt);
 }
 
-function collect(orders, dbDept) {
+// What this department has to make, from BOTH sources.
+//
+// Work orders raised on the Work Order tab live in their own table — they are
+// not order items — so walking `orders` alone could never surface them, and a
+// sheet you'd just created simply never reached the floor. The floor's own
+// state (notes, machine assignment, running order) is keyed by id in side maps
+// rather than on the items table, so a work order slots in without needing to
+// pretend to be one.
+function collect(orders, dbDept, workOrders = []) {
   const out = [];
   orders.forEach((o) =>
     o.items.forEach((it) => {
@@ -60,6 +69,26 @@ function collect(orders, dbDept) {
       }
     })
   );
+
+  (workOrders || []).forEach((w) => {
+    if (w.done) return;
+    if (FLOOR_DEPTS[w.type]?.db !== dbDept) return;
+    const f = w.fields || {};
+    const rows = Array.isArray(f.lines) ? f.lines.filter((l) => Object.values(l || {}).some((v) => String(v || "").trim())) : [];
+    out.push({
+      // Prefixed so it can never collide with an item id in the floor's note
+      // and machine maps.
+      id: `wo-${w.id}`,
+      name: f.product || w.title || `Work order ${w.orderNo}`,
+      qty: f.total || f.order || (rows.length ? `${rows.length} line${rows.length === 1 ? "" : "s"}` : ""),
+      color: f.color || null,
+      inProgress: false,
+      orderNo: w.orderNo,
+      rush: false,
+      receivedAt: w.createdAt ? new Date(w.createdAt).getTime() : Date.now(),
+      image: f.imageUrl || null,
+    });
+  });
   return out;
 }
 
@@ -68,7 +97,7 @@ function initials(name = "") {
   return (w[0]?.[0] || "?").toUpperCase() + (w[1]?.[0] || "").toUpperCase();
 }
 
-export default function FloorControl({ orders, onClose, cncOnly = false, onSignOut }) {
+export default function FloorControl({ orders, workOrders = [], onClose, cncOnly = false, onSignOut }) {
   const navDepts = cncOnly ? DEPTS.filter((d) => d.key === "cnc") : DEPTS;
   const [active, setActive] = useState("cnc");
   const [cncView, setCncView] = useState("unassigned"); // "unassigned" | machine key
@@ -126,7 +155,7 @@ export default function FloorControl({ orders, onClose, cncOnly = false, onSignO
 
   // ---- work out what this view is showing ----
   const isCnc = active === "cnc";
-  const cncItems = isCnc ? collect(orders, "CNC") : [];
+  const cncItems = isCnc ? collect(orders, "CNC", workOrders) : [];
   const unassigned = cncItems.filter((it) => !machines[it.id]);
   const byMachine = {};
   MACHINES.forEach((m) => (byMachine[m.key] = cncItems.filter((it) => machines[it.id] === m.key)));
@@ -145,7 +174,7 @@ export default function FloorControl({ orders, onClose, cncOnly = false, onSignO
       viewLabel = MACHINES.find((m) => m.key === cncView)?.short || cncView;
     }
   } else {
-    baseItems = collect(orders, dept.db);
+    baseItems = collect(orders, dept.db, workOrders);
     queueKey = active;
     canOrder = true;
     viewLabel = dept.label;
@@ -158,7 +187,7 @@ export default function FloorControl({ orders, onClose, cncOnly = false, onSignO
   // department (amber) identity stays on the header/logo.
   const laneColor = isCnc && cncView !== "unassigned" ? MACHINES.find((m) => m.key === cncView)?.color || dept.accent : dept.accent;
 
-  const deptCount = (d) => collect(orders, d.db).length;
+  const deptCount = (d) => collect(orders, d.db, workOrders).length;
 
   function persist(key, nextIds) {
     if (!key) return;
