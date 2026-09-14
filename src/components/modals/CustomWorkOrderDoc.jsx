@@ -11,7 +11,7 @@ import { bodyFor } from "../workorders/bodies.jsx";
 // Save & Print persists then prints (inputs print clean via the print CSS).
 // Handles both new (no wo.id) and existing work orders. The per-department
 // sheet bodies are shared with the Shopify sheet (see workorders/bodies.jsx).
-export function CustomWorkOrderDoc({ wo, onSave, onClose }) {
+export function CustomWorkOrderDoc({ wo, onSave, onUploadPhoto, onClose }) {
   const t = wo.type;
   const form = WO_FORMS[t];
   const isLines = form.layout === "lineItems";
@@ -66,7 +66,18 @@ export function CustomWorkOrderDoc({ wo, onSave, onClose }) {
   };
 
   const Body = bodyFor(t);
-  const bodyProps = { fields, set, setLineCell, addLine, form, orderNo: wo.orderNo };
+  // A custom sheet has no order item to hang a photo on, so the URL lives in the
+  // work order's own `fields` JSON — same place as everything else typed here,
+  // and saved by the same Save button. Without this the shared body rendered a
+  // dead photo box: no drop target, no file picker, just "No photo yet".
+  const bodyProps = {
+    fields, set, setLineCell, addLine, form, orderNo: wo.orderNo,
+    imageUrl: fields.imageUrl || null,
+    onUploadPhoto: onUploadPhoto
+      ? async (file) => { const url = await onUploadPhoto(wo.id, file); if (url) set("imageUrl", url); return url; }
+      : undefined,
+    onRevertPhoto: (url) => set("imageUrl", url),
+  };
 
   return createPortal(
     <div className="print-doc-overlay" style={overlay} onClick={onClose}>

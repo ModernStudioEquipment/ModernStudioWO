@@ -418,6 +418,15 @@ export const localAdapter = {
   },
 
   // Demo mode: no Storage — read the dropped file as a data URL and stash it.
+  // Local mode has no object storage — a data URL is enough to see it work.
+  async uploadWorkOrderPhoto(woId, file) {
+    return await new Promise((res) => {
+      const r = new FileReader();
+      r.onload = () => res(r.result);
+      r.readAsDataURL(file);
+    });
+  },
+
   async uploadItemPhoto(itemId, file) {
     const url = await new Promise((res) => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(file); });
     let name = null;

@@ -12,7 +12,7 @@ const DEPT_TO_TYPE = { Shop: "shop", CNC: "cnc", Sewing: "sewing", Saw: "saw" };
 // that department's items go on a single sheet. Sewing/Saw list them as rows;
 // Shop/CNC use one product (or a combined line for several). "Completed by"
 // saves to every item on the sheet.
-export function WorkOrderDoc({ order, items, onSave, onPrinted, onUploadPhoto, onClose }) {
+export function WorkOrderDoc({ order, items, onSave, onPrinted, onUploadPhoto, onRevertPhoto, onClose }) {
   const type = DEPT_TO_TYPE[items[0]?.dept] || "shop";
   const form = WO_FORMS[type];
   const isLines = form.layout === "lineItems";
@@ -100,6 +100,7 @@ export function WorkOrderDoc({ order, items, onSave, onPrinted, onUploadPhoto, o
     orderLines: order.orderLines,
     imageUrl: items.length === 1 ? items[0].imageUrl : null,
     onUploadPhoto,
+    onRevertPhoto,
   };
 
   return createPortal(

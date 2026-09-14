@@ -32,6 +32,7 @@ export function useWorkOrders(enabled) {
   }, [enabled, refetch]);
 
   return {
+    uploadPhoto: (woId, file) => db.uploadWorkOrderPhoto(woId, file),
     workOrders,
     error,
     nextWorkOrderNo: () => db.nextWorkOrderNo(),

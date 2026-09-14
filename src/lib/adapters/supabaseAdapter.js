@@ -511,6 +511,17 @@ export const supabaseAdapter = {
   },
 
   // Upload a dropped/selected photo file to Storage and save its URL on the item.
+  // Upload a photo for a CUSTOM work order. These aren't order items, so they
+  // have no items row to hang an image on — the URL is stored by the caller in
+  // the work order's own `fields` JSON. Returns the URL; writes no row itself.
+  async uploadWorkOrderPhoto(woId, file) {
+    const ext = ((file.name && file.name.split(".").pop()) || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+    const path = `wo/${woId || "new"}/${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from("item-photos").upload(path, file, { upsert: true, contentType: file.type || undefined });
+    fail(error);
+    return supabase.storage.from("item-photos").getPublicUrl(path).data.publicUrl;
+  },
+
   async uploadItemPhoto(itemId, file) {
     const ext = (file.name && file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
     const path = `${itemId}/${Date.now()}.${ext}`;

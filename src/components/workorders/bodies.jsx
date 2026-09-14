@@ -83,22 +83,69 @@ export function OrderNos({ label, orderNo, orderLines }) {
   );
 }
 
-function PhotoBox({ minHeight = 220, imageUrl, onUpload }) {
+function PhotoBox({ minHeight = 220, imageUrl, onUpload, onRevert }) {
   const [dragOver, setDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
+  // What to show right now, and what it was before the last replace.
+  //
+  // The sheet is handed a snapshot of the product taken when it opened, so an
+  // upload used to change the database and leave the picture on screen stale —
+  // you had to close the work order and open it again to see what you'd just
+  // put there. uploadItemPhoto already returned the new URL; nothing used it.
+  const [justUploaded, setJustUploaded] = useState(null);
+  const [previous, setPrevious] = useState(null);
   const fileRef = useRef(null);
-  const handle = async (file) => { if (!file || !onUpload || uploading) return; setUploading(true); try { await onUpload(file); } finally { setUploading(false); } };
+  const shown = justUploaded ?? imageUrl;
+
+  const handle = async (file) => {
+    if (!file || !onUpload || uploading) return;
+    setUploading(true);
+    try {
+      const url = await onUpload(file);
+      if (url) { setPrevious(shown || null); setJustUploaded(url); }
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // Put the previous photo back — the replace is the one photo action that
+  // silently destroys something, and a wrong drag is easy.
+  const revert = async () => {
+    if (!previous || uploading) return;
+    setUploading(true);
+    try {
+      if (onRevert) await onRevert(previous);
+      setJustUploaded(previous);
+      setPrevious(null);
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const drop = onUpload ? {
     onDragOver: (e) => { e.preventDefault(); setDragOver(true); },
     onDragLeave: () => setDragOver(false),
     onDrop: (e) => { e.preventDefault(); setDragOver(false); handle(e.dataTransfer.files && e.dataTransfer.files[0]); },
   } : {};
   const hiddenInput = onUpload && <input ref={fileRef} type="file" accept="image/*" className="no-print" style={{ display: "none" }} onChange={(e) => handle(e.target.files && e.target.files[0])} />;
-  if (imageUrl) {
+  const pill = { fontSize: 11, fontWeight: 700, background: "rgba(255,255,255,0.92)", border: `1px solid ${C.line}`, borderRadius: 6, padding: "3px 8px", cursor: "pointer" };
+
+  if (shown) {
     return (
       <div {...drop} className="flex items-center justify-center" style={{ position: "relative", margin: "20px 0", minHeight, border: `${dragOver ? 2 : 1}px ${dragOver ? "dashed" : "solid"} ${dragOver ? C.blue : C.line}`, borderRadius: 4, background: C.surface, overflow: "hidden" }}>
-        <img src={imageUrl} alt="Product" style={{ maxWidth: "100%", maxHeight: minHeight + 80, objectFit: "contain" }} />
-        {onUpload && <button type="button" className="no-print" onClick={() => fileRef.current && fileRef.current.click()} style={{ position: "absolute", top: 6, right: 6, fontSize: 11, fontWeight: 700, background: "rgba(255,255,255,0.92)", border: `1px solid ${C.line}`, borderRadius: 6, padding: "3px 8px", cursor: "pointer" }}>{uploading ? "…" : "Replace"}</button>}
+        <img src={shown} alt="Product" style={{ maxWidth: "100%", maxHeight: minHeight + 80, objectFit: "contain" }} />
+        <div className="no-print" style={{ position: "absolute", top: 6, right: 6, display: "flex", gap: 6 }}>
+          {previous && (
+            <button type="button" onClick={revert} title="Put the previous photo back" style={{ ...pill, color: C.rush }}>
+              {uploading ? "…" : "Revert"}
+            </button>
+          )}
+          {onUpload && (
+            <button type="button" onClick={() => fileRef.current && fileRef.current.click()} style={pill}>
+              {uploading ? "…" : "Replace"}
+            </button>
+          )}
+        </div>
         {hiddenInput}
       </div>
     );
@@ -134,7 +181,7 @@ function AddRow({ onClick }) {
 const tag = { fontSize: 11, fontWeight: 700, color: C.inkSoft, background: C.grayBg, padding: "2px 6px", letterSpacing: 0.5 };
 
 // ---- Shop (basic) ----
-export function BasicBody({ fields, set, orderNo, orderLines, numLabel = "WO #", imageUrl, items, onUploadPhoto }) {
+export function BasicBody({ fields, set, orderNo, orderLines, numLabel = "WO #", imageUrl, items, onUploadPhoto, onRevertPhoto }) {
   const multi = items && items.length > 1;
   return (
     <>
@@ -182,14 +229,14 @@ export function BasicBody({ fields, set, orderNo, orderLines, numLabel = "WO #",
         <FieldEdit label="Notes"><EI value={fields.notes} onChange={(v) => set("notes", v)} size={15} full /></FieldEdit>
       </div>
 
-      <PhotoBox minHeight={440} imageUrl={imageUrl} onUpload={onUploadPhoto} />
+      <PhotoBox minHeight={440} imageUrl={imageUrl} onUpload={onUploadPhoto} onRevert={onRevertPhoto} />
       <CompletedBy value={fields.completedBy} onChange={(v) => set("completedBy", v)} />
     </>
   );
 }
 
 // ---- CNC: MODERN sheet + part # + 6 step lines ----
-export function CncBody({ fields, set, orderNo, orderLines, numLabel = "WO #", imageUrl, onUploadPhoto }) {
+export function CncBody({ fields, set, orderNo, orderLines, numLabel = "WO #", imageUrl, onUploadPhoto, onRevertPhoto }) {
   const steps = ["step1", "step2", "step3", "step4", "step5", "step6"];
   return (
     <>
@@ -225,7 +272,7 @@ export function CncBody({ fields, set, orderNo, orderLines, numLabel = "WO #", i
         ))}
       </div>
 
-      <PhotoBox minHeight={320} imageUrl={imageUrl} onUpload={onUploadPhoto} />
+      <PhotoBox minHeight={320} imageUrl={imageUrl} onUpload={onUploadPhoto} onRevert={onRevertPhoto} />
       <CompletedBy value={fields.completedBy} onChange={(v) => set("completedBy", v)} />
     </>
   );

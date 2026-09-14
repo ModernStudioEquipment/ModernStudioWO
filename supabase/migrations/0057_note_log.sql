@@ -47,6 +47,10 @@ insert into public.notes (subject_type, subject_id, body, author, created_at)
 select 'item', i.id, i.note, i.note_by, i.note_at
   from public.items i
  where coalesce(trim(i.note), '') <> ''
+   -- NOT the QuickBooks item code. The sync writes "Item #: 013-2410-BZ" into
+   -- this same column, and copying those in made 2,838 machine strings look
+   -- like notes people had written. A further line means real prose: keep those.
+   and not (i.note ~ '^Item #:' and i.note !~ '[\r\n]')
    and not exists (select 1 from public.notes n where n.subject_type='item' and n.subject_id=i.id);
 
 insert into public.notes (subject_type, subject_id, body, author, created_at)

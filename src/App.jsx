@@ -1686,6 +1686,9 @@ export default function App() {
             return stamps.filter(Boolean).sort()[0] || null;   // the earliest first-print wins
           }}
           onUploadPhoto={(file) => board.uploadItemPhoto((doc.saveTargets || doc.items)[0].id, file)}
+          // Put the old photo back if a replace was a mistake — the one
+          // photo action that destroys what was there.
+          onRevertPhoto={(url) => board.updateItem((doc.saveTargets || doc.items)[0].id, { imageUrl: url })}
           onClose={() => setDoc(null)}
         />
       )}
@@ -1828,7 +1831,7 @@ export default function App() {
         />
       )}
       {customDoc && (
-        <CustomWorkOrderDoc wo={customDoc} onSave={saveWorkOrder} onClose={() => setCustomDoc(null)} />
+        <CustomWorkOrderDoc wo={customDoc} onSave={saveWorkOrder} onUploadPhoto={wo.uploadPhoto} onClose={() => setCustomDoc(null)} />
       )}
     </div>
   );
