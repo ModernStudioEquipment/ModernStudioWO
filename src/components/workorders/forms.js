@@ -114,3 +114,47 @@ export const initFields = (form) => {
   form.fields.forEach((f) => (o[f.key] = f.default ? f.default() : ""));
   return o;
 };
+
+// ── moving a work order between departments ─────────────────────────────────────────────────
+//
+// The four sheets are not the same form. Shop and CNC are field sheets that share six keys;
+// Sewing and Saw are line-item sheets. So a department change is a real edit, not a relabel, and
+// what survives it depends entirely on which pair you are moving between.
+//
+// These two exist so the sheet can SAY what a switch costs before making it, rather than emptying
+// half the form and leaving the user to notice.
+
+const keysOf = (form) => (form?.fields || []).map((f) => f.key);
+const labelOf = (form, key) => (form?.fields || []).find((f) => f.key === key)?.label || key;
+const filled = (v) => v != null && String(v).trim() !== "";
+
+/** The labels of anything currently filled in that the target sheet has nowhere to put. */
+export function fieldsLostSwitching(from, to, fields) {
+  const a = WO_FORMS[from];
+  const b = WO_FORMS[to];
+  if (!a || !b) return [];
+  // Different layouts share nothing structural: line rows cannot become fields, or the reverse.
+  if (a.layout !== b.layout) {
+    const lost = keysOf(a).filter((k) => filled(fields?.[k])).map((k) => labelOf(a, k));
+    if (a.layout === "lineItems" && (fields?.lines || []).some((l) => Object.values(l || {}).some(filled))) {
+      lost.push("the line items");
+    }
+    return lost;
+  }
+  const keep = new Set(keysOf(b));
+  return keysOf(a).filter((k) => !keep.has(k) && filled(fields?.[k])).map((k) => labelOf(a, k));
+}
+
+/** The same sheet's values, reshaped for the target department. Common keys carry; nothing else. */
+export function remapFields(from, to, fields) {
+  const a = WO_FORMS[from];
+  const b = WO_FORMS[to];
+  const base = initFields(b);
+  if (!a || !b) return base;
+  if (a.layout !== b.layout) return base;
+  const keep = new Set(keysOf(b));
+  const out = { ...base };
+  for (const k of keysOf(a)) if (keep.has(k) && filled(fields?.[k])) out[k] = fields[k];
+  if (b.layout === "lineItems" && Array.isArray(fields?.lines)) out.lines = fields.lines;
+  return out;
+}

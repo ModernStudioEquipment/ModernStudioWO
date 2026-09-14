@@ -4,7 +4,7 @@ import { Printer } from "lucide-react";
 import { C, fmtDate } from "../../theme.js";
 import { Btn } from "../ui.jsx";
 import { useDirty, UnsavedPrompt } from "../UnsavedGuard.jsx";
-import { WO_FORMS, initFields, emptyLine } from "../workorders/forms.js";
+import { WO_FORMS, initFields, emptyLine, fieldsLostSwitching, remapFields } from "../workorders/forms.js";
 import { bodyFor } from "../workorders/bodies.jsx";
 
 // The work-order SHEET — editable in place. Fields and line rows are inputs you
@@ -13,7 +13,17 @@ import { bodyFor } from "../workorders/bodies.jsx";
 // Handles both new (no wo.id) and existing work orders. The per-department
 // sheet bodies are shared with the Shopify sheet (see workorders/bodies.jsx).
 export function CustomWorkOrderDoc({ wo, onSave, onUploadPhoto, onPhotoHistory, onClose }) {
-  const t = wo.type;
+  // THE DEPARTMENT IS A CHOICE, NOT A BRAND.
+  //
+  // It used to be decided entirely by which button you pressed to create the sheet, and nothing
+  // afterwards could change it — a saw order raised on the shop button stayed a shop order for
+  // good, or had to be retyped from scratch under the right one.
+  //
+  // It is editable here instead. The catch is that the four departments do not share a form: shop
+  // and cnc are field sheets, sewing and saw are line-item sheets, and only some keys overlap. So
+  // a switch says what it will drop before it does it, rather than quietly emptying the sheet.
+  const [t, setT] = useState(wo.type);
+  const [pendingType, setPendingType] = useState(null);
   const form = WO_FORMS[t];
   const isLines = form.layout === "lineItems";
 
@@ -89,11 +99,61 @@ export function CustomWorkOrderDoc({ wo, onSave, onUploadPhoto, onPhotoHistory, 
   return createPortal(
     <div className="print-doc-overlay" style={overlay} onClick={tryClose}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: 680, maxWidth: "96vw" }}>
-        <div className="flex gap-2 mb-2 justify-end no-print">
+        <div className="flex gap-2 mb-2 items-center no-print">
+          <label className="flex items-center gap-2" style={{ fontSize: 12, color: C.gray }}>
+            <span style={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>Department</span>
+            <select
+              value={t}
+              onChange={(e) => {
+                const next = e.target.value;
+                if (next === t) return;
+                const lost = fieldsLostSwitching(t, next, fields);
+                // Nothing to lose, nothing to ask about.
+                if (!lost.length) { setFields((f) => remapFields(t, next, f)); setT(next); return; }
+                setPendingType({ next, lost });
+              }}
+              // C.ink / C.surface, not invented keys — an undefined colour leaves the
+              // select with no explicit foreground, which goes unreadable in dark mode.
+              style={{ background: C.surface, color: C.ink, border: `1px solid ${C.line}`,
+                       borderRadius: 6, padding: "5px 9px", fontWeight: 700 }}
+            >
+              {Object.keys(WO_FORMS).map((k) => (
+                <option key={k} value={k}>{WO_FORMS[k].label || k}</option>
+              ))}
+            </select>
+          </label>
+          <span className="flex-1" />
           <Btn kind="green" onClick={() => save(false)} disabled={saving}>{saving ? "Saving…" : "Save"}</Btn>
           <Btn kind="brass" onClick={() => save(true)} disabled={saving}><Printer size={15} />Save &amp; Print</Btn>
           <Btn onClick={tryClose}>Close</Btn>
         </div>
+        {/* Asked in the sheet rather than through window.confirm: a browser dialog can be
+            suppressed, and a suppressed confirm returns false, which would look like the switch
+            silently refusing to happen. */}
+        {pendingType && (
+          <div className="no-print mb-2 rounded p-3"
+               style={{ background: C.surface, border: `1px solid ${C.line}` }}>
+            <div style={{ fontWeight: 700, marginBottom: 4 }}>
+              Move this to {WO_FORMS[pendingType.next].label || pendingType.next}?
+            </div>
+            <div style={{ fontSize: 13, color: C.gray, marginBottom: 8 }}>
+              {WO_FORMS[pendingType.next].layout !== form.layout
+                ? <>These are different kinds of sheet, so nothing carries across. </>
+                : <>Everything both sheets have in common is kept. </>}
+              This will clear: <b>{pendingType.lost.join(", ")}</b>.
+            </div>
+            <div className="flex gap-2">
+              <Btn kind="green" onClick={() => {
+                setFields((f) => remapFields(t, pendingType.next, f));
+                setT(pendingType.next);
+                setPendingType(null);
+              }}>
+                Move it
+              </Btn>
+              <Btn onClick={() => setPendingType(null)}>Cancel</Btn>
+            </div>
+          </div>
+        )}
         <div id="wo" style={{ background: C.surface, border: `1px solid ${C.line}`, padding: "30px 34px" }}>
           <Body {...bodyProps} />
         </div>
