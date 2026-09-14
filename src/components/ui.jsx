@@ -523,12 +523,15 @@ export function Empty({ children }) {
 export function Tabwrap({ title, titleAside, action, children }) {
   return (
     <div>
-      <div className="mb-3 flex items-start gap-3">
-        <div className="flex items-center gap-2">
-          <div className="font-bold" style={{ fontSize: 16, textTransform: "uppercase", letterSpacing: 0.5 }}>{title}</div>
+      {/* The title never breaks mid-phrase: on a phone "NEW ORDERS" was wrapping
+          to two lines with the expand toggle wedged between the words. The row
+          wraps instead, and the controls take the line below (see index.css). */}
+      <div className="tabwrap-head mb-3 flex items-start gap-3">
+        <div className="flex items-center gap-2" style={{ minWidth: 0 }}>
+          <div className="font-bold" style={{ fontSize: 16, textTransform: "uppercase", letterSpacing: 0.5, whiteSpace: "nowrap" }}>{title}</div>
           {titleAside}
         </div>
-        {action && <div className="ml-auto">{action}</div>}
+        {action && <div className="tabwrap-action ml-auto">{action}</div>}
       </div>
       {children}
     </div>

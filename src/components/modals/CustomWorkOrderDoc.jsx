@@ -98,8 +98,8 @@ export function CustomWorkOrderDoc({ wo, onSave, onUploadPhoto, onPhotoHistory, 
 
   return createPortal(
     <div className="print-doc-overlay" style={overlay} onClick={tryClose}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: 680, maxWidth: "96vw" }}>
-        <div className="flex gap-2 mb-2 items-center no-print">
+      <div className="wo-sheetwrap" onClick={(e) => e.stopPropagation()} style={{ width: 680, maxWidth: "96vw" }}>
+        <div className="wo-toolbar flex gap-2 mb-2 items-center no-print">
           <label className="flex items-center gap-2" style={{ fontSize: 12, color: C.gray }}>
             <span style={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>Department</span>
             <select

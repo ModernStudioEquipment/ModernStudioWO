@@ -1363,7 +1363,9 @@ export default function App() {
                                 color: m.forInventory ? C.gray : C.gold, background: m.forInventory ? C.grayBg : C.goldBg }}>
                               {m.forInventory ? "Inventory" : "For order"}
                             </button>
-                            <span className="basis-full sm:basis-auto sm:ml-auto flex items-center gap-2 justify-end">
+                            {/* flex-wrap: the three action buttons are wider than a phone on their own,
+                                  and without it they ran off the right edge of the tab. */}
+                            <span className="basis-full sm:basis-auto sm:ml-auto flex flex-wrap items-center gap-2 justify-end">
                               {expReached && (
                                 <Pill c={overdue ? C.rush : C.high} bg={overdue ? C.rushBg : C.highBg} Icon={Truck}>
                                   {overdue ? `due ${dueLabel(m.expectedAt)}` : "arriving today"}

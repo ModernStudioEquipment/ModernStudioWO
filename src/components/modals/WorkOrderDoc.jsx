@@ -112,8 +112,8 @@ export function WorkOrderDoc({ order, items, onSave, onPrinted, onUploadPhoto, o
 
   return createPortal(
     <div className="print-doc-overlay" style={overlay} onClick={tryClose}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: 680, maxWidth: "96vw" }}>
-        <div className="flex gap-2 mb-2 justify-end no-print">
+      <div className="wo-sheetwrap" onClick={(e) => e.stopPropagation()} style={{ width: 680, maxWidth: "96vw" }}>
+        <div className="wo-toolbar flex gap-2 mb-2 justify-end no-print">
           {onSave && <Btn kind="green" onClick={() => save(false)} disabled={saving}>{saving ? "Saving…" : "Save"}</Btn>}
           <Btn kind="brass" onClick={() => save(true)} disabled={saving}><Printer size={15} />Save &amp; Print</Btn>
           <Btn onClick={tryClose}>Close</Btn>

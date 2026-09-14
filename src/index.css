@@ -205,6 +205,11 @@ button:not(.navtab):not(.no-pop),
     border-bottom: none !important;
     background: transparent !important;
   }
+  /* Phones swap the date fields for the OS date control (see .wo-date). Its
+     calendar button is a screen affordance — it has no business on paper. */
+  .wo-date::-webkit-calendar-picker-indicator {
+    display: none !important;
+  }
 }
 
 @keyframes flashRow {
@@ -241,4 +246,112 @@ button:not(.navtab):not(.no-pop),
 }
 .flash-order {
   animation: flashOrder 0.9s ease-out 3;
+}
+
+/* ── The app on a phone ──────────────────────────────────────────────────────
+   The work-order sheet is a printable document laid out for a 680px page: a
+   right-aligned letterhead block beside the wordmark, fixed-width label cells,
+   a toolbar of four controls in a row. Squeezed onto a 375px screen it kept all
+   of that and came apart — the toolbar marched off the right edge taking Close
+   with it, the letterhead overlapped the logo, and the signature line hung 45px
+   past the paper, which made the whole sheet scroll sideways under your thumb.
+
+   None of this can live in the inline styles those pieces use, because inline
+   styles can't carry a media query. Everything here is unchanged above 640px,
+   and printing is unaffected: the print rules target #wo directly. */
+@media (max-width: 640px) {
+  /* Let the toolbar wrap instead of marching off-screen. Close stays reachable. */
+  .wo-toolbar {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  /* The sheet is 96vw inside an overlay with 12px of side padding, so it was
+     always ~9px wider than the phone — and the overlay scrolls, so the sheet
+     slid sideways. The overlay's padding is the gutter; the sheet takes the
+     rest. */
+  .print-doc-overlay {
+    padding: 12px 8px !important;
+  }
+  .wo-sheetwrap {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* The page's own margins are set for paper. */
+  #wo {
+    padding: 18px 14px !important;
+  }
+
+  /* The letterhead (W/O #, due date, order, total) sits beside the wordmark on
+     paper; at phone width there's no room for both, so it drops below the logo
+     at full width. `flex: 0 0 100%` rather than a plain width, because the
+     columns it sits beside are flex: 1 (basis 0) — they let it "fit" on the
+     same line and then squeeze it, which is how the CNC sheet ended up with a
+     two-character Product field next to Part #. */
+  .wo-head {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .wo-head > * {
+    min-width: 0;
+  }
+  .wo-head > *:last-child {
+    flex: 0 0 100%;
+    width: 100%;
+    min-width: 0 !important;
+  }
+
+  /* Its label column is ragged by nature — "DUE DATE:" is twice the width of
+     "TOTAL:" — so letting each value start wherever its label ends scatters the
+     numbers across the line: one hard right, the next halfway in. Keep the
+     paper sheet's rule — one value column of a fixed width, flush right, every
+     value starting on the same edge. */
+  .wo-rowedit {
+    justify-content: flex-end;
+    gap: 8px;
+    font-size: 12px;
+  }
+  .wo-rowvalue {
+    width: 132px !important;
+    flex: 0 0 132px;
+    min-width: 0;
+  }
+  .wo-rowvalue .wo-edit {
+    width: 100% !important;
+  }
+
+  /* Field rows: a 130px label on a 360px sheet leaves nothing to type into. */
+  .wo-fieldlabel {
+    width: 96px !important;
+    font-size: 10.5px !important;
+  }
+  .wo-fieldrow {
+    gap: 8px;
+  }
+
+  /* The signature line — "Completed by: ____ MODERN STUDIO EQUIPMENT" — is
+     three things that don't shrink. The company line drops beneath the
+     signature instead of hanging off the sheet. */
+  .wo-signrow {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .wo-signrow .wo-sign {
+    flex: 1 1 120px;
+  }
+  .wo-signmark {
+    width: 100%;
+    text-align: right;
+  }
+
+  /* Tab headings: the title keeps its own line and the controls take the next
+     one, right-aligned, rather than the two fighting over 375px. */
+  .tabwrap-head {
+    flex-wrap: wrap;
+  }
+  .tabwrap-action {
+    margin-left: 0;
+    width: 100%;
+  }
 }

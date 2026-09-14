@@ -28,20 +28,88 @@ export function EI({ value, onChange, size = 16, bold, mono, width, align = "lef
   );
 }
 
+// Is the sheet being filled in on a phone? The work order is a paper document
+// that also gets filled in on the floor, and the two want different date
+// controls — paper wants plain typed text, a phone wants the OS calendar.
+function useIsPhone() {
+  const mq = () =>
+    typeof window !== "undefined" && typeof window.matchMedia === "function"
+      ? window.matchMedia("(max-width: 640px)")
+      : null;
+  const [phone, setPhone] = useState(() => !!mq()?.matches);
+  useEffect(() => {
+    const m = mq();
+    if (!m) return;
+    const on = (e) => setPhone(e.matches);
+    setPhone(m.matches);
+    if (m.addEventListener) { m.addEventListener("change", on); return () => m.removeEventListener("change", on); }
+    m.addListener(on);                       // older Safari
+    return () => m.removeListener(on);
+  }, []);
+  return phone;
+}
+
+// The sheet writes and prints dates as 09/16/2026; <input type="date"> only
+// speaks yyyy-mm-dd. Anything that isn't a plain date — "ASAP", or a due date
+// carrying a time ("09/16/2026, 3:00 PM") — converts to "" and keeps its text
+// box, so the calendar can never quietly blank what someone wrote.
+const US_DATE = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
+export function toISODate(v) {
+  const m = US_DATE.exec(String(v ?? "").trim());
+  if (!m) return "";
+  const [, mo, d, y] = m;
+  return `${y}-${mo.padStart(2, "0")}-${d.padStart(2, "0")}`;
+}
+export function fromISODate(v) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v ?? "").trim());
+  return m ? `${m[2]}/${m[3]}/${m[1]}` : "";
+}
+
+// A date on the sheet. Unchanged on a desktop — the same typed box it has always
+// been, printing exactly what was typed. On a phone it becomes a real date input
+// so tapping it opens the calendar instead of the keyboard.
+export function DateEI({ value, onChange, size = 16, bold, width, align = "left", placeholder, full }) {
+  const phone = useIsPhone();
+  const iso = toISODate(value);
+  const text = <EI value={value} onChange={onChange} size={size} bold={bold} width={width} align={align} placeholder={placeholder} full={full} />;
+  if (!phone) return text;
+  if (value && !iso) return text;            // not a plain date: leave it alone
+  return (
+    <input
+      className="wo-edit wo-date"
+      type="date"
+      value={iso}
+      onChange={(e) => onChange(fromISODate(e.target.value))}
+      style={{
+        fontSize: size,
+        fontWeight: bold ? 700 : 400,
+        textAlign: align,
+        width: full ? "100%" : width || "auto",
+        minWidth: 36,
+      }}
+    />
+  );
+}
+
 function FieldEdit({ label, children }) {
   return (
-    <div className="flex items-center gap-3 mb-2">
-      <span className="inline-block px-2 py-1 font-bold uppercase tracking-wide" style={{ fontSize: 12, color: C.inkSoft, background: C.grayBg, width: 130, flexShrink: 0 }}>{label}</span>
+    <div className="wo-fieldrow flex items-center gap-3 mb-2">
+      <span className="wo-fieldlabel inline-block px-2 py-1 font-bold uppercase tracking-wide" style={{ fontSize: 12, color: C.inkSoft, background: C.grayBg, width: 130, flexShrink: 0 }}>{label}</span>
       <div style={{ flex: 1 }}>{children}</div>
     </div>
   );
 }
 
+// One letterhead line: a right-aligned label and a value cell of a fixed width.
+// The cell forces its own alignment rather than inheriting the letterhead's
+// `textAlign: right` — otherwise plain text (the order number) sat flush right
+// while every input sat flush left, and the column read as scattered on screen
+// and on paper both.
 function RowEdit({ label, children }) {
   return (
-    <div className="flex items-center justify-end gap-2 mb-1">
-      <span className="font-bold uppercase tracking-wide" style={{ color: C.inkSoft }}>{label}:</span>
-      <div style={{ width: 120 }}>{children}</div>
+    <div className="wo-rowedit flex items-center justify-end gap-2 mb-1">
+      <span className="font-bold uppercase tracking-wide" style={{ color: C.inkSoft, whiteSpace: "nowrap" }}>{label}:</span>
+      <div className="wo-rowvalue" style={{ width: 120, textAlign: "left" }}>{children}</div>
     </div>
   );
 }
@@ -64,9 +132,9 @@ export function OrderNos({ label, orderNo, orderLines }) {
   }
   const total = orderLines.reduce((n, l) => n + (Number(l.qty) || 0), 0);
   return (
-    <div className="flex items-start justify-end gap-2 mb-1">
+    <div className="wo-rowedit flex items-start justify-end gap-2 mb-1">
       <span className="font-bold uppercase tracking-wide" style={{ color: C.inkSoft, whiteSpace: "nowrap" }}>{label}:</span>
-      <div style={{ minWidth: 120 }}>
+      <div className="wo-rowvalue" style={{ minWidth: 120 }}>
         {orderLines.map((l) => (
           <div key={l.no} className="flex items-baseline justify-end gap-2" style={{ lineHeight: 1.35 }}>
             <span className="font-bold" style={{ fontFamily: "ui-monospace,monospace", fontSize: 14 }}>#{l.no}</span>
@@ -182,10 +250,10 @@ function PhotoBox({ minHeight = 220, imageUrl, onUpload, onRevert, onHistory }) 
 
 function CompletedBy({ value, onChange }) {
   return (
-    <div className="flex items-center gap-3" style={{ borderTop: `1px solid ${C.line}`, paddingTop: 16 }}>
-      <span className="font-bold uppercase tracking-wide" style={{ fontSize: 13, color: C.inkSoft }}>Completed by:</span>
-      <input className="wo-sign" value={value || ""} onChange={(e) => onChange(e.target.value)} style={{ flex: 1, fontWeight: 700, fontSize: 16 }} />
-      <span style={{ fontSize: 11, letterSpacing: 1.5, color: C.gray, fontWeight: 700 }}>MODERN STUDIO EQUIPMENT</span>
+    <div className="wo-signrow flex items-center gap-3" style={{ borderTop: `1px solid ${C.line}`, paddingTop: 16 }}>
+      <span className="font-bold uppercase tracking-wide" style={{ fontSize: 13, color: C.inkSoft, whiteSpace: "nowrap" }}>Completed by:</span>
+      <input className="wo-sign" value={value || ""} onChange={(e) => onChange(e.target.value)} style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 16 }} />
+      <span className="wo-signmark" style={{ fontSize: 11, letterSpacing: 1.5, color: C.gray, fontWeight: 700 }}>MODERN STUDIO EQUIPMENT</span>
     </div>
   );
 }
@@ -205,11 +273,11 @@ export function BasicBody({ fields, set, orderNo, orderLines, numLabel = "WO #",
   const multi = items && items.length > 1;
   return (
     <>
-      <div className="flex items-start justify-between" style={{ marginBottom: 18 }}>
+      <div className="wo-head flex items-start justify-between" style={{ marginBottom: 18 }}>
         <Wordmark height={36} variant="dark" subText="WORK ORDER" subAlign="left" />
         <div style={{ textAlign: "right", minWidth: 200 }}>
           <OrderNos label={numLabel} orderNo={orderNo} orderLines={orderLines} />
-          <RowEdit label="Due date"><EI value={fields.dueDate} onChange={(v) => set("dueDate", v)} size={13} bold full /></RowEdit>
+          <RowEdit label="Due date"><DateEI value={fields.dueDate} onChange={(v) => set("dueDate", v)} size={13} bold full /></RowEdit>
           <RowEdit label="Order"><EI value={fields.order} onChange={(v) => set("order", v)} size={13} bold mono full /></RowEdit>
           <RowEdit label="Total"><EI value={fields.total} onChange={(v) => set("total", v)} size={13} bold mono full /></RowEdit>
         </div>
@@ -241,10 +309,10 @@ export function BasicBody({ fields, set, orderNo, orderLines, numLabel = "WO #",
         ) : (
           <FieldEdit label="Product"><EI value={fields.product} onChange={(v) => set("product", v)} bold full /></FieldEdit>
         )}
-        <FieldEdit label="Ordered on"><EI value={fields.orderedOn} onChange={(v) => set("orderedOn", v)} bold full /></FieldEdit>
+        <FieldEdit label="Ordered on"><DateEI value={fields.orderedOn} onChange={(v) => set("orderedOn", v)} bold full /></FieldEdit>
         {/* Fixed the first time this order is printed — every sheet after that
             carries the same date, so two printouts can never disagree. */}
-        <FieldEdit label="W/O date"><EI value={fields.woDate} onChange={(v) => set("woDate", v)} bold full /></FieldEdit>
+        <FieldEdit label="W/O date"><DateEI value={fields.woDate} onChange={(v) => set("woDate", v)} bold full /></FieldEdit>
         <FieldEdit label="Color"><EI value={fields.color} onChange={(v) => set("color", v)} bold full /></FieldEdit>
         <FieldEdit label="Notes"><EI value={fields.notes} onChange={(v) => set("notes", v)} size={15} full /></FieldEdit>
       </div>
@@ -260,22 +328,22 @@ export function CncBody({ fields, set, orderNo, orderLines, numLabel = "WO #", i
   const steps = ["step1", "step2", "step3", "step4", "step5", "step6"];
   return (
     <>
-      <div className="flex items-start justify-between" style={{ marginBottom: 16 }}>
+      <div className="wo-head flex items-start justify-between" style={{ marginBottom: 16 }}>
         <Wordmark height={36} variant="dark" subText="WORK ORDER" subAlign="left" />
         <div style={{ textAlign: "right", minWidth: 200 }}>
           <OrderNos label={numLabel} orderNo={orderNo} orderLines={orderLines} />
-          <RowEdit label="Due date"><EI value={fields.dueDate} onChange={(v) => set("dueDate", v)} size={13} bold full /></RowEdit>
+          <RowEdit label="Due date"><DateEI value={fields.dueDate} onChange={(v) => set("dueDate", v)} size={13} bold full /></RowEdit>
           <RowEdit label="Order"><EI value={fields.order} onChange={(v) => set("order", v)} size={13} bold mono full /></RowEdit>
           <RowEdit label="Total"><EI value={fields.total} onChange={(v) => set("total", v)} size={13} bold mono full /></RowEdit>
         </div>
       </div>
 
-      <div className="flex items-start justify-between" style={{ marginBottom: 6 }}>
+      <div className="wo-head flex items-start justify-between" style={{ marginBottom: 6 }}>
         <div style={{ flex: 1 }}>
           <FieldEdit label="Product"><EI value={fields.product} onChange={(v) => set("product", v)} bold full /></FieldEdit>
-          <FieldEdit label="Ordered on"><EI value={fields.orderedOn} onChange={(v) => set("orderedOn", v)} bold full /></FieldEdit>
+          <FieldEdit label="Ordered on"><DateEI value={fields.orderedOn} onChange={(v) => set("orderedOn", v)} bold full /></FieldEdit>
           {/* Fixed on the first print of this order — see BasicBody. */}
-          <FieldEdit label="W/O date"><EI value={fields.woDate} onChange={(v) => set("woDate", v)} bold full /></FieldEdit>
+          <FieldEdit label="W/O date"><DateEI value={fields.woDate} onChange={(v) => set("woDate", v)} bold full /></FieldEdit>
         </div>
         <div style={{ width: 170, textAlign: "right" }}>
           <div className="font-bold uppercase tracking-wide" style={{ fontSize: 11, color: C.inkSoft }}>Part #</div>
@@ -304,15 +372,15 @@ export function SewingBody({ fields, set, setLineCell, addLine, form, orderNo, o
   const rows = Math.max(fields.lines.length, minRows);
   return (
     <>
-      <div className="flex items-start justify-between" style={{ marginBottom: 14 }}>
+      <div className="wo-head flex items-start justify-between" style={{ marginBottom: 14 }}>
         <Wordmark height={34} variant="dark" subText="WORK ORDER" subAlign="left" />
         <div style={{ textAlign: "right", minWidth: 240 }}>
           <div className="font-bold uppercase tracking-wide" style={{ fontSize: 14, marginBottom: 6 }}>Work order:</div>
           <OrderNos label={numLabel} orderNo={orderNo} orderLines={orderLines} />
-          <RowEdit label="Order date"><EI value={fields.orderDate} onChange={(v) => set("orderDate", v)} size={13} bold full /></RowEdit>
+          <RowEdit label="Order date"><DateEI value={fields.orderDate} onChange={(v) => set("orderDate", v)} size={13} bold full /></RowEdit>
           {/* Fixed on the first print of this order — see BasicBody. */}
-          <RowEdit label="W/O date"><EI value={fields.woDate} onChange={(v) => set("woDate", v)} size={13} bold full /></RowEdit>
-          <RowEdit label="Due date"><EI value={fields.dueDate} onChange={(v) => set("dueDate", v)} size={13} bold full /></RowEdit>
+          <RowEdit label="W/O date"><DateEI value={fields.woDate} onChange={(v) => set("woDate", v)} size={13} bold full /></RowEdit>
+          <RowEdit label="Due date"><DateEI value={fields.dueDate} onChange={(v) => set("dueDate", v)} size={13} bold full /></RowEdit>
           <RowEdit label="Time"><EI value={fields.time} onChange={(v) => set("time", v)} size={13} bold full /></RowEdit>
         </div>
       </div>
@@ -350,12 +418,12 @@ export function SawBody({ fields, set, setLineCell, addLine, form, orderNo, orde
   const rows = Math.max(fields.lines.length, minRows);
   return (
     <>
-      <div className="flex items-end justify-between" style={{ marginBottom: 16 }}>
+      <div className="wo-head flex items-end justify-between" style={{ marginBottom: 16 }}>
         <Wordmark height={26} variant="dark" showSub={false} subAlign="left" />
         <span className="flex items-baseline gap-4">
           {/* Fixed on the first print of this order — see BasicBody. */}
           <span style={{ fontSize: 12, color: C.inkSoft }}>
-            W/O date <EI value={fields.woDate} onChange={(v) => set("woDate", v)} size={13} bold />
+            W/O date <DateEI value={fields.woDate} onChange={(v) => set("woDate", v)} size={13} bold />
           </span>
           <span className="font-bold" style={{ fontFamily: "ui-monospace,monospace", fontSize: 16 }}>{numLabel} {orderNo}</span>
         </span>
