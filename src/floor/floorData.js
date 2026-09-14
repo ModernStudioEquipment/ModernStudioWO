@@ -88,15 +88,28 @@ export async function fetchCncMachines() {
   return m;
 }
 
-// Per-item floor notes (typed on the queue page), keyed by item_id.
+// Per-job floor notes, keyed by item_id: { itemId: [{ body, author, at }] },
+// oldest first. Notes are append-only (0060) — a job can carry several, and the
+// monitor shows them all, so a correction never hides what it corrected.
 export async function fetchFloorNotes() {
   if (!floorClient) return {};
-  const { data, error } = await floorClient.from("floor_item_notes").select("item_id, note");
-  if (error) return {};
+  let rows = null;
+  const full = await floorClient.from("floor_item_notes").select("item_id, note, author, created_at");
+  if (full.error) {
+    // 0060 not run yet: the view is still the one-note-per-job shape.
+    const bare = await floorClient.from("floor_item_notes").select("item_id, note");
+    if (bare.error) return {};
+    rows = (bare.data || []).map((r) => ({ ...r, author: null, created_at: null }));
+  } else {
+    rows = full.data || [];
+  }
   const m = {};
-  (data || []).forEach((r) => {
-    if (r.note) m[r.item_id] = r.note;
+  rows.forEach((r) => {
+    if (!r.note) return;
+    (m[r.item_id] = m[r.item_id] || []).push({ body: r.note, author: r.author || null, at: r.created_at || null });
   });
+  Object.values(m).forEach((list) =>
+    list.sort((a, b) => (a.at ? new Date(a.at).getTime() : 0) - (b.at ? new Date(b.at).getTime() : 0)));
   return m;
 }
 

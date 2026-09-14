@@ -290,6 +290,31 @@ function DoneButton({ onDone }) {
   );
 }
 
+// The job's notes. They're append-only, so a job can carry several; the newest
+// three are shown (a wall card can't grow without pushing the job off it) and
+// the count says if there are older ones.
+function JobNotes({ notes }) {
+  const list = Array.isArray(notes) ? notes : notes ? [{ body: notes, author: null, at: null }] : [];
+  if (!list.length) return null;
+  const shown = list.slice(-3);
+  return (
+    <div className="floor-jobnote">
+      <span className="k">{list.length > 1 ? `Notes · ${list.length}` : "Note"}</span>
+      <span className="v">
+        {shown.map((n, i) => (
+          <span key={i} className="floor-jobnote-one">
+            {n.body}
+            <i>
+              {n.author || "author unknown"}
+              {n.at ? ` · ${fmtDate(n.at)}` : ""}
+            </i>
+          </span>
+        ))}
+      </span>
+    </div>
+  );
+}
+
 function NowCard({ item, photos, productPhotos, qtyLabel, deptLabel, part, note, onDone }) {
   const hasSteps = part && part.steps && part.steps.length > 0;
   const hasNotes = !!(part && part.notes);
@@ -323,12 +348,7 @@ function NowCard({ item, photos, productPhotos, qtyLabel, deptLabel, part, note,
         </div>
         {rich ? (
           <div className="floor-detail">
-            {note && (
-              <div className="floor-jobnote">
-                <span className="k">Note</span>
-                <span className="v">{note}</span>
-              </div>
-            )}
+            <JobNotes notes={note} />
             {hasSteps && (
               <>
                 <div className="h">How to make it</div>
@@ -353,12 +373,7 @@ function NowCard({ item, photos, productPhotos, qtyLabel, deptLabel, part, note,
           </div>
         ) : (
           <div className="floor-detail">
-            {note && (
-              <div className="floor-jobnote">
-                <span className="k">Note</span>
-                <span className="v">{note}</span>
-              </div>
-            )}
+            <JobNotes notes={note} />
             <div className="h">Details</div>
             <div className="floor-facts">
               <div className="floor-fact">

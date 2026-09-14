@@ -556,26 +556,43 @@ export const supabaseAdapter = {
   },
 
   // ---- Per-job floor notes (typed on the queue page, shown on the monitor) ----
+  //
+  // Append-only, like every other note on the board: each one is locked with who
+  // wrote it and when, and adding to a job means adding another note (0060).
+  // Returns { itemId: [{ id, body, author, at }] }, oldest first.
   async getFloorNotes() {
-    const { data, error } = await supabase.from("floor_notes").select("item_id, note");
-    if (error) return {};
+    const { data, error } = await supabase
+      .from("floor_note_log")
+      .select("id, item_id, body, author, created_at")
+      .order("created_at", { ascending: true });
+    // 0060 not run yet: fall back to the old single-note table so the queue page
+    // still shows what's there rather than looking like the notes were lost.
+    if (error) {
+      const { data: old } = await supabase.from("floor_notes").select("item_id, note, updated_at");
+      const m = {};
+      (old || []).forEach((r) => {
+        if (r.note) m[r.item_id] = [{ id: `legacy-${r.item_id}`, body: r.note, author: null, at: r.updated_at || null }];
+      });
+      return m;
+    }
     const m = {};
     (data || []).forEach((r) => {
-      if (r.note) m[r.item_id] = r.note;
+      if (!r.body) return;
+      (m[r.item_id] = m[r.item_id] || []).push({ id: r.id, body: r.body, author: r.author || null, at: r.created_at || null });
     });
     return m;
   },
-  async setFloorNote(itemId, note) {
-    const t = (note || "").trim();
-    if (!t) {
-      const { error } = await supabase.from("floor_notes").delete().eq("item_id", itemId);
-      if (error && error.code !== "42P01") fail(error);
-      return;
-    }
-    const { error } = await supabase
-      .from("floor_notes")
-      .upsert({ item_id: itemId, note: t, updated_at: new Date().toISOString() }, { onConflict: "item_id" });
-    if (error && error.code !== "42P01") fail(error);
+  async addFloorNote(itemId, body) {
+    const text = String(body || "").trim();
+    if (!text) return null;
+    const author = await currentAuthor();
+    const { data, error } = await supabase
+      .from("floor_note_log")
+      .insert({ item_id: itemId, body: text, author })
+      .select("id, body, author, created_at")
+      .single();
+    if (error) fail(error);
+    return data ? { id: data.id, body: data.body, author: data.author || null, at: data.created_at || null } : null;
   },
 
   // ---- CNC machine assignment (VF-4 / ST-10 / DS-30SSY) ----

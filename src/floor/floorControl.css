@@ -110,7 +110,10 @@
 .fc-totop, .fc-notebtn{display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; border-radius:9px;
   background:var(--panel); border:1px solid var(--line); color:var(--muted); cursor:pointer; transition:all .13s}
 .fc-totop:hover, .fc-notebtn:hover{border-color:var(--accent); color:var(--accent)}
-.fc-jobnote-row{display:block; font-size:12.5px; color:var(--lane); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:340px}
+/* A job's notes: one per line, each locked with who wrote it and when. They
+   wrap rather than truncate — a note the crew can only half read is no note. */
+.fc-jobnote-row{display:block; font-size:12.5px; color:var(--lane); margin-top:4px; max-width:420px}
+.fc-jobnote-by{display:block; font-style:normal; font-size:11px; color:var(--muted); margin-top:1px}
 .fc-noteedit{display:flex; gap:8px; margin-top:10px; padding-top:10px; border-top:1px solid var(--line)}
 .fc-noteinput{flex:1; background:var(--panel2); border:1px solid var(--line2); color:#F3F6F8; font:inherit; font-size:14px; padding:8px 12px; border-radius:9px; outline:none}
 .fc-noteinput:focus{border-color:var(--accent)}

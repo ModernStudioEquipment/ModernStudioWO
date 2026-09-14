@@ -185,15 +185,27 @@ export const localAdapter = {
   },
 
   // ---- Per-job floor notes (single-machine, localStorage) ----
+  // Append-only, same as the hosted adapter: { itemId: [{ id, body, author, at }] }.
   async getFloorNotes() {
-    try { return JSON.parse(localStorage.getItem("mse_floor_notes_v1")) || {}; } catch { return {}; }
+    let raw = {};
+    try { raw = JSON.parse(localStorage.getItem("mse_floor_notes_v1")) || {}; } catch { raw = {}; }
+    const m = {};
+    // Older local data was one string per job; read it as a single note.
+    Object.entries(raw).forEach(([id, v]) => {
+      if (typeof v === "string") m[id] = v.trim() ? [{ id: `legacy-${id}`, body: v, author: null, at: null }] : [];
+      else if (Array.isArray(v)) m[id] = v;
+    });
+    return m;
   },
-  async setFloorNote(itemId, note) {
+  async addFloorNote(itemId, body) {
+    const text = String(body || "").trim();
+    if (!text) return null;
     const m = await this.getFloorNotes();
-    const t = (note || "").trim();
-    if (t) m[itemId] = t; else delete m[itemId];
+    const entry = { id: uid(), body: text, author: null, at: new Date().toISOString() };
+    m[itemId] = [...(m[itemId] || []), entry];
     try { localStorage.setItem("mse_floor_notes_v1", JSON.stringify(m)); } catch { /* ignore */ }
     channel?.postMessage("changed");
+    return entry;
   },
 
   // ---- CNC machine assignment (single-machine, localStorage) ----

@@ -4,6 +4,7 @@ import Sortable from "sortablejs";
 import { db } from "../lib/db.js";
 import CncLibrary from "./CncLibrary.jsx";
 import { FLOOR_DEPTS } from "./depts.js";
+import { stamp } from "../theme.js";
 import "./floorControl.css";
 
 // The four departments in the dark floor world. Colors match the wall monitors
@@ -109,7 +110,12 @@ export default function FloorControl({ orders, workOrders = [], onClose, cncOnly
   const [cncView, setCncView] = useState("unassigned"); // "unassigned" | machine key
   const [order, setOrder] = useState({}); // queueKey -> [ids]
   const [machines, setMachines] = useState({}); // itemId -> machine key
-  const [assignError, setAssignError] = useState(null);
+  // One line for anything that failed to save from this screen. Silence here is
+  // what made the CNC bug so hard to see: the screen said the job was assigned,
+  // the database had never heard of it.
+  const [floorError, setFloorError] = useState(null);
+  // A job's notes, oldest first: { itemId: [{ id, body, author, at }] }.
+  const notesFor = (id) => (Array.isArray(notes[id]) ? notes[id] : []);
   const [notes, setNotes] = useState({});
   const [editingId, setEditingId] = useState(null);
   const [noteDraft, setNoteDraft] = useState("");
@@ -135,19 +141,27 @@ export default function FloorControl({ orders, workOrders = [], onClose, cncOnly
   }, []);
 
   function startEditNote(id) {
-    setNoteDraft(notes[id] || "");
+    setNoteDraft("");        // a new note every time; the old ones aren't editable
     setEditingId(id);
   }
+  // Notes are locked once written — there is no edit, here or in the database
+  // (0060 grants insert and select only). Adding to a job means adding another
+  // note, stamped with who wrote it and when.
   async function saveNote(id) {
-    const t = noteDraft;
-    setNotes((m) => {
-      const n = { ...m };
-      if (t.trim()) n[id] = t.trim();
-      else delete n[id];
-      return n;
-    });
+    const t = noteDraft.trim();
     setEditingId(null);
-    await db.setFloorNote(id, t);
+    setNoteDraft("");
+    if (!t) return;
+    try {
+      const entry = await db.addFloorNote(id, t);
+      setNotes((m) => ({
+        ...m,
+        [id]: [...notesFor(id), entry || { id: `tmp-${Date.now()}`, body: t, author: null, at: new Date().toISOString() }],
+      }));
+      setFloorError(null);
+    } catch (e) {
+      setFloorError(e?.message || "Couldn't save that note.");
+    }
   }
 
   // The chip lights up first and the write follows. If the write fails the chip
@@ -164,7 +178,7 @@ export default function FloorControl({ orders, workOrders = [], onClose, cncOnly
     });
     try {
       await db.setCncMachine(id, machine);
-      setAssignError(null);
+      setFloorError(null);
     } catch (e) {
       setMachines((m) => {
         const n = { ...m };
@@ -172,7 +186,7 @@ export default function FloorControl({ orders, workOrders = [], onClose, cncOnly
         else delete n[id];
         return n;
       });
-      setAssignError(e?.message || "Couldn't save that machine assignment.");
+      setFloorError(e?.message || "Couldn't save that machine assignment.");
     }
   }
 
@@ -351,7 +365,7 @@ export default function FloorControl({ orders, workOrders = [], onClose, cncOnly
           </div>
         )}
 
-        {assignError && (
+        {floorError && (
           <div
             role="status"
             style={{
@@ -359,7 +373,7 @@ export default function FloorControl({ orders, workOrders = [], onClose, cncOnly
               background: "rgba(200,16,46,0.15)", color: "#FF9AA6", border: "1px solid rgba(200,16,46,0.5)",
             }}
           >
-            {assignError} Nothing was saved, so the monitor won't show it — try again.
+            {floorError} Nothing was saved, so the monitor won't show it — try again.
           </div>
         )}
 
@@ -378,11 +392,19 @@ export default function FloorControl({ orders, workOrders = [], onClose, cncOnly
                   <span className="no">WO&nbsp;#{it.orderNo}</span>
                   <span className="nm">{it.name}</span>
                   {it.color && <span className="mt">{it.color}</span>}
-                  {notes[it.id] && editingId !== it.id && <span className="fc-jobnote-row">Note: {notes[it.id]}</span>}
+                  {notesFor(it.id).map((n) => (
+                    <span key={n.id} className="fc-jobnote-row">
+                      {n.body}
+                      <i className="fc-jobnote-by">
+                        {n.author || "author unknown"}
+                        {n.at ? ` · ${stamp(new Date(n.at).getTime(), Date.now())}` : ""}
+                      </i>
+                    </span>
+                  ))}
                   {idx === 0 && canOrder && <span className="fc-nowtag">On the monitor now</span>}
                 </span>
                 <span className="fc-right">
-                  <button className="fc-notebtn" title={notes[it.id] ? "Edit note" : "Add note"} onClick={() => startEditNote(it.id)}>
+                  <button className="fc-notebtn" title={notesFor(it.id).length ? "Add another note" : "Add note"} onClick={() => startEditNote(it.id)}>
                     <StickyNote size={16} />
                   </button>
                   {canOrder && idx > 0 && (
@@ -427,7 +449,7 @@ export default function FloorControl({ orders, workOrders = [], onClose, cncOnly
                     className="fc-noteinput"
                     autoFocus
                     value={noteDraft}
-                    placeholder="Note for the floor — shows on the monitor next to the photo"
+                    placeholder={notesFor(it.id).length ? "Another note — the ones above stay as they are" : "Note for the floor — shows on the monitor next to the photo"}
                     onChange={(e) => setNoteDraft(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") saveNote(it.id);
@@ -435,7 +457,7 @@ export default function FloorControl({ orders, workOrders = [], onClose, cncOnly
                     }}
                   />
                   <button className="fc-notesave" onClick={() => saveNote(it.id)}>
-                    Save
+                    Add note
                   </button>
                   <button className="fc-notecancel" onClick={() => setEditingId(null)}>
                     Cancel
