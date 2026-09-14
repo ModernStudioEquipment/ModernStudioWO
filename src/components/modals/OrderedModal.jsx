@@ -9,7 +9,11 @@ import { Btn } from "../ui.jsx";
 export function OrderedModal({ material, alsoNeeded = [], defaultBuyer = "", onConfirm, onUnorder, onClose }) {
   // Requested (material.amount) is read-only here — it's what the order needs.
   // Ordered defaults to it, because usually you buy exactly what was asked for.
-  const [orderedQty, setOrderedQty] = useState(material.orderedQty ?? material.amount ?? "");
+  // NOT pre-filled from the requested amount. It used to be, and the two boxes
+  // then always agreed — which is the one thing this pair exists to disprove.
+  // A quantity here means someone typed it. Re-opening an already-ordered
+  // material still shows what they typed.
+  const [orderedQty, setOrderedQty] = useState(material.orderedQty ?? "");
   // Pre-filled from whoever is signed in. One person places almost every
   // order here, and retyping their own name on each line was pure friction.
   const [orderedBy, setOrderedBy] = useState(material.orderedBy || defaultBuyer || "");
@@ -90,7 +94,7 @@ export function OrderedModal({ material, alsoNeeded = [], defaultBuyer = "", onC
             </div>
             <div style={{ flex: "1 1 150px" }}>
               <div style={label}>Quantity ordered</div>
-              <input value={orderedQty} onChange={(e) => setOrderedQty(e.target.value)} placeholder="e.g. 20 ft, 2 sheets, 12" className="w-full px-2 py-2 outline-none" style={inp} />
+              <input value={orderedQty} onChange={(e) => setOrderedQty(e.target.value)} placeholder={material.amount ? `same as asked (${material.amount})` : "e.g. 20 ft, 2 sheets, 12"} className="w-full px-2 py-2 outline-none" style={inp} />
               <div style={{ fontSize: 11, color: C.gray, marginTop: 3 }}>what you actually bought</div>
             </div>
           </div>

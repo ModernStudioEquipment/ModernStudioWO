@@ -437,7 +437,9 @@ export default function App() {
   // Apply one set of details to everything ticked. Blank fields are skipped, so
   // this covers "mark these 8 ordered from IMS", "just fix the vendor", and
   // "add this note to all of them" without three separate flows.
-  const applyBulk = async ({ markOrdered, orderedBy, vendor, contact, poNumber, expectedAt, note }) => {
+  // `lines` carries the per-material overrides typed in the modal — what was
+  // actually ordered of that one, and a note that belongs to it alone.
+  const applyBulk = async ({ markOrdered, orderedBy, vendor, contact, poNumber, expectedAt, note, lines = {} }) => {
     const targets = pickedMaterials();
     setBulkOpen(false);
     if (!targets.length) return;
@@ -449,11 +451,14 @@ export default function App() {
     // reloads of several megabytes each, and the worst case is precisely the
     // order this feature exists for (#800043 has 17). One reload at the end.
     for (const m of targets) {
+      const line = lines[m.id] || {};
       if (markOrdered) {
         // Quantity stays per-material — it differs per order, which is the whole
-        // point of it — so each line keeps its own, defaulting to what was asked.
+        // point of it. Never defaulted from the requested amount: a quantity
+        // here means someone typed it, so "asked 20, got 12" can't be hidden by
+        // a number nobody checked. Blank keeps whatever the line already had.
         await db.markOrdered(m.id, {
-          orderedQty: m.orderedQty ?? m.amount ?? null,
+          orderedQty: line.qty || m.orderedQty || null,
           orderedBy: orderedBy || m.orderedBy || "",
           vendor: vendor || m.vendor || "",
           contact: contact || m.contact || "",
@@ -463,9 +468,12 @@ export default function App() {
           note: m.note || null,             // notes are per-material; see below
         });
       } else {
-        await db.updateMaterialFields(m.id, fields);
+        await db.updateMaterialFields(m.id, { ...fields, orderedQty: line.qty || "" });
       }
+      // The shared note first, then this line's own — notes are append-only, so
+      // both survive, and the specific one ends up newest.
       if (note) await db.addNote("material", m.id, note);
+      if (line.note) await db.addNote("material", m.id, line.note);
     }
     await board.refetch();
     clearPicked();
@@ -1280,14 +1288,18 @@ export default function App() {
 
             {tab === "buy" && (
               <Tabwrap title="PURCHASING" action={<div className="flex items-center gap-2 flex-wrap justify-end"><SortMenu value={sortBy} onChange={setSortBy} /><Btn kind="dark" onClick={() => setShowNewPurchase(true)}><Plus size={13} />New purchase</Btn></div>}>
-                {/* Shown only once something is ticked. Sticky, because the
-                    selection routinely spans orders and the buyer will have
-                    scrolled well past the top by the time they're done. */}
+                {/* Shown only once something is ticked, and it FLOATS at the
+                    bottom of the screen rather than sitting at the top of the
+                    list. It used to be `position: sticky` up there, which looked
+                    right and wasn't: the app header is sticky too and taller, so
+                    the bar slid underneath it and you had to scroll all the way
+                    back to the top of the tab to use what you'd just ticked. */}
                 {picked.size > 0 && (
-                  <div className="flex items-center gap-2 flex-wrap mb-3" style={{
-                    position: "sticky", top: 8, zIndex: 20,
-                    background: C.fill, color: "#fff", borderRadius: 6, padding: "9px 12px",
-                    boxShadow: `0 2px 8px ${C.shadow}`,
+                  <div className="bulkbar flex items-center gap-2 flex-wrap" style={{
+                    position: "fixed", left: 12, right: 12, bottom: 12, zIndex: 40,
+                    maxWidth: 680, marginLeft: "auto", marginRight: "auto",
+                    background: C.fill, color: "#fff", borderRadius: 8, padding: "10px 14px",
+                    boxShadow: `0 6px 22px ${C.shadow}`,
                   }}>
                     <span style={{ fontSize: 13, fontWeight: 800 }}>
                       {picked.size} selected
@@ -1303,6 +1315,8 @@ export default function App() {
                   </div>
                 )}
                 {!buyOrders.length && <Empty>Nothing to buy. Materials land here when an item is triaged “need material.”</Empty>}
+                {/* Room to scroll the last row clear of the floating bar. */}
+                {picked.size > 0 && <div aria-hidden style={{ height: 84 }} />}
                 {sortOrders(buyOrders).map((o) => (
                   <Group key={o.id} o={o} now={now} onDueDate={board.setDueDate} onCompletion={board.setCompletionDate} onMethod={board.setFulfillmentMethod} onInvoice={onInvoiceClick} onOpen={() => setDetailId(o.id)}>
                     {/* Whole-order shortcut — only worth showing when there's more

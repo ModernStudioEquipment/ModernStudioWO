@@ -725,7 +725,10 @@ export const supabaseAdapter = {
   // correcting a vendor would silently claim the material had been bought.
   // Only the fields actually supplied are written; the rest are left alone.
   async updateMaterialFields(materialId, fields = {}) {
-    const map = { vendor: "vendor", contact: "contact", poNumber: "po_number", expectedAt: "expected_at" };
+    // ordered_qty is here too, so the bulk editor can correct what was actually
+    // bought without re-marking a line as ordered. `amount` is never touched —
+    // that's the REQUESTED quantity and it has to survive (see 0051).
+    const map = { vendor: "vendor", contact: "contact", poNumber: "po_number", expectedAt: "expected_at", orderedQty: "ordered_qty" };
     const upd = {};
     for (const [k, col] of Object.entries(map)) {
       if (fields[k] !== undefined && String(fields[k]).trim() !== "") upd[col] = fields[k];

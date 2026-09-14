@@ -506,7 +506,7 @@ export const localAdapter = {
   // See the Supabase adapter: purchase details without claiming it was bought.
   async updateMaterialFields(materialId, fields = {}) {
     mutateMaterial(materialId, (m) => {
-      ["vendor", "contact", "poNumber", "expectedAt"].forEach((k) => {
+      ["vendor", "contact", "poNumber", "expectedAt", "orderedQty"].forEach((k) => {
         if (fields[k] !== undefined && String(fields[k]).trim() !== "") m[k] = fields[k];
       });
     });
