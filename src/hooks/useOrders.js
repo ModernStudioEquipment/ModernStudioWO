@@ -213,6 +213,7 @@ export function useOrders(enabled) {
     uploadItemPhoto: act((itemId, file) => db.uploadItemPhoto(itemId, file)),
     markOrdered: act((materialId, details) => db.markOrdered(materialId, details)),
     unmarkOrdered: act((materialId) => db.unmarkOrdered(materialId)),
+    updateMaterialFields: act((materialId, fields) => db.updateMaterialFields(materialId, fields)),
     setMaterialProgress: optimisticMaterial(
       (progress, meta = {}) => ({
         progress: progress || null,
@@ -232,7 +233,11 @@ export function useOrders(enabled) {
     setCompletionDate: act((orderId, date) => db.setCompletionDate(orderId, date)),
     setInvoiced: act((orderId, invoiced, invoiceNumber) => db.setInvoiced(orderId, invoiced, invoiceNumber)),
     setFulfillmentMethod: act((orderId, method) => db.setFulfillmentMethod(orderId, method)),
-    setOrderNotes: act((orderId, notes) => db.setOrderNotes(orderId, notes)),
+    // setOrderNotes is deliberately NOT exposed any more: notes are append-only,
+    // and an edit path reachable from the UI would write the mirrored text
+    // without adding a log entry — the two would silently disagree.
+    // Notes are append-only (0057) — there is no edit or delete counterpart.
+    addNote: act((subjectType, subjectId, body) => db.addNote(subjectType, subjectId, body)),
     setLocation: act((orderId, location) => db.setLocation(orderId, location)),
     fulfillOrder: act((orderId, method, location) => db.fulfillOrder(orderId, method, location)),
     reopenOrder: act((orderId, stage) => db.reopenOrder(orderId, stage)),

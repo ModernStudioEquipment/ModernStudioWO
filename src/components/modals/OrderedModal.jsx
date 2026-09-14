@@ -6,11 +6,13 @@ import { Btn } from "../ui.jsx";
 // Purchasing: when a material is marked ordered, record the quantity ordered,
 // who placed it, the vendor + who they talked to, the PO number, the dates, and
 // any notes. Re-opening an already-ordered material edits the same details.
-export function OrderedModal({ material, alsoNeeded = [], onConfirm, onUnorder, onClose }) {
+export function OrderedModal({ material, alsoNeeded = [], defaultBuyer = "", onConfirm, onUnorder, onClose }) {
   // Requested (material.amount) is read-only here — it's what the order needs.
   // Ordered defaults to it, because usually you buy exactly what was asked for.
   const [orderedQty, setOrderedQty] = useState(material.orderedQty ?? material.amount ?? "");
-  const [orderedBy, setOrderedBy] = useState(material.orderedBy || "");
+  // Pre-filled from whoever is signed in. One person places almost every
+  // order here, and retyping their own name on each line was pure friction.
+  const [orderedBy, setOrderedBy] = useState(material.orderedBy || defaultBuyer || "");
   const [vendor, setVendor] = useState(material.vendor || "");
   const [contact, setContact] = useState(material.contact || "");
   const [poNumber, setPoNumber] = useState(material.poNumber || "");

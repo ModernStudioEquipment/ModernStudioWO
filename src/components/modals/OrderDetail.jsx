@@ -1,22 +1,16 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState } from "react";
 import { X, Trash2, Clock, ChevronDown, ExternalLink, Check, Store, Truck, AlertTriangle, RefreshCw } from "lucide-react";
 import { C, PRI, stamp, itemStatusText, trackingUrl, numQty, pickedUpLabel } from "../../theme.js";
-import { Pill, Info, Stepper, DeptBadge, DuePill, CompletionPill, MethodBadge, InvoicedBadge, SittingBadge, MoveMenu, Btn, NoteByline } from "../ui.jsx";
+import { Pill, Info, Stepper, DeptBadge, DuePill, CompletionPill, MethodBadge, InvoicedBadge, SittingBadge, MoveMenu, Btn, NoteThread } from "../ui.jsx";
 import { ItemTimeline } from "../ItemTimeline.jsx";
 
 // The office "where's my order?" view — full detail with a per-product
 // progress tracker. Items reconverge here even though they're triaged and
 // routed independently.
-export function OrderDetail({ order, status, now, onDueDate, onCompletion, onInvoice, onMethod, onSaveNotes, onUpdateItem, onMoveItem, onGoToItem, onFinishItem, onLoadEvents, onResync, onFulfill, onSendOrderBack, onCancel, onWalkInPickup, onPartialPickup, onClose }) {
+export function OrderDetail({ order, status, now, onDueDate, onCompletion, onInvoice, onMethod, onAddNote, onUpdateItem, onMoveItem, onGoToItem, onFinishItem, onLoadEvents, onResync, onFulfill, onSendOrderBack, onCancel, onWalkInPickup, onPartialPickup, onClose }) {
   const [confirming, setConfirming] = useState(false);
   const [reason, setReason] = useState("Customer cancelled");
   const [openTimeline, setOpenTimeline] = useState(null); // item id whose timeline is expanded
-  const [notes, setNotes] = useState(order.notes || "");
-  const [savedNotes, setSavedNotes] = useState(order.notes || "");
-  // Grow the notes box to fit its content (no inner scroll).
-  const notesRef = useRef(null);
-  const growNotes = (el) => { if (el) { el.style.height = "auto"; el.style.height = `${el.scrollHeight}px`; } };
-  useEffect(() => { growNotes(notesRef.current); }, []);
   // Timelines are fetched only when opened — the event log is far too big to ship
   // with the board (see migration 0053).
   const [eventsById, setEventsById] = useState({});
@@ -132,27 +126,9 @@ export function OrderDetail({ order, status, now, onDueDate, onCompletion, onInv
             </div>
           )}
 
-          {onSaveNotes && (
-            <div className="mb-4">
-              <div style={{ fontSize: 11, fontWeight: 700, color: C.gray, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Order notes</div>
-              <textarea
-                ref={notesRef}
-                value={notes}
-                onChange={(e) => { setNotes(e.target.value); growNotes(e.target); }}
-                rows={2}
-                placeholder="Notes about this order…"
-                className="w-full px-2 py-2 outline-none"
-                style={{ border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 13, background: C.surface, resize: "none", overflow: "hidden", minHeight: 52 }}
-              />
-              {notes !== savedNotes && (
-                <button onClick={async () => { await onSaveNotes(notes.trim() || null); setSavedNotes(notes); }}
-                  className="mt-2 px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wide" style={{ background: C.fill, color: "#fff" }}>
-                  Save note
-                </button>
-              )}
-              <NoteByline by={order.notesBy} at={order.notesAt}
-                editedBy={order.notesEditedBy} editedAt={order.notesEditedAt} now={now} />
-            </div>
+          {onAddNote && (
+            <NoteThread notes={order.noteLog} now={now} onAdd={onAddNote}
+              label="Order notes" placeholder="Add a note about this order…" />
           )}
           <div style={{ height: 6, background: C.line, borderRadius: 3, overflow: "hidden", marginBottom: 18 }}>
             <div style={{ width: `${total ? (done / total) * 100 : 0}%`, height: "100%", background: C.green }} />

@@ -160,6 +160,14 @@ export const localAdapter = {
   async getOrders() {
     const orders = read();
     const photos = readPhotos();
+    // Note log (0057) lives inline on each record in local mode.
+    orders.forEach((o) => {
+      o.noteLog = o.noteLog || [];
+      (o.items || []).forEach((it) => {
+        it.noteLog = it.noteLog || [];
+        (it.materials || []).forEach((m) => { m.noteLog = m.noteLog || []; });
+      });
+    });
     orders.forEach((o) => o.items.forEach((it) => { if (!it.imageUrl && photos[it.name]) it.imageUrl = photos[it.name]; }));
     return orders;
   },
@@ -431,7 +439,11 @@ export const localAdapter = {
   async markOrdered(materialId, details = {}) {
     mutateMaterial(materialId, (m) => {
       m.ordered = true;
-      if (details.amount !== undefined)
+      // NB: `amount` is the REQUESTED quantity and must survive being ordered —
+      // what was actually bought goes in orderedQty. A brace-less `if` on it used
+      // to sit here and swallowed the next line, so orderedBy was only written
+      // when amount happened to be passed, which it never is: every local-mode
+      // purchase silently lost who bought it.
       m.orderedBy = details.orderedBy || null;
       m.vendor = details.vendor || null;
       m.contact = details.contact || null;
@@ -475,6 +487,15 @@ export const localAdapter = {
         applyNoteStamp(m, m.note, note, NOTE_KEYS);
         m.note = note;
       }
+    });
+  },
+
+  // See the Supabase adapter: purchase details without claiming it was bought.
+  async updateMaterialFields(materialId, fields = {}) {
+    mutateMaterial(materialId, (m) => {
+      ["vendor", "contact", "poNumber", "expectedAt"].forEach((k) => {
+        if (fields[k] !== undefined && String(fields[k]).trim() !== "") m[k] = fields[k];
+      });
     });
   },
 
@@ -535,6 +556,26 @@ export const localAdapter = {
     const o = orders.find((x) => x.id === orderId);
     if (o) o.fulfillmentMethod = method || null;
     write(orders);
+  },
+
+  // Append-only: a note is locked once made. Adding to it means adding another.
+  async addNote(subjectType, subjectId, body) {
+    const text = String(body || "").trim();
+    if (!text) return null;
+    const entry = { id: uid(), body: text, author: null, at: new Date().toISOString() };
+    const orders = read();
+    const push = (rec, mirrorKey) => { rec.noteLog = rec.noteLog || []; rec.noteLog.push(entry); rec[mirrorKey] = text; };
+    outer: for (const o of orders) {
+      if (subjectType === "order" && o.id === subjectId) { push(o, "notes"); break; }
+      for (const it of o.items || []) {
+        if (subjectType === "item" && it.id === subjectId) { push(it, "note"); break outer; }
+        for (const m of it.materials || []) {
+          if (subjectType === "material" && m.id === subjectId) { push(m, "note"); break outer; }
+        }
+      }
+    }
+    write(orders);
+    return entry;
   },
 
   async setOrderNotes(orderId, notes) {

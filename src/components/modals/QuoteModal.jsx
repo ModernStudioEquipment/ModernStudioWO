@@ -6,7 +6,7 @@ import { Btn, NoteByline } from "../ui.jsx";
 // Flagging a material "quote requested" — with room to say what was actually
 // asked for. The note is the material's own note (not a separate field), so the
 // context carries forward and is already there when someone marks it ordered.
-export function QuoteModal({ material, count = 1, now = Date.now(), onConfirm, onClear, onClose }) {
+export function QuoteModal({ material, count = 1, now = Date.now(), defaultBy = "", onConfirm, onClear, onClose }) {
   const bulk = count > 1;
   // Already flagged: this is now a read/edit view of the existing note rather
   // than a fresh request, so it keeps the original "requested" stamp.
@@ -16,7 +16,7 @@ export function QuoteModal({ material, count = 1, now = Date.now(), onConfirm, o
   // from whichever material happened to be first and then write it onto all of
   // them, which is how one material's note ended up on a dozen unrelated ones.
   const [note, setNote] = useState(bulk ? "" : material?.note || "");
-  const [by, setBy] = useState("");
+  const [by, setBy] = useState(defaultBy || "");   // same login pre-fill as "ordered by"
   const [saving, setSaving] = useState(false);
 
   const confirm = async () => {

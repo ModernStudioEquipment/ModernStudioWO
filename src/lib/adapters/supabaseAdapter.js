@@ -182,20 +182,22 @@ export function mapOrderRow(row) {
 
 // The full-load shape: an order row plus its children, assembled from the same
 // per-row mappers realtime uses.
-function mapOrder(row, productPhotos = {}, fulfillmentsByOrder = {}, photoBySku = {}) {
+function mapOrder(row, productPhotos = {}, fulfillmentsByOrder = {}, photoBySku = {}, notesBySubject = {}) {
   const items = (row.items || [])
     .slice()
     .sort((a, b) => (a.position ?? 0) - (b.position ?? 0) || a.created_at.localeCompare(b.created_at))
     .map((it) => ({
       ...mapItemRow(it, productPhotos, photoBySku),
       events: [], // loaded on demand — see getItemEvents()
+      noteLog: notesBySubject[`item:${it.id}`] || [],
       materials: (it.materials || [])
         .slice()
         .sort((a, b) => a.created_at.localeCompare(b.created_at))
-        .map(mapMaterialRow),
+        .map((m) => ({ ...mapMaterialRow(m), noteLog: notesBySubject[`material:${m.id}`] || [] })),
     }));
   return {
     ...mapOrderRow(row),
+    noteLog: notesBySubject[`order:${row.id}`] || [],
     fulfillments: fulfillmentsByOrder[row.id] || [], // partial pickup/shipment log
     items,
   };
@@ -257,6 +259,29 @@ export const supabaseAdapter = {
     // SKU-keyed photo library (0034): how QuickBooks items get their photo, matched
     // by the SKU in their "Item #:" note. Paged + cached; tolerates the table missing.
     const photoBySku = await loadPhotoBySku();
+    // Note log (0057), grouped by subject. Paged for the same reason the
+    // fulfillments log is: a plain select silently returns only the first 1000
+    // and drops the newest, which for notes would mean the most recent thinking
+    // on a job quietly going missing.
+    const notesBySubject = {};
+    let noteLogAvailable = false;
+    for (let from = 0; ; from += 1000) {
+      const { data: page, error: nErr } = await supabase
+        .from("notes").select("*")
+        .order("created_at", { ascending: true, nullsFirst: true })
+        .range(from, from + 999);
+      if (nErr) break;                       // 0057 not run — fall back below
+      noteLogAvailable = true;
+      if (!Array.isArray(page) || !page.length) break;
+      page.forEach((n) => {
+        const key = `${n.subject_type}:${n.subject_id}`;
+        (notesBySubject[key] = notesBySubject[key] || []).push({
+          id: n.id, body: n.body, author: n.author || null, at: n.created_at || null,
+        });
+      });
+      if (page.length < 1000) break;
+    }
+
     // Partial pickup/shipment log, grouped by order (tolerate the table missing).
     // MUST be paged: this passed 1000 rows and, being sorted oldest-first, the
     // API silently returned the oldest 1000 and dropped the NEWEST ones — so
@@ -278,7 +303,22 @@ export const supabaseAdapter = {
         trackingNumber: f.tracking_number || null, note: f.note || null, lines: f.lines || [], at: f.created_at,
       });
     });
-    return (data || []).map((row) => mapOrder(row, productPhotos, fulfillmentsByOrder, photoBySku));
+        // Before 0057 there is no log, so show the single stored note as one entry.
+    // Without this the thread would look empty even though a note exists.
+    if (!noteLogAvailable) {
+      const seed = (type, id, body, by, at) => {
+        if (!body || !String(body).trim()) return;
+        notesBySubject[`${type}:${id}`] = [{ id: `legacy-${id}`, body, author: by || null, at: at || null }];
+      };
+      (data || []).forEach((row) => {
+        seed("order", row.id, row.notes, row.notes_by, row.notes_at);
+        (row.items || []).forEach((it) => {
+          seed("item", it.id, it.note, it.note_by, it.note_at);
+          (it.materials || []).forEach((m) => seed("material", m.id, m.note, m.note_by, m.note_at));
+        });
+      });
+    }
+    return (data || []).map((row) => mapOrder(row, productPhotos, fulfillmentsByOrder, photoBySku, notesBySubject));
   },
 
   // Record one partial pickup/shipment (atomic SQL fn: log it, add the quantities
@@ -330,6 +370,10 @@ export const supabaseAdapter = {
       .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, cb)
       .on("postgres_changes", { event: "*", schema: "public", table: "items" }, cb)
       .on("postgres_changes", { event: "*", schema: "public", table: "materials" }, cb)
+      // Without this a note posted by one person never reached anyone else's
+      // board until they happened to reload. An INSERT isn't patchable in
+      // place, so it falls through to a reload, which is what refreshes the log.
+      .on("postgres_changes", { event: "*", schema: "public", table: "notes" }, cb)
       .on("postgres_changes", { event: "*", schema: "public", table: "item_events" }, cb)
       .on("postgres_changes", { event: "*", schema: "public", table: "work_orders" }, cb)
       .on("postgres_changes", { event: "*", schema: "public", table: "app_settings" }, cb)
@@ -644,6 +688,22 @@ export const supabaseAdapter = {
     if (error && !/progress/.test(error.message || "")) fail(error);
   },
 
+  // Change the purchase details on a material WITHOUT marking it ordered.
+  // markOrdered() always sets ordered=true, so bulk-editing a vendor or an
+  // expected date on things still being quoted needed its own path — otherwise
+  // correcting a vendor would silently claim the material had been bought.
+  // Only the fields actually supplied are written; the rest are left alone.
+  async updateMaterialFields(materialId, fields = {}) {
+    const map = { vendor: "vendor", contact: "contact", poNumber: "po_number", expectedAt: "expected_at" };
+    const upd = {};
+    for (const [k, col] of Object.entries(map)) {
+      if (fields[k] !== undefined && String(fields[k]).trim() !== "") upd[col] = fields[k];
+    }
+    if (!Object.keys(upd).length) return;
+    const { error } = await supabase.from("materials").update(upd).eq("id", materialId);
+    fail(error);
+  },
+
   async unmarkOrdered(materialId) {
     // Flip ordered off but KEEP the vendor / PO / who, so an accidental toggle
     // doesn't lose what was entered — re-marking brings it right back.
@@ -699,6 +759,37 @@ export const supabaseAdapter = {
   async setFulfillmentMethod(orderId, method) {
     const { error } = await supabase.from("orders").update({ fulfillment_method: method || null }).eq("id", orderId);
     fail(error);
+  },
+
+  // Add a note. There is no edit and no delete — that's what "locked" means,
+  // and the table has no update/delete policy to back it up (0057). Adding to a
+  // note means adding ANOTHER note.
+  //
+  // The subject's own legacy note column is also set to this newest text, so the
+  // thirty-odd places that show "the note" (the bell on a purchasing row, the
+  // note rail, the mark-ordered pre-fill) keep working untouched.
+  async addNote(subjectType, subjectId, body) {
+    const text = String(body || "").trim();
+    if (!text) return null;
+    const author = await currentAuthor();
+    const { data, error } = await supabase.from("notes")
+      .insert({ subject_type: subjectType, subject_id: subjectId, body: text, author })
+      .select("id, body, author, created_at").single();
+
+    // The mirrored column is written either way — it's what the ~30 existing
+    // "show me the note" places read.
+    const mirror = { order: ["orders", "notes"], item: ["items", "note"], material: ["materials", "note"] }[subjectType];
+    if (mirror) {
+      await supabase.from(mirror[0]).update({ [mirror[1]]: text }).eq("id", subjectId).then(() => {}, () => {});
+    }
+
+    // If 0057 hasn't been run the notes table simply isn't there. Do NOT throw:
+    // the old single-note editor has been replaced by this, so throwing would
+    // leave no way to write a note at all. Degrade to the mirrored field — one
+    // note per subject, exactly as before — and start logging properly the
+    // moment the migration lands.
+    if (error) return { id: `local-${subjectId}`, body: text, author, at: new Date().toISOString() };
+    return data ? { id: data.id, body: data.body, author: data.author || null, at: data.created_at || null } : null;
   },
 
   async setOrderNotes(orderId, notes, who) {

@@ -3,7 +3,7 @@ import {
   Clock, Printer, Plus, Truck, CheckCircle2, AlertTriangle, Hammer,
   Flag, Check, ArrowRight, ShoppingCart, LogOut, Store, MapPin, Package, X, Bell, ExternalLink, RefreshCw, Pencil, RotateCcw, ChevronsDownUp, ChevronsUpDown, Sun, Moon, MonitorPlay, Layers, ArrowUpDown, ChevronLeft, ChevronRight, PackageSearch, PackageCheck, Trash2, DollarSign,
 } from "lucide-react";
-import { C, PRI, PRI_CYCLE, PRI_RANK, elapsed, stamp, materialKey, quoteNoteFor, whereIsItem, blocked, pct, dueLabel, priLabel, effectivePriority, trackingUrl, stagedTooLong, stagedDwellMs, STAGE_LABELS } from "./theme.js";
+import { C, PRI, PRI_CYCLE, PRI_RANK, elapsed, stamp, materialKey, quoteNoteFor, whereIsItem, noteAuthorName, blocked, pct, dueLabel, priLabel, effectivePriority, trackingUrl, stagedTooLong, stagedDwellMs, STAGE_LABELS } from "./theme.js";
 import { backendMode, db } from "./lib/db.js";
 import { useAuth } from "./hooks/useAuth.js";
 import { useOrders } from "./hooks/useOrders.js";
@@ -36,6 +36,7 @@ import { PickedUpModal } from "./components/modals/PickedUpModal.jsx";
 import { PartialModal } from "./components/modals/PartialModal.jsx";
 import { InvoiceModal } from "./components/modals/InvoiceModal.jsx";
 import { OrderedModal } from "./components/modals/OrderedModal.jsx";
+import { BulkMaterialModal } from "./components/modals/BulkMaterialModal.jsx";
 import { ReceiveModal } from "./components/modals/ReceiveModal.jsx";
 import { CustomWorkOrderDoc } from "./components/modals/CustomWorkOrderDoc.jsx";
 import { WO_TYPES } from "./components/workorders/forms.js";
@@ -179,6 +180,21 @@ export default function App() {
   const [walkInTarget, setWalkInTarget] = useState(null); // order a walk-in customer collected straight from the board
   const [partialTarget, setPartialTarget] = useState(null); // { order, kind } partial pickup/shipment
   const [invoiceTarget, setInvoiceTarget] = useState(null); // QB order whose invoice number is being entered
+  // Bulk selection in Purchasing. Deliberately keyed by material id and NOT
+  // scoped to one order: buying happens by vendor, so a single PO routinely
+  // covers materials belonging to several different jobs.
+  const [picked, setPicked] = useState(() => new Set());
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const togglePicked = (id) => setPicked((prev) => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
+  const clearPicked = () => setPicked(new Set());
+  // Whoever is signed in — used to pre-fill "ordered by" so the buyer isn't
+  // retyping their own name on every line (one person places ~90% of orders).
+  const me = noteAuthorName(auth.user);
+
   const [orderTarget, setOrderTarget] = useState(null); // purchasing material being marked ordered (asks who/vendor/PO)
   const [receiveTarget, setReceiveTarget] = useState(null); // { it, m } material being received (asks dest tab/qty/note)
   const [syncing, setSyncing] = useState(false); // QuickBooks sync in progress
@@ -411,6 +427,60 @@ export default function App() {
       board.patchMaterial(m.id, before);
       await db.setMaterialProgress(m.id, before.progress, { by: before.progressBy, keepStamp: true });
     });
+  };
+
+  // Every material currently ticked, wherever it sits on the tab.
+  const pickedMaterials = () => orders
+    .flatMap((o) => (o.items || []).flatMap((it) => it.materials || []))
+    .filter((m) => picked.has(m.id));
+
+  // Apply one set of details to everything ticked. Blank fields are skipped, so
+  // this covers "mark these 8 ordered from IMS", "just fix the vendor", and
+  // "add this note to all of them" without three separate flows.
+  const applyBulk = async ({ markOrdered, orderedBy, vendor, contact, poNumber, expectedAt, note }) => {
+    const targets = pickedMaterials();
+    setBulkOpen(false);
+    if (!targets.length) return;
+    const fields = { vendor, contact, poNumber, expectedAt };
+
+    // Go STRAIGHT to the db layer here, not through board.*. Every board method
+    // is wrapped so it reloads the whole board afterwards — fine for one click,
+    // ruinous in a loop: seventeen materials would have meant thirty-four full
+    // reloads of several megabytes each, and the worst case is precisely the
+    // order this feature exists for (#800043 has 17). One reload at the end.
+    for (const m of targets) {
+      if (markOrdered) {
+        // Quantity stays per-material — it differs per order, which is the whole
+        // point of it — so each line keeps its own, defaulting to what was asked.
+        await db.markOrdered(m.id, {
+          orderedQty: m.orderedQty ?? m.amount ?? null,
+          orderedBy: orderedBy || m.orderedBy || "",
+          vendor: vendor || m.vendor || "",
+          contact: contact || m.contact || "",
+          poNumber: poNumber || m.poNumber || "",
+          orderedAt: m.orderedAt || null,   // immutable once set
+          expectedAt: expectedAt || m.expectedAt || null,
+          note: m.note || null,             // notes are per-material; see below
+        });
+      } else {
+        await db.updateMaterialFields(m.id, fields);
+      }
+      if (note) await db.addNote("material", m.id, note);
+    }
+    await board.refetch();
+    clearPicked();
+
+    // Undo takes the ordered flag back off. Vendor / PO / who are deliberately
+    // left as they are — unmarkOrdered keeps them everywhere else too, so an
+    // accidental toggle doesn't lose what someone typed.
+    undoer.record(
+      `${markOrdered ? "Marked ordered" : "Updated"} — ${targets.length} material${targets.length === 1 ? "" : "s"}`,
+      async () => {
+        if (!markOrdered) return;
+        for (const m of targets) await db.unmarkOrdered(m.id);
+        await board.refetch();
+      }
+    );
   };
 
   const markOrderedU = async (materialId, details) => {
@@ -1210,6 +1280,28 @@ export default function App() {
 
             {tab === "buy" && (
               <Tabwrap title="PURCHASING" action={<div className="flex items-center gap-2 flex-wrap justify-end"><SortMenu value={sortBy} onChange={setSortBy} /><Btn kind="dark" onClick={() => setShowNewPurchase(true)}><Plus size={13} />New purchase</Btn></div>}>
+                {/* Shown only once something is ticked. Sticky, because the
+                    selection routinely spans orders and the buyer will have
+                    scrolled well past the top by the time they're done. */}
+                {picked.size > 0 && (
+                  <div className="flex items-center gap-2 flex-wrap mb-3" style={{
+                    position: "sticky", top: 8, zIndex: 20,
+                    background: C.fill, color: "#fff", borderRadius: 6, padding: "9px 12px",
+                    boxShadow: `0 2px 8px ${C.shadow}`,
+                  }}>
+                    <span style={{ fontSize: 13, fontWeight: 800 }}>
+                      {picked.size} selected
+                    </span>
+                    <span className="ml-auto flex items-center gap-2 flex-wrap">
+                      <Btn kind="gold" onClick={() => setBulkOpen(true)}>
+                        <ShoppingCart size={13} />Mark ordered / edit
+                      </Btn>
+                      <button onClick={clearPicked} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.75)", fontSize: 12, cursor: "pointer", textDecoration: "underline" }}>
+                        Clear
+                      </button>
+                    </span>
+                  </div>
+                )}
                 {!buyOrders.length && <Empty>Nothing to buy. Materials land here when an item is triaged “need material.”</Empty>}
                 {sortOrders(buyOrders).map((o) => (
                   <Group key={o.id} o={o} now={now} onDueDate={board.setDueDate} onCompletion={board.setCompletionDate} onMethod={board.setFulfillmentMethod} onInvoice={onInvoiceClick} onOpen={() => setDetailId(o.id)}>
@@ -1235,8 +1327,15 @@ export default function App() {
                         const expReached = m.ordered && m.expectedAt && today >= m.expectedAt;
                         const overdue = expReached && today > m.expectedAt;
                         return (
-                        <div key={m.id} className="px-4 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
+                        <div key={m.id} className="px-4 py-3" style={{ borderBottom: `1px solid ${C.line}`, background: picked.has(m.id) ? C.blueBg : "transparent" }}>
                           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                            {/* Tick any number of lines, across any number of orders,
+                                then act on them together from the bar at the top. */}
+                            <input
+                              type="checkbox" checked={picked.has(m.id)} onChange={() => togglePicked(m.id)}
+                              title="Select for a bulk action"
+                              style={{ width: 16, height: 16, flexShrink: 0, cursor: "pointer" }}
+                            />
                             <DeptBadge d={it.dept} onChange={(dep) => board.updateItem(it.id, { dept: dep })} />
                             <div className="min-w-0">
                               {/* Click the product to open the order pop-up and edit its details. */}
@@ -1515,6 +1614,7 @@ export default function App() {
           material={quoteTarget.materials[0]}
           count={quoteTarget.materials.length}
           now={now}
+          defaultBy={me}
           onConfirm={confirmQuote}
           onClear={clearQuote}
           onClose={() => setQuoteTarget(null)}
@@ -1533,7 +1633,7 @@ export default function App() {
           onCompletion={(date) => board.setCompletionDate(detailOrder.id, date)}
           onInvoice={onInvoiceClick}
           onMethod={(m) => board.setFulfillmentMethod(detailOrder.id, m)}
-          onSaveNotes={(notes) => board.setOrderNotes(detailOrder.id, notes)}
+          onAddNote={(body) => board.addNote("order", detailOrder.id, body)}
           onUpdateItem={(itemId, patch) => board.updateItem(itemId, patch)}
           onMoveItem={(itemId, s) => { if (s === "awaiting") { setDetailId(null); setMatTarget(itemId); } else moveItemU(itemId, s); }}
           onFinishItem={(itemId) => finishItemU(itemId)}
@@ -1680,9 +1780,18 @@ export default function App() {
           onClose={() => setInvoiceTarget(null)}
         />
       )}
+      {bulkOpen && (
+        <BulkMaterialModal
+          materials={pickedMaterials()}
+          defaultBuyer={me}
+          onConfirm={applyBulk}
+          onClose={() => setBulkOpen(false)}
+        />
+      )}
       {orderTarget && (
         <OrderedModal
           material={orderTarget}
+          defaultBuyer={me}
           alsoNeeded={demandFor(orderTarget.name, orderTarget.id)}
           onConfirm={async (details) => { await markOrderedU(orderTarget.id, details); setOrderTarget(null); }}
           onUnorder={async () => { await board.unmarkOrdered(orderTarget.id); setOrderTarget(null); }}

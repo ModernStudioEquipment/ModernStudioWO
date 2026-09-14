@@ -53,6 +53,57 @@ export function InlineMenu({ children, options, onSelect, align = "left" }) {
   );
 }
 
+// A thread of locked notes plus a box to add another.
+//
+// Notes used to be one editable box: whoever typed last overwrote whatever was
+// there, so the record of what was known when disappeared. Each note is now
+// fixed once posted — with who wrote it and when — and adding to it means
+// adding another note. There is no edit button, and the table has no update
+// policy behind it (0057), so this isn't merely a UI convention.
+export function NoteThread({ notes = [], now, onAdd, placeholder = "Add a note…", label = "Notes" }) {
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+  const post = async () => {
+    const text = draft.trim();
+    if (!text || saving || !onAdd) return;
+    setSaving(true);
+    try { await onAdd(text); setDraft(""); } finally { setSaving(false); }
+  };
+  return (
+    <div className="mb-4">
+      <div style={{ fontSize: 11, fontWeight: 700, color: C.gray, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>
+        {label}{notes.length ? ` · ${notes.length}` : ""}
+      </div>
+      {notes.map((n) => (
+        <div key={n.id} className="mb-2" style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 6, padding: "8px 10px" }}>
+          <div style={{ fontSize: 13, whiteSpace: "pre-wrap" }}>{n.body}</div>
+          <div style={{ fontSize: 11, color: C.gray, marginTop: 4 }}>
+            {n.author || "author unknown"}
+            {/* Backfilled notes carry no date — saying so beats inventing one. */}
+            {n.at ? ` · ${stamp(new Date(n.at).getTime(), now)}` : " · date unknown"}
+          </div>
+        </div>
+      ))}
+      {onAdd && (
+        <>
+          <textarea
+            value={draft} onChange={(e) => setDraft(e.target.value)} rows={2} placeholder={placeholder}
+            className="w-full px-2 py-2 outline-none"
+            style={{ border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 13, background: C.surface, resize: "vertical" }}
+          />
+          {!!draft.trim() && (
+            <button onClick={post} disabled={saving}
+              className="mt-2 px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wide"
+              style={{ background: C.fill, color: "#fff", border: "none", cursor: "pointer" }}>
+              {saving ? "Adding…" : "Add note"}
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 // Who wrote a note and when — and separately, who last changed it.
 //
 // On a shared board an anonymous note is only half useful: you can't tell who
