@@ -372,16 +372,19 @@ export default function App() {
     setQuoteTarget(null);
     if (!targets.length) return;
     const single = targets.length === 1;
-    const noteFor = (m) => quoteNoteFor(note, m, single);
+    // What (if anything) to ADD to this material. Same guard as before on a
+    // whole-order flag: a typed note only lands on materials that have none, so
+    // one material's note can't be stamped across a dozen unrelated ones.
+    const noteFor = (m) => quoteNoteFor(note, m, single) || null;
 
     // Exactly how each material stood before this click, so undo restores it
     // rather than assuming everything started unflagged — re-opening a flag to
     // edit its note must undo back to "flagged, old note", not to "not flagged".
     const before = targets.map((m) => ({
       id: m.id, progress: m.progress || null, progressAt: m.progressAt || null,
-      progressBy: m.progressBy || null, note: m.note ?? null,
+      progressBy: m.progressBy || null,
     }));
-    // Editing rather than requesting: every target was already flagged.
+    // Adding to something already flagged, rather than raising the flag.
     const editing = targets.every((m) => m.progress);
 
     // Paint immediately, then persist — a refetch behind the click would
@@ -390,25 +393,36 @@ export default function App() {
       const n = noteFor(m);
       board.patchMaterial(m.id, {
         progress: "Quote requested",
-        // Already flagged: keep the original stamp. Re-saving a note must not
+        // Already flagged: keep the original stamp. Adding a note must not
         // restyle "asked 3 days ago" as "just now".
         ...(m.progress ? {} : { progressAt: Date.now(), progressBy: by }),
-        ...(n !== undefined ? { note: n } : {}),
+        ...(n ? { note: n } : {}),
       });
     });
+    // The flag first, then the note as its own locked entry — the note column is
+    // no longer written by this flow, so nothing here can overwrite a note.
     await Promise.all(targets.map((m) =>
-      db.setMaterialProgress(m.id, "Quote requested", { by, note: noteFor(m), keepStamp: !!m.progress })));
+      db.setMaterialProgress(m.id, "Quote requested", { by, keepStamp: !!m.progress })));
+    for (const m of targets) {
+      const n = noteFor(m);
+      if (!n) continue;
+      await foldMirroredNote(m);
+      await db.addNote("material", m.id, n);
+    }
 
+    // Undo takes the FLAG back off. It cannot take a note back: a note is locked
+    // the moment it's written, which is the whole point of them, so the label
+    // says what will actually happen.
     undoer.record(
       editing
-        ? `Note updated — ${targets.length === 1 ? targets[0].name : `${targets.length} materials`}${orderNo ? ` (#${orderNo})` : ""}`
+        ? `Note added — ${targets.length === 1 ? targets[0].name : `${targets.length} materials`}${orderNo ? ` (#${orderNo})` : ""}`
         : `Quote requested — ${targets.length} material${targets.length === 1 ? "" : "s"}${orderNo ? ` (#${orderNo})` : ""}`,
       async () => {
-        before.forEach((b) => board.patchMaterial(b.id, { progress: b.progress, progressAt: b.progressAt, progressBy: b.progressBy, note: b.note }));
+        before.forEach((b) => board.patchMaterial(b.id, { progress: b.progress, progressAt: b.progressAt, progressBy: b.progressBy }));
         await Promise.all(before.map((b) =>
           b.progress
-            ? db.setMaterialProgress(b.id, b.progress, { by: b.progressBy, note: b.note, keepStamp: true })
-            : db.setMaterialProgress(b.id, null, { note: b.note })));
+            ? db.setMaterialProgress(b.id, b.progress, { by: b.progressBy, keepStamp: true })
+            : db.setMaterialProgress(b.id, null)));
       }
     );
   };
@@ -427,6 +441,18 @@ export default function App() {
       board.patchMaterial(m.id, before);
       await db.setMaterialProgress(m.id, before.progress, { by: before.progressBy, keepStamp: true });
     });
+  };
+
+  // A note that only ever lived in the material's own `note` column — written
+  // before the log existed, or by a flow that didn't log — has no entry of its
+  // own. Adding a note rewrites that column, so fold the old text into the log
+  // FIRST, keeping the author and date already recorded for it. Without this,
+  // the note somebody wrote last week disappears the moment anyone adds one.
+  const foldMirroredNote = async (m) => {
+    const current = (m?.note || "").trim();
+    if (!current) return;
+    if ((m.noteLog || []).some((n) => (n.body || "").trim() === current)) return;
+    await db.addNote("material", m.id, current, { author: m.noteBy || null, at: m.noteAt || null });
   };
 
   // Every material currently ticked, wherever it sits on the tab.
@@ -472,6 +498,7 @@ export default function App() {
       }
       // The shared note first, then this line's own — notes are append-only, so
       // both survive, and the specific one ends up newest.
+      if (note || line.note) await foldMirroredNote(m);
       if (note) await db.addNote("material", m.id, note);
       if (line.note) await db.addNote("material", m.id, line.note);
     }
@@ -493,7 +520,14 @@ export default function App() {
 
   const markOrderedU = async (materialId, details) => {
     const m = orders.flatMap((o) => o.items).flatMap((it) => it.materials).find((x) => x.id === materialId);
-    await board.markOrdered(materialId, details);
+    // A note typed in the popup is a NEW note, logged with who wrote it — not an
+    // edit of whatever was there. The rest of the details never touch the note.
+    const { newNote, ...rest } = details;
+    await board.markOrdered(materialId, rest);
+    if (newNote) {
+      await foldMirroredNote(m);
+      await board.addNote("material", materialId, newNote);
+    }
     if (m && !m.ordered) undoer.record(`Marked ordered — ${m.name}`, () => board.unmarkOrdered(materialId));
   };
 
@@ -1820,6 +1854,7 @@ export default function App() {
         <OrderedModal
           material={orderTarget}
           defaultBuyer={me}
+          now={now}
           alsoNeeded={demandFor(orderTarget.name, orderTarget.id)}
           onConfirm={async (details) => { await markOrderedU(orderTarget.id, details); setOrderTarget(null); }}
           onUnorder={async () => { await board.unmarkOrdered(orderTarget.id); setOrderTarget(null); }}

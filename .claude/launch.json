@@ -9,8 +9,8 @@
     },
     {
       "name": "modern-demo",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--", "--mode", "demo", "--port", "5178", "--strictPort"],
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["vite", "--mode", "demo", "--port", "5178", "--strictPort"],
       "port": 5178
     }
   ]

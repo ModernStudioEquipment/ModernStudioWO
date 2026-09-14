@@ -1,12 +1,12 @@
 import React, { useState } from "react";
 import { X, ShoppingCart } from "lucide-react";
 import { C, stampAt, totalAmounts } from "../../theme.js";
-import { Btn } from "../ui.jsx";
+import { Btn, NoteTrail } from "../ui.jsx";
 
 // Purchasing: when a material is marked ordered, record the quantity ordered,
 // who placed it, the vendor + who they talked to, the PO number, the dates, and
 // any notes. Re-opening an already-ordered material edits the same details.
-export function OrderedModal({ material, alsoNeeded = [], defaultBuyer = "", onConfirm, onUnorder, onClose }) {
+export function OrderedModal({ material, alsoNeeded = [], defaultBuyer = "", now = Date.now(), onConfirm, onUnorder, onClose }) {
   // Requested (material.amount) is read-only here — it's what the order needs.
   // Ordered defaults to it, because usually you buy exactly what was asked for.
   // NOT pre-filled from the requested amount. It used to be, and the two boxes
@@ -23,7 +23,11 @@ export function OrderedModal({ material, alsoNeeded = [], defaultBuyer = "", onC
   // The ordered stamp is auto-recorded at the moment you save (immutable — set in
   // the adapter, never a picker). Only the expected delivery date is user-set.
   const [expectedAt, setExpectedAt] = useState(material.expectedAt || "");
-  const [note, setNote] = useState(material.note || "");
+  // NOT an edit box over the last note. This popup used to open with the newest
+  // note in a textarea: every note before it was invisible, and saving quietly
+  // rewrote it. Notes are locked once written — what's here is the record, and
+  // this box adds to it.
+  const [newNote, setNewNote] = useState("");
   const [saving, setSaving] = useState(false);
   const editing = !!material.ordered;
   const confirm = async () => {
@@ -38,7 +42,10 @@ export function OrderedModal({ material, alsoNeeded = [], defaultBuyer = "", onC
         poNumber: poNumber.trim(),
         orderedAt: material.orderedAt || null, // immutable: keep on edit, adapter stamps now on first mark
         expectedAt: expectedAt || null,
-        note: note.trim() || null,
+        // The existing note is passed straight back through: the details write
+        // mirrors this column, and it must not be disturbed by an edit here.
+        note: material.note ?? null,
+        newNote: newNote.trim() || null,
       });
     } finally {
       setSaving(false);
@@ -130,7 +137,12 @@ export function OrderedModal({ material, alsoNeeded = [], defaultBuyer = "", onC
           </div>
           <div className="mb-4">
             <div style={label}>Notes</div>
-            <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. 2 rolls left, ordered more because…" rows={2} className="w-full px-2 py-2 outline-none" style={{ ...inp, resize: "vertical" }} />
+            <NoteTrail notes={material.noteLog} note={material.note} by={material.noteBy} at={material.noteAt} now={now} />
+            <textarea
+              value={newNote} onChange={(e) => setNewNote(e.target.value)} rows={2}
+              placeholder={material.note || material.noteLog?.length ? "Add another note…" : "e.g. 2 rolls left, ordered more because…"}
+              className="w-full px-2 py-2 outline-none mt-2" style={{ ...inp, resize: "vertical" }}
+            />
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <Btn kind="dark" onClick={confirm} disabled={saving}>

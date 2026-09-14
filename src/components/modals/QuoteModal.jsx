@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { X, Check } from "lucide-react";
 import { C, stamp } from "../../theme.js";
-import { Btn, NoteByline } from "../ui.jsx";
+import { Btn, NoteTrail } from "../ui.jsx";
 
 // Flagging a material "quote requested" — with room to say what was actually
 // asked for. The note is the material's own note (not a separate field), so the
@@ -11,11 +11,13 @@ export function QuoteModal({ material, count = 1, now = Date.now(), defaultBy = 
   // Already flagged: this is now a read/edit view of the existing note rather
   // than a fresh request, so it keeps the original "requested" stamp.
   const flagged = !bulk && !!material?.progress;
-  // Pre-fill ONLY when flagging a single material — then this is that material's
-  // own note and editing it is the point. Flagging a whole order used to pre-fill
-  // from whichever material happened to be first and then write it onto all of
-  // them, which is how one material's note ended up on a dozen unrelated ones.
-  const [note, setNote] = useState(bulk ? "" : material?.note || "");
+  // An ADD box, never an edit box. It used to open with the material's newest
+  // note in it: every note before that was invisible, and saving rewrote the one
+  // it showed. Notes are locked once written — what's above is the record.
+  // (Flagging a whole order used to pre-fill from whichever material happened to
+  // be first and then write it onto all of them, which is how one material's
+  // note ended up on a dozen unrelated ones.)
+  const [note, setNote] = useState("");
   const [by, setBy] = useState(defaultBy || "");   // same login pre-fill as "ordered by"
   const [saving, setSaving] = useState(false);
 
@@ -53,19 +55,20 @@ export function QuoteModal({ material, count = 1, now = Date.now(), defaultBy = 
             {bulk
               ? "Jot down what you asked for. This goes only on materials that don’t already have a note — anything already written stays as it is."
               : flagged
-              ? "What was asked for. Edit it as you hear back — it stays on the material and is already filled in when you come to mark it ordered."
-              : "Jot down what you asked for — it stays on the material and is already filled in when you come back to mark it ordered."}
+              ? "What was asked for. Add to it as you hear back — every note stays on the material, and they're all there when you come to mark it ordered."
+              : "Jot down what you asked for — it stays on the material and is there when you come back to mark it ordered."}
           </div>
 
           <div className="mb-3">
             <div style={label}>Notes</div>
+            {!bulk && (
+              <NoteTrail notes={material?.noteLog} note={material?.note} by={material?.noteBy} at={material?.noteAt} now={now} />
+            )}
             <textarea
               autoFocus value={note} onChange={(e) => setNote(e.target.value)} rows={3}
-              placeholder="e.g. asked Tube Service for 20 ft, waiting on price"
-              className="w-full px-2 py-2 outline-none" style={{ ...inp, resize: "vertical" }}
+              placeholder={!bulk && (material?.note || material?.noteLog?.length) ? "Add another note…" : "e.g. asked Tube Service for 20 ft, waiting on price"}
+              className="w-full px-2 py-2 outline-none mt-2" style={{ ...inp, resize: "vertical" }}
             />
-            <NoteByline by={material?.noteBy} at={material?.noteAt}
-              editedBy={material?.noteEditedBy} editedAt={material?.noteEditedAt} now={now} />
           </div>
 
           <div className="mb-4">
@@ -75,7 +78,7 @@ export function QuoteModal({ material, count = 1, now = Date.now(), defaultBy = 
 
           <Btn kind="dark" onClick={confirm} disabled={saving}>
             <Check size={15} />
-            {saving ? "Saving…" : bulk ? `Mark all ${count} quote requested` : flagged ? "Save note" : "Mark quote requested"}
+            {saving ? "Saving…" : bulk ? `Mark all ${count} quote requested` : flagged ? "Add note" : "Mark quote requested"}
           </Btn>
 
           {/* Clearing lives here, not on the row's button — deliberate rather

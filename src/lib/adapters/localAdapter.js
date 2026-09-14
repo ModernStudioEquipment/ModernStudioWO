@@ -572,10 +572,14 @@ export const localAdapter = {
   },
 
   // Append-only: a note is locked once made. Adding to it means adding another.
-  async addNote(subjectType, subjectId, body) {
+  async addNote(subjectType, subjectId, body, meta = {}) {
     const text = String(body || "").trim();
     if (!text) return null;
-    const entry = { id: uid(), body: text, author: null, at: new Date().toISOString() };
+    const entry = {
+      id: uid(), body: text,
+      author: meta.author !== undefined ? meta.author : null,
+      at: meta.at !== undefined ? meta.at : new Date().toISOString(),
+    };
     const orders = read();
     const push = (rec, mirrorKey) => { rec.noteLog = rec.noteLog || []; rec.noteLog.push(entry); rec[mirrorKey] = text; };
     outer: for (const o of orders) {

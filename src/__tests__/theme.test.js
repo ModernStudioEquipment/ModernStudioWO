@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { fmtDate, materialKey, totalAmounts, elapsed, stamp, quoteNoteFor, numQty, pickedUpLabel, whereIsItem, noteAuthorName, noteStamp } from "../theme.js";
+import { fmtDate, materialKey, totalAmounts, elapsed, stamp, quoteNoteFor, numQty, pickedUpLabel, whereIsItem, noteAuthorName, noteStamp, noteTrailOf } from "../theme.js";
 
 // Pure helpers that quietly drive real decisions on the board — a wrong answer
 // here shows up as a wrong date on a work order or two materials that should
@@ -238,5 +238,56 @@ describe("elapsed / stamp — never show a negative age", () => {
     const out = stamp(t, t + 2 * 60 * 60 * 1000);
     expect(out).toContain("08/05/2026");
     expect(out).toContain("ago");
+  });
+});
+
+describe("noteTrailOf — every note a material has, never just the newest", () => {
+  // Reported: "the original note for the product should stay there". It always
+  // did in the data; the row only ever rendered ONE note, so adding a second
+  // looked like it had replaced the first.
+  const log = [
+    { id: "a", body: "back-ordered until 10/2", author: "Jiro", at: "2026-09-11T19:34:00Z" },
+    { id: "b", body: "IMS called — shipping 10/6", author: "Jiro", at: "2026-09-14T18:55:00Z" },
+  ];
+
+  it("keeps every logged note, oldest first", () => {
+    const out = noteTrailOf({ noteLog: log, note: "IMS called — shipping 10/6" });
+    expect(out.map((n) => n.body)).toEqual([
+      "back-ordered until 10/2",
+      "IMS called — shipping 10/6",
+    ]);
+  });
+
+  it("doesn't repeat the newest note just because the mirrored column also has it", () => {
+    const out = noteTrailOf({ noteLog: log, note: "IMS called — shipping 10/6" });
+    expect(out).toHaveLength(2);
+  });
+
+  // The quote and mark-ordered popups write the material's own note column.
+  // Showing only the log would hide anything typed in either of them.
+  it("shows a note written straight to the column, with its byline", () => {
+    const out = noteTrailOf({ noteLog: log, note: "picked it up at the counter", noteBy: "Anoush", noteAt: "2026-09-14T19:58:00Z" });
+    expect(out).toHaveLength(3);
+    expect(out[2]).toMatchObject({ body: "picked it up at the counter", author: "Anoush" });
+  });
+
+  it("falls back to the column alone for notes older than the log", () => {
+    expect(noteTrailOf({ note: "asked Tube Service for 20ft", noteBy: "Jiro" })).toHaveLength(1);
+  });
+
+  it("puts an older note folded in later back in its place", () => {
+    // A note that only lived in the mirrored column gets appended to the log the
+    // next time somebody adds one — but it was written first, so it reads first.
+    const out = noteTrailOf({
+      noteLog: [...log, { id: "c", body: "old flow note", author: "Jiro", at: "2026-09-10T12:00:00Z" }],
+      note: "old flow note",
+    });
+    expect(out.map((n) => n.body)[0]).toBe("old flow note");
+  });
+
+  it("is empty when there is nothing to show", () => {
+    expect(noteTrailOf({})).toEqual([]);
+    expect(noteTrailOf()).toEqual([]);
+    expect(noteTrailOf({ note: "   " })).toEqual([]);
   });
 });

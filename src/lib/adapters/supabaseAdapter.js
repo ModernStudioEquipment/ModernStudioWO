@@ -802,12 +802,17 @@ export const supabaseAdapter = {
   // The subject's own legacy note column is also set to this newest text, so the
   // thirty-odd places that show "the note" (the bell on a purchasing row, the
   // note rail, the mark-ordered pre-fill) keep working untouched.
-  async addNote(subjectType, subjectId, body) {
+  // `meta` exists for ONE case: folding a note that only ever lived in the
+  // subject's own column into the log, with the authorship and date already
+  // recorded for it (0056) rather than today's. Normal notes pass nothing.
+  async addNote(subjectType, subjectId, body, meta = {}) {
     const text = String(body || "").trim();
     if (!text) return null;
-    const author = await currentAuthor();
+    const author = meta.author !== undefined ? meta.author : await currentAuthor();
+    const row = { subject_type: subjectType, subject_id: subjectId, body: text, author };
+    if (meta.at !== undefined) row.created_at = meta.at;   // null = date unknown
     const { data, error } = await supabase.from("notes")
-      .insert({ subject_type: subjectType, subject_id: subjectId, body: text, author })
+      .insert(row)
       .select("id, body, author, created_at").single();
 
     // The mirrored column is written either way — it's what the ~30 existing

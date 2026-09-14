@@ -316,7 +316,14 @@ export function noteTrailOf({ noteLog, note, noteBy, noteAt } = {}) {
   if (current && !list.some((n) => (n.body || "").trim() === current)) {
     list.push({ id: "current", body: note, author: noteBy || null, at: noteAt || null });
   }
-  return list;
+  // Oldest first by the time each note was actually written, not the order they
+  // reached the log: an older note folded in later would otherwise read as the
+  // newest thing that happened. Undated notes (the 0057 backfill) are the oldest
+  // there are, so they sort first.
+  return list
+    .map((n, i) => [n, i])
+    .sort((a, b) => (a[0].at ? new Date(a[0].at).getTime() : 0) - (b[0].at ? new Date(b[0].at).getTime() : 0) || a[1] - b[1])
+    .map(([n]) => n);
 }
 
 // must never disturb a note somebody already wrote: it only fills in blanks.
