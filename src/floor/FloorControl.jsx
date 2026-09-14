@@ -77,9 +77,12 @@ function collect(orders, dbDept, workOrders = []) {
     const rows = Array.isArray(f.lines) ? f.lines.filter((l) => Object.values(l || {}).some((v) => String(v || "").trim())) : [];
     const lineQty = rows.reduce((n, l) => n + (parseFloat(l.qty) || 0), 0);
     out.push({
-      // Prefixed so it can never collide with an item id in the floor's note
-      // and machine maps.
-      id: `wo-${w.id}`,
+      // Its own id, unprefixed: the wall monitor reads the same work order out of
+      // floor_queue under this id (0059), and the machine and note tables are
+      // keyed by it. A prefix here meant the office and the monitor were talking
+      // about the same sheet by two different names — and "wo-<uuid>" isn't a
+      // uuid, so assigning one to a CNC machine failed at the column.
+      id: w.id,
       name: f.product || w.title || `Work order ${w.orderNo}`,
       // The card prints this next to "pcs", so it has to be a number: a
       // line-item sheet's quantity is the sum of its rows, not "3 lines".
@@ -106,6 +109,7 @@ export default function FloorControl({ orders, workOrders = [], onClose, cncOnly
   const [cncView, setCncView] = useState("unassigned"); // "unassigned" | machine key
   const [order, setOrder] = useState({}); // queueKey -> [ids]
   const [machines, setMachines] = useState({}); // itemId -> machine key
+  const [assignError, setAssignError] = useState(null);
   const [notes, setNotes] = useState({});
   const [editingId, setEditingId] = useState(null);
   const [noteDraft, setNoteDraft] = useState("");
@@ -146,14 +150,30 @@ export default function FloorControl({ orders, workOrders = [], onClose, cncOnly
     await db.setFloorNote(id, t);
   }
 
+  // The chip lights up first and the write follows. If the write fails the chip
+  // used to stay lit anyway, so a card could sit in a machine's lane on this
+  // screen while the database — and therefore that machine's monitor — knew
+  // nothing about it. Put it back and say so instead.
   async function assignMachine(id, machine) {
+    const before = machines[id] || null;
     setMachines((m) => {
       const n = { ...m };
       if (machine) n[id] = machine;
       else delete n[id];
       return n;
     });
-    await db.setCncMachine(id, machine);
+    try {
+      await db.setCncMachine(id, machine);
+      setAssignError(null);
+    } catch (e) {
+      setMachines((m) => {
+        const n = { ...m };
+        if (before) n[id] = before;
+        else delete n[id];
+        return n;
+      });
+      setAssignError(e?.message || "Couldn't save that machine assignment.");
+    }
   }
 
   // ---- work out what this view is showing ----
@@ -328,6 +348,18 @@ export default function FloorControl({ orders, workOrders = [], onClose, cncOnly
                 <span className="n">{byMachine[m.key].length}</span>
               </button>
             ))}
+          </div>
+        )}
+
+        {assignError && (
+          <div
+            role="status"
+            style={{
+              margin: "10px 0 0", padding: "9px 12px", borderRadius: 8, fontSize: 13, fontWeight: 700,
+              background: "rgba(200,16,46,0.15)", color: "#FF9AA6", border: "1px solid rgba(200,16,46,0.5)",
+            }}
+          >
+            {assignError} Nothing was saved, so the monitor won't show it — try again.
           </div>
         )}
 
