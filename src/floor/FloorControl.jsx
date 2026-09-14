@@ -75,12 +75,15 @@ function collect(orders, dbDept, workOrders = []) {
     if (FLOOR_DEPTS[w.type]?.db !== dbDept) return;
     const f = w.fields || {};
     const rows = Array.isArray(f.lines) ? f.lines.filter((l) => Object.values(l || {}).some((v) => String(v || "").trim())) : [];
+    const lineQty = rows.reduce((n, l) => n + (parseFloat(l.qty) || 0), 0);
     out.push({
       // Prefixed so it can never collide with an item id in the floor's note
       // and machine maps.
       id: `wo-${w.id}`,
       name: f.product || w.title || `Work order ${w.orderNo}`,
-      qty: f.total || f.order || (rows.length ? `${rows.length} line${rows.length === 1 ? "" : "s"}` : ""),
+      // The card prints this next to "pcs", so it has to be a number: a
+      // line-item sheet's quantity is the sum of its rows, not "3 lines".
+      qty: f.total || f.order || lineQty || rows.length || "",
       color: f.color || null,
       inProgress: false,
       orderNo: w.orderNo,
