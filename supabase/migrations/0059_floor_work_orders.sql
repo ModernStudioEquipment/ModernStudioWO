@@ -88,14 +88,19 @@ select
     nullif(trim(w.title), ''),
     'Work order ' || coalesce(w.order_no, '')
   )                                      as product,
-  -- How many. Free text on the sheet, an integer here, so anything that isn't a
-  -- plain number is left null rather than guessed at. Line-item sheets (Sewing,
-  -- Saw) have no total field: sum the quantity column of their rows instead.
+  -- How many. TEXT, like items.qty — quantities here are measured, not counted
+  -- ("20 ft", "2 sheets"), which is why 0014 made that column free text, and a
+  -- union has to agree. Whatever was typed on the sheet passes straight through.
+  -- Line-item sheets (Sewing, Saw) have no total field: sum the quantity column
+  -- of their rows instead, counting only rows with a plain number in it.
   coalesce(
-    nullif(regexp_replace(coalesce(w.fields ->> 'total', ''), '[^0-9]', '', 'g'), '')::int,
-    nullif(regexp_replace(coalesce(w.fields ->> 'order', ''), '[^0-9]', '', 'g'), '')::int,
+    nullif(trim(w.fields ->> 'total'), ''),
+    nullif(trim(w.fields ->> 'order'), ''),
     (
-      select nullif(sum(nullif(regexp_replace(coalesce(l ->> 'qty', ''), '[^0-9]', '', 'g'), '')::int), 0)
+      select nullif(sum(
+               case when l ->> 'qty' ~ '^\s*[0-9]+(\.[0-9]+)?\s*$'
+                    then trim(l ->> 'qty')::numeric end
+             ), 0)::text
         from jsonb_array_elements(
                case when jsonb_typeof(w.fields -> 'lines') = 'array'
                     then w.fields -> 'lines' else '[]'::jsonb end
