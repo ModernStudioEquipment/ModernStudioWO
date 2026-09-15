@@ -186,6 +186,11 @@ export const localAdapter = {
 
   // ---- Per-job floor notes (single-machine, localStorage) ----
   // Append-only, same as the hosted adapter: { itemId: [{ id, body, author, at }] }.
+  // No wall monitors in local mode — nothing to be out of step with.
+  async arrangementVisibleToFloor() {
+    return true;
+  },
+
   async getFloorNotes() {
     let raw = {};
     try { raw = JSON.parse(localStorage.getItem("mse_floor_notes_v1")) || {}; } catch { raw = {}; }

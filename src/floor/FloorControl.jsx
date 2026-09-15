@@ -160,7 +160,7 @@ export default function FloorControl({ orders, workOrders = [], onClose, cncOnly
       }));
       setFloorError(null);
     } catch (e) {
-      setFloorError(e?.message || "Couldn't save that note.");
+      setFloorError(`Couldn't save that note${e?.message ? ` — ${e.message}` : ""}. Nothing was written.`);
     }
   }
 
@@ -186,7 +186,7 @@ export default function FloorControl({ orders, workOrders = [], onClose, cncOnly
         else delete n[id];
         return n;
       });
-      setFloorError(e?.message || "Couldn't save that machine assignment.");
+      setFloorError(`Couldn't save that machine assignment${e?.message ? ` — ${e.message}` : ""}. Nothing changed, so the monitor won't show it.`);
     }
   }
 
@@ -226,10 +226,21 @@ export default function FloorControl({ orders, workOrders = [], onClose, cncOnly
 
   const deptCount = (d) => collect(orders, d.db, workOrders).length;
 
-  function persist(key, nextIds) {
+  // Save the order, then check the monitor can actually READ it back. Writing
+  // and reading go through different doors — the office writes app_settings, the
+  // wall reads a client-free view of it — and when the view didn't expose a key,
+  // the drag saved perfectly and the monitor never moved. Nothing said so.
+  async function persist(key, nextIds) {
     if (!key) return;
+    const settingKey = `floor_${key}`;
     setOrder((p) => ({ ...p, [key]: nextIds }));
-    db.setArrangement(nextIds, `floor_${key}`);
+    try {
+      await db.setArrangement(nextIds, settingKey);
+      const visible = await db.arrangementVisibleToFloor(settingKey);
+      setFloorError(visible ? null : `Saved, but the monitor can't read this queue's order (${settingKey} isn't in the floor view — run migration 0061).`);
+    } catch (e) {
+      setFloorError(`Couldn't save that order${e?.message ? ` — ${e.message}` : ""}. The monitor keeps the order it has.`);
+    }
   }
   function moveToTop(id) {
     if (!queueKey) return;
@@ -373,7 +384,7 @@ export default function FloorControl({ orders, workOrders = [], onClose, cncOnly
               background: "rgba(200,16,46,0.15)", color: "#FF9AA6", border: "1px solid rgba(200,16,46,0.5)",
             }}
           >
-            {floorError} Nothing was saved, so the monitor won't show it — try again.
+            {floorError}
           </div>
         )}
 

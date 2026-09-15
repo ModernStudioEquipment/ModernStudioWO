@@ -348,6 +348,23 @@ export const supabaseAdapter = {
     if (error && error.code !== "42P01") fail(error); // 42P01 = table missing (migration not run yet)
   },
 
+  // Can the FLOOR see this queue order? Read it back through the client-free
+  // view the monitors use, not through app_settings.
+  //
+  // The office can write an arrangement the monitor is unable to read: for a
+  // year the view named four department keys, so every CNC machine sub-queue
+  // (floor_cnc_vf4 and friends) was filtered out on the way to the wall. The
+  // drag saved, the monitor never moved, and nothing anywhere said so.
+  async arrangementVisibleToFloor(key) {
+    const { data, error } = await supabase
+      .from("floor_arrangements")
+      .select("key")
+      .eq("key", key)
+      .maybeSingle();
+    if (error) return true;          // can't tell — never cry wolf over it
+    return !!data;
+  },
+
   // Map one realtime change row into board shape, using the very same mappers
   // the full load uses. Returns null for tables the board can't patch in place
   // (item_events, work_orders, app_settings) — the caller reloads for those.
