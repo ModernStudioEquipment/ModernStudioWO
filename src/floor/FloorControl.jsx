@@ -159,6 +159,13 @@ export default function FloorControl({ orders, workOrders = [], onClose, cncOnly
         [id]: [...notesFor(id), entry || { id: `tmp-${Date.now()}`, body: t, author: null, at: new Date().toISOString() }],
       }));
       setFloorError(null);
+      // The note is saved and locked whatever happens next. The email is a
+      // notification, not part of the record — so a failure says so and leaves
+      // the note exactly where it is.
+      const mail = await db.notifyFloorNote(id, entry?.id);
+      if (mail && mail.ok === false && !mail.skipped) {
+        setFloorError(`Note saved. The email to the CNC desk didn't go out${mail.error ? ` — ${mail.error}` : ""}.`);
+      }
     } catch (e) {
       setFloorError(`Couldn't save that note${e?.message ? ` — ${e.message}` : ""}. Nothing was written.`);
     }

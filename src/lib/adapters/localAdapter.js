@@ -191,6 +191,12 @@ export const localAdapter = {
     return true;
   },
 
+  // No server here, so no mail. Skipped rather than failed: local mode isn't
+  // broken, it just has nothing to send with.
+  async notifyFloorNote() {
+    return { ok: false, skipped: true };
+  },
+
   async getFloorNotes() {
     let raw = {};
     try { raw = JSON.parse(localStorage.getItem("mse_floor_notes_v1")) || {}; } catch { raw = {}; }

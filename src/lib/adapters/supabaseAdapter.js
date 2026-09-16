@@ -599,6 +599,33 @@ export const supabaseAdapter = {
     });
     return m;
   },
+  // Tell the CNC desk a note was written. The endpoint takes these two ids and
+  // nothing else — it reads the note and the job back itself, so nothing typed
+  // in this browser can become the body of an email from modernstudio.com.
+  //
+  // Never throws: the note is already saved and locked by the time this runs.
+  // A mail that doesn't go out is worth saying out loud, not worth undoing a
+  // note for.
+  async notifyFloorNote(itemId, noteId) {
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuid.test(String(itemId || "")) || !uuid.test(String(noteId || ""))) return { ok: false, skipped: true };
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data?.session?.access_token;
+      if (!token) return { ok: false, error: "not signed in" };
+      const res = await fetch("/api/floor-note-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ itemId, noteId }),
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok) return { ok: false, error: out.error || `HTTP ${res.status}`, detail: out.detail || null };
+      return { ok: true, to: out.to || null };
+    } catch (e) {
+      return { ok: false, error: String((e && e.message) || e) };
+    }
+  },
+
   async addFloorNote(itemId, body) {
     const text = String(body || "").trim();
     if (!text) return null;
