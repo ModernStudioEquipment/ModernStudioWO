@@ -16,11 +16,17 @@
 // Caller must be signed in: the browser sends its Supabase access token and this
 // checks it with Supabase before doing anything.
 //
+// CNC notes only. Deciding that HERE rather than in the browser keeps one answer
+// to "does this get emailed" — the department comes from the same client-free
+// queue the wall monitors read, so the screen can't drift out of step with it.
+//
 // Env (Vercel): RESEND_API_KEY, VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY,
-// SUPABASE_SECRET_KEY, and optionally FLOOR_NOTE_EMAIL_TO / _FROM to change the
-// addresses without a deploy.
+// SUPABASE_SECRET_KEY, and optionally FLOOR_NOTE_EMAIL_TO / _FROM / _DEPTS to
+// change the addresses or widen it past CNC without a deploy ("CNC,Sewing", or
+// "*" for every department).
 
 const DEFAULT_ADDRESS = "cnc@modernstudio.com";
+const DEFAULT_DEPTS = "CNC";
 
 export async function POST(request) {
   const url = process.env.VITE_SUPABASE_URL;
@@ -29,6 +35,8 @@ export async function POST(request) {
   const resendKey = process.env.RESEND_API_KEY;
   const to = process.env.FLOOR_NOTE_EMAIL_TO || DEFAULT_ADDRESS;
   const from = process.env.FLOOR_NOTE_EMAIL_FROM || DEFAULT_ADDRESS;
+  const depts = (process.env.FLOOR_NOTE_EMAIL_DEPTS || DEFAULT_DEPTS)
+    .split(",").map((d) => d.trim().toLowerCase()).filter(Boolean);
 
   const missing = [
     !resendKey && "RESEND_API_KEY",
@@ -67,6 +75,15 @@ export async function POST(request) {
   // The job it's on, from the client-free queue the monitors read.
   const rows = await rest(`floor_queue?item_id=eq.${itemId}&select=order_no,dept,product,qty`);
   const job = (Array.isArray(rows) && rows[0]) || {};
+
+  // Only the departments being watched. A note on a job whose department can't
+  // be read doesn't get mailed either: "send it anyway" would put Sewing notes
+  // in the CNC inbox every time a job left the queue.
+  const dept = String(job.dept || "").toLowerCase();
+  if (!depts.includes("*") && !depts.includes(dept)) {
+    return json(200, { ok: true, skipped: `${job.dept || "department unknown"} — only ${depts.join(", ")} is emailed` });
+  }
+
   const heading = [job.dept, job.order_no && `WO #${job.order_no}`, job.product].filter(Boolean).join(" · ")
     || "a job on the floor";
 

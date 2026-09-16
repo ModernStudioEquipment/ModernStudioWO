@@ -52,7 +52,7 @@ describe("POST /api/floor-note-email", () => {
   });
   afterEach(() => {
     vi.unstubAllGlobals();
-    ["FLOOR_NOTE_EMAIL_TO", "FLOOR_NOTE_EMAIL_FROM"].forEach((k) => delete process.env[k]);
+    ["FLOOR_NOTE_EMAIL_TO", "FLOOR_NOTE_EMAIL_FROM", "FLOOR_NOTE_EMAIL_DEPTS"].forEach((k) => delete process.env[k]);
   });
 
   it("refuses when nobody is signed in", async () => {
@@ -123,10 +123,29 @@ describe("POST /api/floor-note-email", () => {
     expect((await r.json()).detail).toContain("domain not verified");
   });
 
-  it("still sends when the job has dropped off the queue", async () => {
+  // CNC only, and the department comes from the queue rather than the browser.
+  it("leaves other departments alone", async () => {
+    vi.stubGlobal("fetch", stubFetch({ note, job: { ...job, dept: "Sewing" } }));
+    const r = await post({ itemId: ITEM_ID, noteId: NOTE_ID });
+    expect(r.status).toBe(200);
+    expect((await r.json()).skipped).toMatch(/Sewing/);
+    expect(sentTo).toHaveLength(0);
+  });
+
+  it("doesn't guess when it can't tell which department", async () => {
+    // A job that has left the queue has no department to read. Sending anyway
+    // would put every other department's notes in the CNC inbox.
     vi.stubGlobal("fetch", stubFetch({ note, job: null }));
     const r = await post({ itemId: ITEM_ID, noteId: NOTE_ID });
     expect(r.status).toBe(200);
-    expect(sentTo[0].subject).toBe("Floor note · a job on the floor");
+    expect(sentTo).toHaveLength(0);
+  });
+
+  it("can be widened past CNC without a deploy", async () => {
+    process.env.FLOOR_NOTE_EMAIL_DEPTS = "CNC, Sewing";
+    vi.stubGlobal("fetch", stubFetch({ note, job: { ...job, dept: "Sewing" } }));
+    await post({ itemId: ITEM_ID, noteId: NOTE_ID });
+    expect(sentTo).toHaveLength(1);
+    expect(sentTo[0].subject).toContain("Sewing");
   });
 });
