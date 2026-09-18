@@ -14,13 +14,17 @@ create table if not exists public.app_feedback (
   id         uuid primary key default gen_random_uuid(),
   kind       text not null default 'problem' check (kind in ('problem', 'idea')),
   body       text not null,
-  where_at   text,                        -- where in the app, in their words
+  urgent     boolean not null default false,  -- "this is stopping me working"
+  where_at   text,                        -- unused; the app records the tab itself
   author     text,                        -- who wrote it, from the login
   author_id  uuid default auth.uid(),
   context    jsonb not null default '{}'::jsonb,
   status     text not null default 'new' check (status in ('new', 'seen', 'done')),
   created_at timestamptz not null default now()
 );
+
+-- Safe to re-run over a table created before `urgent` existed.
+alter table public.app_feedback add column if not exists urgent boolean not null default false;
 
 create index if not exists app_feedback_created_idx on public.app_feedback(created_at desc);
 
@@ -47,7 +51,7 @@ end $$;
 
 -- ---------------------------------------------------------------------------
 -- READ IT (run in the SQL editor any time)
---   select created_at, kind, author, where_at, body
+--   select created_at, kind, urgent, author, body
 --     from public.app_feedback
 --    where status = 'new'
 --    order by created_at desc;

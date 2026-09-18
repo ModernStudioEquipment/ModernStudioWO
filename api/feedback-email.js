@@ -9,12 +9,16 @@
 // The row is already saved before this runs. Mail is the notification, not the
 // record — if it doesn't go, the feedback is still filed and readable.
 //
-// Env (Vercel): FEEDBACK_EMAIL_TO decides where it goes. Without it, nothing is
-// emailed and the endpoint says so — the feedback still lands in the table.
-// RESEND_API_KEY, VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, SUPABASE_SECRET_KEY
-// are the same variables the floor-note mail uses. FEEDBACK_EMAIL_FROM overrides
-// the sender.
+// The subject leads with what it is — URGENT, FIX or IDEA — then who, then the
+// first line of what they wrote, so the inbox is triageable without opening
+// anything.
+//
+// Env (Vercel): FEEDBACK_EMAIL_TO redirects it; FEEDBACK_EMAIL_FROM overrides the
+// sender (which must stay on the verified domain). RESEND_API_KEY,
+// VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY and SUPABASE_SECRET_KEY are the same
+// variables the floor-note mail uses.
 
+const DEFAULT_TO = "maddoxleach@yahoo.com";
 const DEFAULT_FROM = "cnc@modernstudio.com";
 
 export async function POST(request) {
@@ -22,7 +26,9 @@ export async function POST(request) {
   const anonKey = process.env.VITE_SUPABASE_ANON_KEY;
   const serviceKey = process.env.SUPABASE_SECRET_KEY;
   const resendKey = process.env.RESEND_API_KEY;
-  const to = (process.env.FEEDBACK_EMAIL_TO || "").trim();
+  // `?? `, not `||`: unset means the default address, and set-to-empty is the
+  // way to turn the mail off without touching the code.
+  const to = (process.env.FEEDBACK_EMAIL_TO ?? DEFAULT_TO).trim();
   const from = process.env.FEEDBACK_EMAIL_FROM || DEFAULT_FROM;
 
   const missing = [
@@ -45,11 +51,11 @@ export async function POST(request) {
   const id = String(body.id || "").trim();
   if (!isUuid(id)) return json(400, { ok: false, error: "Need the id of the feedback." });
 
-  // Nobody to send it to. The row is saved either way, so this is information,
-  // not a failure.
-  if (!to) return json(200, { ok: true, emailed: false, why: "FEEDBACK_EMAIL_TO isn't set." });
+  // Redirected to nowhere on purpose (FEEDBACK_EMAIL_TO=""). The row is saved
+  // either way, so this is information, not a failure.
+  if (!to) return json(200, { ok: true, emailed: false, why: "FEEDBACK_EMAIL_TO is empty." });
 
-  const rows = await fetch(`${url}/rest/v1/app_feedback?id=eq.${id}&select=kind,body,where_at,author,context,created_at`, {
+  const rows = await fetch(`${url}/rest/v1/app_feedback?id=eq.${id}&select=kind,urgent,body,author,context,created_at`, {
     headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
   }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
   const fb = Array.isArray(rows) ? rows[0] : null;
@@ -57,7 +63,11 @@ export async function POST(request) {
 
   const ctx = fb.context && typeof fb.context === "object" ? fb.context : {};
   const when = fb.created_at ? new Date(fb.created_at).toLocaleString("en-US", { timeZone: "America/Los_Angeles" }) : "";
-  const label = fb.kind === "idea" ? "Idea" : "Problem";
+  // URGENT only when someone said the app is stopping them working. It stays
+  // worth reading precisely because it isn't on everything.
+  const tag = fb.urgent ? "URGENT" : fb.kind === "idea" ? "IDEA" : "FIX";
+  // The first line of what they wrote, so the subject says something.
+  const gist = String(fb.body || "").replace(/\s+/g, " ").trim().slice(0, 60);
 
   const sent = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -66,13 +76,13 @@ export async function POST(request) {
       from,
       to: [to],
       reply_to: who.email || undefined,
-      subject: `${label} · ${fb.author || "someone"}${fb.where_at ? ` · ${fb.where_at}` : ""}`,
+      subject: `${tag} · ${fb.author || "someone"}: ${gist}${String(fb.body || "").length > 60 ? "…" : ""}`,
       text: [
         fb.body,
         "",
         `— ${fb.author || "someone"}${when ? `, ${when}` : ""}`,
         "",
-        [fb.where_at && `Where: ${fb.where_at}`,
+        [fb.urgent ? "Marked: stopping me working" : null,
          ctx.tab && `Tab: ${ctx.tab}`,
          ctx.device && `Device: ${ctx.device}`,
          ctx.screen && `Screen: ${ctx.screen}`,

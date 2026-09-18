@@ -36,8 +36,8 @@ const post = (body, headers = { authorization: "Bearer good" }) =>
 
 const row = {
   kind: "problem",
+  urgent: false,
   body: "tapped Mark ordered and it went back to un-ordered on its own",
-  where_at: "Purchasing, on my phone",
   author: "Jiro",
   created_at: "2026-09-16T17:02:00.000Z",
   context: { tab: "Purchasing", device: "phone or tablet", screen: "375×812" },
@@ -46,7 +46,7 @@ const row = {
 describe("POST /api/feedback-email", () => {
   beforeEach(() => {
     sent = [];
-    Object.assign(process.env, base, { FEEDBACK_EMAIL_TO: "maddox@modernstudio.com" });
+    Object.assign(process.env, base);
   });
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -74,17 +74,36 @@ describe("POST /api/feedback-email", () => {
     expect(r.status).toBe(200);
     expect((await r.json()).emailed).toBe(true);
     const mail = sent[0];
-    expect(mail.subject).toBe("Problem · Jiro · Purchasing, on my phone");
-    expect(mail.to).toEqual(["maddox@modernstudio.com"]);
+    expect(mail.to).toEqual(["maddoxleach@yahoo.com"]);   // where it goes by default
     expect(mail.text).toContain("went back to un-ordered");
     expect(mail.text).toContain("Device: phone or tablet");
     expect(mail.text).toContain("Screen: 375×812");
   });
 
-  it("labels an idea as an idea", async () => {
+  // The subject is the whole point of the inbox being usable: what it is, who
+  // sent it, and enough of the words to know without opening it.
+  it("leads the subject with FIX, IDEA or URGENT", async () => {
+    vi.stubGlobal("fetch", stubFetch({ row }));
+    await post({ id: ID });
+    expect(sent[0].subject.startsWith("FIX · Jiro: tapped Mark ordered and it went back")).toBe(true);
+    expect(sent[0].subject.endsWith("…")).toBe(true);          // trimmed, not endless
+    expect(sent[0].subject.length).toBeLessThan(90);
+
     vi.stubGlobal("fetch", stubFetch({ row: { ...row, kind: "idea", body: "ask how many when marking done" } }));
     await post({ id: ID });
-    expect(sent[0].subject.startsWith("Idea · ")).toBe(true);
+    expect(sent[1].subject).toBe("IDEA · Jiro: ask how many when marking done");
+
+    vi.stubGlobal("fetch", stubFetch({ row: { ...row, urgent: true } }));
+    await post({ id: ID });
+    expect(sent[2].subject.startsWith("URGENT · Jiro:")).toBe(true);
+    expect(sent[2].text).toContain("stopping me working");
+  });
+
+  it("only says URGENT when someone said it was", async () => {
+    vi.stubGlobal("fetch", stubFetch({ row: { ...row, kind: "idea", urgent: false } }));
+    await post({ id: ID });
+    expect(sent[0].subject).not.toContain("URGENT");
+    expect(sent[0].text).not.toContain("stopping me working");
   });
 
   it("carries nothing the caller put in the request", async () => {
@@ -94,8 +113,8 @@ describe("POST /api/feedback-email", () => {
     expect(JSON.stringify(sent[0])).not.toContain("attacker@example.com");
   });
 
-  it("says plainly when there's nowhere to send it", async () => {
-    delete process.env.FEEDBACK_EMAIL_TO;
+  it("says plainly when it's been pointed at nowhere", async () => {
+    process.env.FEEDBACK_EMAIL_TO = "";
     vi.stubGlobal("fetch", stubFetch({ row }));
     const r = await post({ id: ID });
     expect(r.status).toBe(200);

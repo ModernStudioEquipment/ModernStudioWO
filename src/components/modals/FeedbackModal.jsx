@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { X, Bug, Lightbulb, Send, Check } from "lucide-react";
+import { X, Bug, Lightbulb, Send, Check, AlertTriangle } from "lucide-react";
 import { C } from "../../theme.js";
 import { Btn } from "../ui.jsx";
 
@@ -14,7 +14,11 @@ import { Btn } from "../ui.jsx";
 export function FeedbackModal({ tabLabel = "", onSend, onClose }) {
   const [kind, setKind] = useState("problem");
   const [body, setBody] = useState("");
-  const [where, setWhere] = useState(tabLabel);
+  // "Where in the app" used to be a box to fill in. It was the one question the
+  // app could already answer — it knows the tab — so it asks this instead, which
+  // it can't know: is this stopping you working? That's what decides whether the
+  // subject line says URGENT, and it's a tap rather than typing.
+  const [urgent, setUrgent] = useState(false);
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState(null);
@@ -25,7 +29,7 @@ export function FeedbackModal({ tabLabel = "", onSend, onClose }) {
     setSaving(true);
     setError(null);
     try {
-      const out = await onSend({ kind, body: text, where: where.trim() || null });
+      const out = await onSend({ kind, body: text, urgent });
       if (out && out.ok === false) setError(out.error || "It didn't send.");
       else setDone(true);
     } catch (e) {
@@ -89,15 +93,25 @@ export function FeedbackModal({ tabLabel = "", onSend, onClose }) {
             </div>
 
             <div className="mb-4">
-              <div style={label}>Where in the app</div>
-              <input
-                value={where} onChange={(e) => setWhere(e.target.value)}
-                placeholder="e.g. Purchasing, on my phone"
-                className="w-full px-2 py-2 outline-none" style={inp}
-              />
+              <button
+                onClick={() => setUrgent((v) => !v)}
+                className="w-full flex items-center gap-2 px-3 py-3 rounded"
+                style={{
+                  fontSize: 13, fontWeight: 800, cursor: "pointer", textAlign: "left",
+                  background: urgent ? C.rushBg : C.surface,
+                  color: urgent ? C.rush : C.inkSoft,
+                  border: `1px solid ${urgent ? C.rush : C.line}`,
+                }}
+              >
+                <AlertTriangle size={16} style={{ flexShrink: 0 }} />
+                This is stopping me working
+                <span className="ml-auto" style={{ fontSize: 11, fontWeight: 700, opacity: 0.8 }}>
+                  {urgent ? "URGENT" : "tap if it is"}
+                </span>
+              </button>
               {/* Said out loud, because a form that quietly collects things is
                   a form people stop trusting. */}
-              <div style={{ fontSize: 11.5, color: C.gray, marginTop: 6 }}>
+              <div style={{ fontSize: 11.5, color: C.gray, marginTop: 8 }}>
                 Sent with your name, the tab you're on and your screen size — so you don't have to describe any of it.
               </div>
             </div>
@@ -110,7 +124,7 @@ export function FeedbackModal({ tabLabel = "", onSend, onClose }) {
 
             <div className="flex items-center gap-2">
               <Btn kind="dark" onClick={send} disabled={saving || !body.trim()}>
-                <Send size={14} />{saving ? "Sending…" : "Send it"}
+                <Send size={14} />{saving ? "Sending…" : urgent ? "Send it — urgent" : "Send it"}
               </Btn>
               <Btn onClick={onClose}>Cancel</Btn>
             </div>

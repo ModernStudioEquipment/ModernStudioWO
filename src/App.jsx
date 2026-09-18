@@ -1889,9 +1889,9 @@ export default function App() {
         <FeedbackModal
           tabLabel={(TABS.find((t) => t.k === tab) || {}).label || ""}
           onClose={() => setFeedbackOpen(false)}
-          onSend={({ kind, body, where }) =>
+          onSend={({ kind, body, urgent }) =>
             db.sendFeedback({
-              kind, body, where,
+              kind, body, urgent,
               // Everything the form would otherwise have had to ask for. Set
               // here, never typed: a man at the saw shouldn't be describing his
               // own screen size to report a button that doesn't work.

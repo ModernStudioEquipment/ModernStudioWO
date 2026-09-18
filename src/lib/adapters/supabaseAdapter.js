@@ -577,13 +577,13 @@ export const supabaseAdapter = {
   // Saved first, emailed second. The row is the record; the mail is only how
   // anyone finds out about it today. A mail that fails must never lose what
   // somebody took the trouble to write.
-  async sendFeedback({ kind, body, where, context }) {
+  async sendFeedback({ kind, body, urgent, context }) {
     const text = String(body || "").trim();
     if (!text) return { ok: false, error: "Nothing to send." };
     const author = await currentAuthor();
     const { data, error } = await supabase
       .from("app_feedback")
-      .insert({ kind: kind === "idea" ? "idea" : "problem", body: text, where_at: where || null, author, context: context || {} })
+      .insert({ kind: kind === "idea" ? "idea" : "problem", body: text, urgent: !!urgent, author, context: context || {} })
       .select("id")
       .single();
     if (error) return { ok: false, error: error.message };
