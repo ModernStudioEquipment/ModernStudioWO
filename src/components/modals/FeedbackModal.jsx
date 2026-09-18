@@ -68,8 +68,14 @@ export function FeedbackModal({ tabLabel = "", onSend, onClose }) {
           <div className="p-4">
             <div className="flex items-start gap-2" style={{ fontSize: 14 }}>
               <Check size={18} style={{ color: C.green, flexShrink: 0, marginTop: 1 }} />
+              {/* No explaining where it went — everyone here knows. Just that it
+                  arrived, and that an urgent one went as urgent. */}
               <span>
-                Sent. {kind === "idea" ? "Ideas get read — the last few turned into how this board works now." : "If it's stopping you working, say so to the office too; this goes to whoever looks after the app, not to the floor."}
+                {kind === "idea"
+                  ? "Sent. Ideas get read — a few of them are why the board works the way it does now."
+                  : urgent
+                  ? "Sent, marked urgent."
+                  : "Sent — thanks for flagging it."}
               </span>
             </div>
             <div className="mt-4"><Btn onClick={onClose}>Close</Btn></div>
