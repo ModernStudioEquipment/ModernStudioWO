@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   Clock, Printer, Plus, Truck, CheckCircle2, AlertTriangle, Hammer,
-  Flag, Check, ArrowRight, ShoppingCart, LogOut, Store, MapPin, Package, X, Bell, ExternalLink, RefreshCw, Pencil, RotateCcw, ChevronsDownUp, ChevronsUpDown, Sun, Moon, MonitorPlay, Layers, ArrowUpDown, ChevronLeft, ChevronRight, PackageSearch, PackageCheck, Trash2, DollarSign, ChevronDown, MessageSquarePlus,
+  Flag, Check, ArrowRight, ShoppingCart, LogOut, Store, MapPin, Package, X, Bell, ExternalLink, RefreshCw, Pencil, RotateCcw, ChevronsDownUp, ChevronsUpDown, Sun, Moon, MonitorPlay, Layers, ArrowUpDown, ChevronLeft, ChevronRight, PackageSearch, PackageCheck, Trash2, ChevronDown, Bug,
 } from "lucide-react";
 import { C, PRI, PRI_CYCLE, PRI_RANK, elapsed, stamp, materialKey, quoteNoteFor, noteTrailOf, whereIsItem, noteAuthorName, blocked, pct, dueLabel, priLabel, effectivePriority, trackingUrl, stagedTooLong, stagedDwellMs, STAGE_LABELS } from "./theme.js";
 import { backendMode, db } from "./lib/db.js";
@@ -1063,14 +1063,14 @@ export default function App() {
         </div>
         </div>
         <GlobalSearch orders={orders} locate={orderLocations} onOpen={(id) => setDetailId(id)} onGoToTab={goToTab} key={tab} />
-        <button
-          onClick={() => setCostingOpen(true)}
-          title="Costing & margins — what each product costs to make"
-          className="inline-flex items-center gap-1.5 shrink-0"
-          style={{ color: "rgba(255,255,255,0.7)", background: "transparent", border: "none", cursor: "pointer", padding: 4, fontSize: 12, fontWeight: 700 }}
-        >
-          <DollarSign size={16} />
-        </button>
+        {/* Costing & margins is ARCHIVED, not removed: the tab, the hook and the
+            data are all still here and untouched — only the way in is gone. To
+            bring it back, restore this button:
+
+              <button onClick={() => setCostingOpen(true)} title="Costing & margins">
+                <DollarSign size={16} />
+              </button>
+        */}
         <button
           onClick={() => setFloorOpen(true)}
           title="Open Floor Control — arrange the shop-floor monitors"
@@ -1081,11 +1081,11 @@ export default function App() {
         </button>
         <button
           onClick={() => setFeedbackOpen(true)}
-          title="Something wrong, or an idea? Tell us."
-          className="inline-flex items-center gap-1.5 shrink-0"
-          style={{ color: "rgba(255,255,255,0.7)", background: "transparent", border: "none", cursor: "pointer", padding: 4, fontSize: 12, fontWeight: 700 }}
+          title="Report a problem, or an idea"
+          className="inline-flex items-center shrink-0"
+          style={{ color: "rgba(255,255,255,0.7)", background: "transparent", border: "none", cursor: "pointer", padding: 4 }}
         >
-          <MessageSquarePlus size={16} /> Tell us
+          <Bug size={16} />
         </button>
         <button
           onClick={() => setDark((d) => !d)}

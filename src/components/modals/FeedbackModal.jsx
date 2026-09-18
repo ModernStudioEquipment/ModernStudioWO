@@ -3,7 +3,8 @@ import { X, Bug, Lightbulb, Send, Check } from "lucide-react";
 import { C } from "../../theme.js";
 import { Btn } from "../ui.jsx";
 
-// "Something's wrong" / "I have an idea", in as few taps as it can be done.
+// The bug button: "something's wrong" / "I have an idea", in as few taps as it
+// can be done.
 //
 // One tap for which kind it is, one box for the words, and nothing else asked.
 // Every question this could have asked — who are you, what page were you on,
@@ -55,7 +56,7 @@ export function FeedbackModal({ tabLabel = "", onSend, onClose }) {
     <div style={overlay} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: 460, maxWidth: "94vw", background: C.concrete, borderRadius: 8, overflow: "hidden" }}>
         <div className="flex items-center gap-2 px-4 py-3 font-bold" style={{ background: C.fill, color: "#fff" }}>
-          {done ? "Thanks — it's in" : "Tell us"}
+          {done ? "Thanks — it's in" : "Report it"}
           <button onClick={onClose} className="ml-auto" style={{ color: "#fff" }}><X size={18} /></button>
         </div>
 
