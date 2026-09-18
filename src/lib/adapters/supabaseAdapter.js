@@ -572,6 +572,38 @@ export const supabaseAdapter = {
     return url;
   },
 
+  // ---- "Something's wrong" / "I have an idea", from inside the app ----
+  //
+  // Saved first, emailed second. The row is the record; the mail is only how
+  // anyone finds out about it today. A mail that fails must never lose what
+  // somebody took the trouble to write.
+  async sendFeedback({ kind, body, where, context }) {
+    const text = String(body || "").trim();
+    if (!text) return { ok: false, error: "Nothing to send." };
+    const author = await currentAuthor();
+    const { data, error } = await supabase
+      .from("app_feedback")
+      .insert({ kind: kind === "idea" ? "idea" : "problem", body: text, where_at: where || null, author, context: context || {} })
+      .select("id")
+      .single();
+    if (error) return { ok: false, error: error.message };
+
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess?.session?.access_token;
+      if (token) {
+        await fetch("/api/feedback-email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ id: data.id }),
+        });
+      }
+    } catch {
+      /* filed either way — see above */
+    }
+    return { ok: true, id: data.id };
+  },
+
   // ---- Per-job floor notes (typed on the queue page, shown on the monitor) ----
   //
   // Append-only, like every other note on the board: each one is locked with who

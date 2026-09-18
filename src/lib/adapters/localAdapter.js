@@ -186,6 +186,17 @@ export const localAdapter = {
 
   // ---- Per-job floor notes (single-machine, localStorage) ----
   // Append-only, same as the hosted adapter: { itemId: [{ id, body, author, at }] }.
+  // Local mode has nowhere to send it, so it goes in this browser and says so.
+  async sendFeedback({ kind, body, where, context }) {
+    const text = String(body || "").trim();
+    if (!text) return { ok: false, error: "Nothing to send." };
+    let list = [];
+    try { list = JSON.parse(localStorage.getItem("mse_feedback_v1")) || []; } catch { list = []; }
+    list.push({ id: uid(), kind, body: text, where_at: where || null, context: context || {}, at: new Date().toISOString() });
+    try { localStorage.setItem("mse_feedback_v1", JSON.stringify(list)); } catch { /* ignore */ }
+    return { ok: true, local: true };
+  },
+
   // No wall monitors in local mode — nothing to be out of step with.
   async arrangementVisibleToFloor() {
     return true;

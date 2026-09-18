@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   Clock, Printer, Plus, Truck, CheckCircle2, AlertTriangle, Hammer,
-  Flag, Check, ArrowRight, ShoppingCart, LogOut, Store, MapPin, Package, X, Bell, ExternalLink, RefreshCw, Pencil, RotateCcw, ChevronsDownUp, ChevronsUpDown, Sun, Moon, MonitorPlay, Layers, ArrowUpDown, ChevronLeft, ChevronRight, PackageSearch, PackageCheck, Trash2, DollarSign, ChevronDown,
+  Flag, Check, ArrowRight, ShoppingCart, LogOut, Store, MapPin, Package, X, Bell, ExternalLink, RefreshCw, Pencil, RotateCcw, ChevronsDownUp, ChevronsUpDown, Sun, Moon, MonitorPlay, Layers, ArrowUpDown, ChevronLeft, ChevronRight, PackageSearch, PackageCheck, Trash2, DollarSign, ChevronDown, MessageSquarePlus,
 } from "lucide-react";
 import { C, PRI, PRI_CYCLE, PRI_RANK, elapsed, stamp, materialKey, quoteNoteFor, noteTrailOf, whereIsItem, noteAuthorName, blocked, pct, dueLabel, priLabel, effectivePriority, trackingUrl, stagedTooLong, stagedDwellMs, STAGE_LABELS } from "./theme.js";
 import { backendMode, db } from "./lib/db.js";
@@ -37,6 +37,7 @@ import { PartialModal } from "./components/modals/PartialModal.jsx";
 import { InvoiceModal } from "./components/modals/InvoiceModal.jsx";
 import { OrderedModal } from "./components/modals/OrderedModal.jsx";
 import { BulkMaterialModal } from "./components/modals/BulkMaterialModal.jsx";
+import { FeedbackModal } from "./components/modals/FeedbackModal.jsx";
 import { ReceiveModal } from "./components/modals/ReceiveModal.jsx";
 import { CustomWorkOrderDoc } from "./components/modals/CustomWorkOrderDoc.jsx";
 import { WO_TYPES, fieldsLostSwitching, remapFields } from "./components/workorders/forms.js";
@@ -195,6 +196,7 @@ export default function App() {
   // retyping their own name on every line (one person places ~90% of orders).
   const me = noteAuthorName(auth.user);
 
+  const [feedbackOpen, setFeedbackOpen] = useState(false); // "something's wrong / I have an idea"
   const [deptSwitch, setDeptSwitch] = useState(null); // { wo, next, lost } — work order changing department
   const [orderTarget, setOrderTarget] = useState(null); // purchasing material being marked ordered (asks who/vendor/PO)
   const [receiveTarget, setReceiveTarget] = useState(null); // { it, m } material being received (asks dest tab/qty/note)
@@ -1078,6 +1080,14 @@ export default function App() {
           <MonitorPlay size={16} /> Floor
         </button>
         <button
+          onClick={() => setFeedbackOpen(true)}
+          title="Something wrong, or an idea? Tell us."
+          className="inline-flex items-center gap-1.5 shrink-0"
+          style={{ color: "rgba(255,255,255,0.7)", background: "transparent", border: "none", cursor: "pointer", padding: 4, fontSize: 12, fontWeight: 700 }}
+        >
+          <MessageSquarePlus size={16} /> Tell us
+        </button>
+        <button
           onClick={() => setDark((d) => !d)}
           title={dark ? "Switch to light mode" : "Switch to dark mode"}
           className="inline-flex items-center shrink-0"
@@ -1873,6 +1883,26 @@ export default function App() {
           order={invoiceTarget}
           onConfirm={async (num) => { await board.setInvoiced(invoiceTarget.id, true, num); setInvoiceTarget(null); }}
           onClose={() => setInvoiceTarget(null)}
+        />
+      )}
+      {feedbackOpen && (
+        <FeedbackModal
+          tabLabel={(TABS.find((t) => t.k === tab) || {}).label || ""}
+          onClose={() => setFeedbackOpen(false)}
+          onSend={({ kind, body, where }) =>
+            db.sendFeedback({
+              kind, body, where,
+              // Everything the form would otherwise have had to ask for. Set
+              // here, never typed: a man at the saw shouldn't be describing his
+              // own screen size to report a button that doesn't work.
+              context: {
+                tab: (TABS.find((t) => t.k === tab) || {}).label || tab,
+                device: typeof navigator !== "undefined" && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) ? "phone or tablet" : "desktop",
+                screen: typeof window !== "undefined" ? `${window.innerWidth}×${window.innerHeight}` : null,
+                url: typeof location !== "undefined" ? location.href : null,
+              },
+            })
+          }
         />
       )}
       {bulkOpen && (
