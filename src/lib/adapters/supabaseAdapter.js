@@ -4,7 +4,7 @@
 // concurrency-safe across users.
 
 import { supabase } from "../supabase.js";
-import { noteStamp, noteAuthorName } from "../../theme.js";
+import { noteStamp, noteAuthorName, addAmounts, amountShort } from "../../theme.js";
 
 // Who is writing. Read from the session rather than passed down through the
 // hooks — the adapter is the only layer that touches a note write, and every
@@ -838,13 +838,29 @@ export const supabaseAdapter = {
     fail(error);
   },
 
+  // Receiving is no longer yes/no. What arrived is added to what had already
+  // arrived, and the line only counts as received when that total covers what
+  // was ordered — a short delivery stays on the Purchasing list instead of
+  // vanishing with 8 of the 20 ft still owed.
   async receiveMaterial(materialId, opts = {}) {
+    const { data: cur } = await supabase.from("materials")
+      .select("amount, ordered_qty, received_qty, received_note")
+      .eq("id", materialId).single();
+    const soFar = addAmounts(cur && cur.received_qty, opts.qtyReceived);
+    // Can't add them cleanly? Record what was just typed and call it complete.
+    // Guessing a shortfall out of amounts we couldn't read would strand lines.
+    const totalQty = soFar || opts.qtyReceived || null;
+    const short = soFar ? amountShort((cur && (cur.ordered_qty || cur.amount)) || null, soFar) : null;
+    const complete = !short;
+    // A second delivery's note must not erase the first one's.
+    const note = [cur && cur.received_note, opts.note].map((t) => String(t || "").trim()).filter(Boolean).join(" · ") || null;
+
     // Mark received (+ qty/note); fall back if the 0026 columns aren't there yet.
     let res = await supabase.from("materials")
-      .update({ received: true, received_at: new Date().toISOString(), received_qty: opts.qtyReceived || null, received_note: opts.note || null })
+      .update({ received: complete, received_at: new Date().toISOString(), received_qty: totalQty, received_note: note })
       .eq("id", materialId).select("item_id").single();
     if (res.error) {
-      res = await supabase.from("materials").update({ received: true }).eq("id", materialId).select("item_id").single();
+      res = await supabase.from("materials").update({ received: complete }).eq("id", materialId).select("item_id").single();
     }
     fail(res.error);
     const itemId = res.data && res.data.item_id;

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { X, PackageCheck, Clock } from "lucide-react";
-import { C } from "../../theme.js";
+import { X, PackageCheck, Clock, PackageSearch } from "lucide-react";
+import { C, addAmounts, amountShort, expectedOf, shortLabel } from "../../theme.js";
 import { Btn } from "../ui.jsx";
 
 // Purchasing: marking a material received — how many came in, an optional note,
@@ -18,11 +18,25 @@ const DESTS = [
 ];
 
 export function ReceiveModal({ material, stillWaiting = [], onConfirm, onClose }) {
-  const isLast = stillWaiting.length === 0;
+  // What the vendor owes, and what has already turned up against it.
+  const expected = expectedOf(material);
+  const already = material.receivedQty || null;
+  const owed = already ? amountShort(expected, already) : null;
+
   const [stage, setStage] = useState("workorder");
-  const [qty, setQty] = useState(material.amount || "");
+  // Default to what's actually outstanding: on a second delivery that's the
+  // remainder, not the whole order again.
+  const [qty, setQty] = useState(owed ? shortLabel(owed) : expected || "");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // Does what's being typed close the line out? Worked out live, because the
+  // answer decides whether the destination question can be honoured — the
+  // product only moves when the whole order is in.
+  const runningTotal = addAmounts(already, qty.trim());
+  const stillShort = runningTotal ? amountShort(expected, runningTotal) : null;
+  const closesIt = !stillShort;
+  const isLast = stillWaiting.length === 0 && closesIt;
   const confirm = async () => {
     if (saving) return;
     setSaving(true);
@@ -64,16 +78,34 @@ export function ReceiveModal({ material, stillWaiting = [], onConfirm, onClose }
               </span>
             </div>
           )}
+
+          {/* A short delivery is the thing this popup most needs to say out
+              loud: the line is staying on the list, and here's what's missing. */}
+          {stillShort && (
+            <div className="flex items-start gap-2 mb-4" style={{ border: `1px solid ${C.rush}`, background: C.rushBg, borderRadius: 6, padding: "9px 11px", fontSize: 12.5, color: C.inkSoft }}>
+              <PackageSearch size={14} style={{ color: C.rush, flexShrink: 0, marginTop: 1 }} />
+              <span>
+                That's <b>{shortLabel(stillShort)} short</b> of the {expected} ordered
+                {already ? ` (${already} already in)` : ""} — the line stays in Purchasing, in red,
+                until the rest turns up.
+              </span>
+            </div>
+          )}
           <div className="mb-3">
-            <div style={label}>Quantity received</div>
+            <div style={label}>{already ? "Quantity received this time" : "Quantity received"}</div>
             <input autoFocus value={qty} onChange={(e) => setQty(e.target.value)} placeholder="e.g. 20 ft, 12" className="w-full px-2 py-2 outline-none" style={inp} />
+            {already && (
+              <div style={{ fontSize: 11.5, color: C.gray, marginTop: 5 }}>
+                {already} of {expected} already in — this gets added to it.
+              </div>
+            )}
           </div>
           <div className="mb-4">
             <div style={label}>Note</div>
             <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="Anything to note about what came in (optional)" className="w-full px-2 py-2 outline-none" style={{ ...inp, resize: "vertical" }} />
           </div>
           <Btn kind="dark" onClick={confirm} disabled={saving}>
-            <PackageCheck size={15} />{saving ? "Saving…" : "Mark received"}
+            <PackageCheck size={15} />{saving ? "Saving…" : stillShort ? "Mark what came in" : "Mark received"}
           </Btn>
         </div>
       </div>

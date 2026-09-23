@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { fmtDate, materialKey, totalAmounts, elapsed, stamp, quoteNoteFor, numQty, pickedUpLabel, whereIsItem, noteAuthorName, noteStamp, noteTrailOf } from "../theme.js";
+import { fmtDate, materialKey, totalAmounts, elapsed, stamp, quoteNoteFor, numQty, pickedUpLabel, whereIsItem, noteAuthorName, noteStamp, noteTrailOf, amountShort, addAmounts, materialShort, shortLabel } from "../theme.js";
 
 // Pure helpers that quietly drive real decisions on the board — a wrong answer
 // here shows up as a wrong date on a work order or two materials that should
@@ -289,5 +289,68 @@ describe("noteTrailOf — every note a material has, never just the newest", () 
     expect(noteTrailOf({})).toEqual([]);
     expect(noteTrailOf()).toEqual([]);
     expect(noteTrailOf({ note: "   " })).toEqual([]);
+  });
+});
+
+describe("short deliveries — what's still owed on a material", () => {
+  // Reported: a partly-received line vanished from Purchasing as though it were
+  // settled. This arithmetic decides whether it stays, so a wrong answer either
+  // strands a finished line on the list or loses the missing 8 ft again.
+
+  it("reports what's left when less arrived than was ordered", () => {
+    expect(amountShort("20 ft", "12 ft")).toMatchObject({ left: 8, unit: "ft" });
+    expect(shortLabel(amountShort("20 ft", "12 ft"))).toBe("8 ft");
+  });
+
+  it("says nothing when it's all in — or more than all", () => {
+    expect(amountShort("20 ft", "20 ft")).toBeNull();
+    expect(amountShort("20 ft", "24 ft")).toBeNull();
+  });
+
+  it("treats a missing unit on one side as the same unit", () => {
+    expect(amountShort("20 ft", "12")).toMatchObject({ left: 8, unit: "ft" });
+    expect(amountShort("20", "12 ft")).toMatchObject({ left: 8 });
+  });
+
+  // Free text is free text. Claiming a shortfall out of amounts it can't read
+  // would put a red "still waiting" on every odd line in the shop.
+  it("refuses to guess across different units or unreadable amounts", () => {
+    expect(amountShort("20 ft", "12 in")).toBeNull();
+    expect(amountShort("a skid", "most of it")).toBeNull();
+    expect(amountShort("20 ft", "")).toBeNull();
+    expect(amountShort(null, "12 ft")).toBeNull();
+  });
+
+  it("adds a second delivery to the first", () => {
+    expect(addAmounts("12 ft", "8 ft")).toBe("20 ft");
+    expect(addAmounts(null, "12 ft")).toBe("12 ft");
+    expect(addAmounts("", "12 ft")).toBe("12 ft");
+    expect(addAmounts("12", "8")).toBe("20");
+  });
+
+  it("won't add what it can't add", () => {
+    expect(addAmounts("12 ft", "8 in")).toBeNull();
+    expect(addAmounts("a skid", "8 ft")).toBeNull();
+    expect(addAmounts("12 ft", "")).toBeNull();
+  });
+
+  // 12 of 20 arrives, then 8 more: the line must close, not stay red forever.
+  it("closes the line once the deliveries add up", () => {
+    const first = addAmounts(null, "12 ft");
+    expect(amountShort("20 ft", first)).toMatchObject({ left: 8 });
+    const second = addAmounts(first, "8 ft");
+    expect(amountShort("20 ft", second)).toBeNull();
+  });
+
+  it("measures against what was ORDERED, not what was asked for", () => {
+    // Asked for 20, deliberately ordered 12, all 12 came: nothing is owed.
+    expect(materialShort({ amount: "20 ft", orderedQty: "12 ft", receivedQty: "12 ft" })).toBeNull();
+    // Ordered 12, only 5 came.
+    expect(materialShort({ amount: "20 ft", orderedQty: "12 ft", receivedQty: "5 ft" })).toMatchObject({ left: 7 });
+  });
+
+  it("is silent until something has actually been received", () => {
+    expect(materialShort({ amount: "20 ft" })).toBeNull();
+    expect(materialShort({ amount: "20 ft", receivedQty: null })).toBeNull();
   });
 });

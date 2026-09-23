@@ -3,7 +3,7 @@ import {
   Clock, Printer, Plus, Truck, CheckCircle2, AlertTriangle, Hammer,
   Flag, Check, ArrowRight, ShoppingCart, LogOut, Store, MapPin, Package, X, Bell, ExternalLink, RefreshCw, Pencil, RotateCcw, ChevronsDownUp, ChevronsUpDown, Sun, Moon, MonitorPlay, Layers, ArrowUpDown, ChevronLeft, ChevronRight, PackageSearch, PackageCheck, Trash2, ChevronDown, Bug,
 } from "lucide-react";
-import { C, PRI, PRI_CYCLE, PRI_RANK, elapsed, stamp, materialKey, quoteNoteFor, noteTrailOf, whereIsItem, noteAuthorName, blocked, pct, dueLabel, priLabel, effectivePriority, trackingUrl, stagedTooLong, stagedDwellMs, STAGE_LABELS } from "./theme.js";
+import { C, PRI, PRI_CYCLE, PRI_RANK, elapsed, stamp, materialKey, quoteNoteFor, noteTrailOf, whereIsItem, noteAuthorName, blocked, pct, dueLabel, priLabel, effectivePriority, trackingUrl, stagedTooLong, stagedDwellMs, STAGE_LABELS, materialShort, shortLabel } from "./theme.js";
 import { backendMode, db } from "./lib/db.js";
 import { useAuth } from "./hooks/useAuth.js";
 import { useOrders } from "./hooks/useOrders.js";
@@ -1417,8 +1417,12 @@ export default function App() {
                         const today = new Date(now).toLocaleDateString("en-CA");
                         const expReached = m.ordered && m.expectedAt && today >= m.expectedAt;
                         const overdue = expReached && today > m.expectedAt;
+                        // Part of it turned up. The line stays here — in red —
+                        // until the rest does; a short delivery used to take the
+                        // whole line off this list as though it were settled.
+                        const short = materialShort(m);
                         return (
-                        <div key={m.id} className="px-4 py-3" style={{ borderBottom: `1px solid ${C.line}`, background: picked.has(m.id) ? C.blueBg : "transparent" }}>
+                        <div key={m.id} className="px-4 py-3" style={{ borderBottom: `1px solid ${C.line}`, background: picked.has(m.id) ? C.blueBg : short ? C.rushBg : "transparent", ...(short ? { borderLeft: `3px solid ${C.rush}` } : null) }}>
                           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                             {/* Tick any number of lines, across any number of orders,
                                 then act on them together from the bar at the top. */}
@@ -1450,6 +1454,15 @@ export default function App() {
                                 </span>
                               )}
                             </span>
+                            {short && (
+                              <span
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded uppercase"
+                                title={`${m.receivedQty} of ${m.orderedQty || m.amount} has come in`}
+                                style={{ fontSize: 11, fontWeight: 800, letterSpacing: 0.4, background: C.rush, color: "#fff", whiteSpace: "nowrap" }}
+                              >
+                                <PackageSearch size={12} />{m.receivedQty} in · {shortLabel(short)} short
+                              </span>
+                            )}
                             <button onClick={() => board.setForInventory(m.id, !m.forInventory)} title="For an order = more urgent. Click to switch between For order / Inventory."
                               className="rounded uppercase"
                               style={{ fontSize: 11, fontWeight: 800, letterSpacing: 0.5, padding: "4px 9px", cursor: "pointer", border: "none",

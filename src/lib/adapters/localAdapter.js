@@ -4,7 +4,7 @@
 // the realtime that Supabase provides for real multi-user use).
 
 import { buildSeed } from "../seed.js";
-import { noteStamp } from "../../theme.js";
+import { noteStamp, addAmounts, amountShort } from "../../theme.js";
 
 const KEY = "mse_orders_v1";
 const WO_KEY = "mse_workorders_v1";
@@ -557,10 +557,16 @@ export const localAdapter = {
   // its materials are now in, advance it into Work Order.
   async receiveMaterial(materialId, opts = {}) {
     mutateMaterial(materialId, (m, it) => {
-      m.received = true;
+      // Same rule as the hosted adapter: add this delivery to what had already
+      // arrived, and only call the line received when that covers what was
+      // ordered. A short one stays on the Purchasing list.
+      const soFar = addAmounts(m.receivedQty, opts.qtyReceived);
+      m.receivedQty = soFar || opts.qtyReceived || m.receivedQty || null;
+      const short = soFar ? amountShort(m.orderedQty || m.amount, soFar) : null;
+      m.received = !short;
       m.receivedAt = new Date().toISOString();
-      m.receivedQty = opts.qtyReceived || null;
-      m.receivedNote = opts.note || null;
+      // A second delivery's note must not erase the first one's.
+      m.receivedNote = [m.receivedNote, opts.note].map((t) => String(t || "").trim()).filter(Boolean).join(" · ") || null;
       // Item leaves Purchasing once ALL its materials are in, moving to the
       // stage chosen in the receive popup (default Work Order).
       if (it.materials.every((x) => x.received)) {

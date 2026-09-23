@@ -366,6 +366,54 @@ export const parseAmount = (raw) => {
   return isNaN(n) ? null : { n, unit: m[2].trim().toLowerCase() };
 };
 
+// How much of a material is STILL owed, or null when it's all in — or when the
+// amounts can't be compared honestly.
+//
+// Receiving used to be a yes/no: the moment anything arrived the line left
+// Purchasing, so "12 of the 20 ft came" and "all 20 ft came" looked identical
+// and the missing 8 ft were remembered by whoever happened to be standing there.
+//
+// Amounts are free text ("20 ft", "2 sheets"), so this only claims a shortfall
+// when both sides parse AND their units agree — a missing unit on one side
+// counts as agreement ("20 ft" vs "12"), differing ones don't ("20 ft" vs
+// "12 in"). Anything it can't read is treated as complete: a wrong "still
+// waiting" flag on every odd amount would be worse than the gap it closes.
+export function amountShort(expected, received) {
+  const e = parseAmount(expected);
+  const r = parseAmount(received);
+  if (!e || !r) return null;
+  if (e.unit && r.unit && e.unit !== r.unit) return null;
+  const left = +(e.n - r.n).toFixed(4);
+  if (left <= 0) return null;
+  return { left, unit: e.unit || r.unit || "", got: r.n, want: e.n };
+}
+
+// What the vendor owes on this line: what was ORDERED if that was recorded,
+// else what the order asked for.
+export const expectedOf = (m) => (m && (m.orderedQty || m.amount)) || null;
+
+// The shortfall on a material, in the shape amountShort returns. Only ever
+// non-null once something has actually been received against it.
+export const materialShort = (m) =>
+  m && m.receivedQty ? amountShort(expectedOf(m), m.receivedQty) : null;
+
+// "8 ft" — the shortfall said the way the shop says it.
+export const shortLabel = (s) => (s ? `${+s.left.toFixed(2)}${s.unit ? ` ${s.unit}` : ""}` : "");
+
+// Add a receipt to what had already arrived: "12 ft" + "8 ft" -> "20 ft".
+// Returns null when they can't be added cleanly, so the caller can fall back to
+// the newest figure rather than inventing a total nobody typed.
+export function addAmounts(a, b) {
+  const x = parseAmount(a);
+  const y = parseAmount(b);
+  if (!y) return null;
+  if (!a || !String(a).trim()) return String(b).trim();
+  if (!x) return null;
+  if (x.unit && y.unit && x.unit !== y.unit) return null;
+  const unit = x.unit || y.unit || "";
+  return `${+(x.n + y.n).toFixed(4)}${unit ? ` ${unit}` : ""}`;
+}
+
 // Total a set of free-text amounts, grouped by unit: ["20 ft","12 ft"] -> "32 ft".
 // Anything that doesn't parse is listed verbatim rather than dropped — a buyer
 // silently missing a line would be worse than a slightly untidy total.
