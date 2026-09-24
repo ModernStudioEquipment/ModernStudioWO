@@ -160,7 +160,9 @@ async function fetchProductImages(shop, token, productIds) {
   const out = {};
   const ids = [...new Set(productIds.filter(Boolean))];
   if (!ids.length) return out;
-  const ver = process.env.SHOPIFY_API_VERSION || "2025-10";
+  // Shopify retires a version after a year; 2025-10 goes out in October 2026.
+  // SHOPIFY_API_VERSION overrides this without a deploy when the next one lands.
+  const ver = process.env.SHOPIFY_API_VERSION || "2026-07";
   await Promise.all(
     ids.map(async (pid) => {
       try {

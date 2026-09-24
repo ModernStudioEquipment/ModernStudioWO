@@ -35,7 +35,9 @@ async function resync(orderNo, commit) {
 
   const store = process.env.SHOPIFY_STORE || process.env.SHOPIFY_SHOP_DOMAIN;
   const token = process.env.SHOPIFY_ADMIN_TOKEN;
-  const version = process.env.SHOPIFY_API_VERSION || "2025-10";
+  // See shopify-webhook.js: a version is supported for a year, and the store's
+  // dashboard is already offering 2026-07.
+  const version = process.env.SHOPIFY_API_VERSION || "2026-07";
   const url = process.env.VITE_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SECRET_KEY;
 
