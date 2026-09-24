@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { X, RefreshCw, Plus, Trash2, Pencil, AlertTriangle, Check } from "lucide-react";
+import { apiFetch } from "../../lib/apiFetch.js";
 import { C } from "../../theme.js";
 import { Btn } from "../ui.jsx";
 
@@ -27,7 +28,7 @@ export function ResyncModal({ order, onClose, onDone }) {
     let live = true;
     (async () => {
       try {
-        const res = await fetch(endpoint);
+        const res = await apiFetch(endpoint);
         const body = await res.json();
         if (!live) return;
         if (!res.ok) setError(body.error || `Couldn't read this order from ${system}.`);
@@ -43,7 +44,7 @@ export function ResyncModal({ order, onClose, onDone }) {
     if (applying) return;
     setApplying(true);
     try {
-      const res = await fetch(endpoint, { method: "POST" });
+      const res = await apiFetch(endpoint, { method: "POST" });
       const body = await res.json();
       if (!res.ok) setError(body.error || "Couldn't apply the changes.");
       else { setResult(body); onDone?.(); }

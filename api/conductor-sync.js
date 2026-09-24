@@ -17,6 +17,8 @@
 //   GET  /api/conductor-sync  -> DRY-RUN preview: reads QuickBooks, inserts nothing
 //   POST /api/conductor-sync  -> commits: inserts new orders (deduped)
 
+import { callerIsStaff, notSignedIn } from "../lib/apiAuth.js";
+
 const CONDUCTOR_BASE = "https://api.conductor.is/v1/quickbooks-desktop";
 
 export const maxDuration = 60;
@@ -24,6 +26,7 @@ export const maxDuration = 60;
 // ?shiptoBackfillDays=N runs a one-time pass that fills the ship_to (drop-ship
 // recipient) on EXISTING orders from the last N days — no inserts.
 export async function GET(request) {
+  if (!(await callerIsStaff(request))) return notSignedIn();
   const params = new URL(request.url).searchParams;
   const days = Number(params.get("shiptoBackfillDays") || 0);
   // ?backlogFrom=YYYY-MM-DD[&backlogTo=YYYY-MM-DD] reaches the invoice pull back to
@@ -37,6 +40,7 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
+  if (!(await callerIsStaff(request))) return notSignedIn();
   const params = new URL(request.url).searchParams;
   const days = Number(params.get("shiptoBackfillDays") || 0);
   // ?commitBacklog=<invoiceNo> hand-commits ONE held-back pre-fix backlog order
@@ -53,6 +57,8 @@ export async function POST(request) {
 // One-off maintenance: remove synced QuickBooks orders so the next sync re-pulls
 // them fresh. Only touches source='QuickBooks'. Guarded by ?reset=quickbooks.
 export async function DELETE(request) {
+  // The destructive one: it removes every QuickBooks-sourced order on the board.
+  if (!(await callerIsStaff(request))) return notSignedIn();
   if (new URL(request.url).searchParams.get("reset") !== "quickbooks") {
     return json(400, { error: "Add ?reset=quickbooks to confirm removing synced QuickBooks orders." });
   }

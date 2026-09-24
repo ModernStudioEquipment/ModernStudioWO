@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { C, PRI, PRI_CYCLE, PRI_RANK, elapsed, stamp, materialKey, quoteNoteFor, noteTrailOf, whereIsItem, noteAuthorName, blocked, pct, dueLabel, priLabel, effectivePriority, trackingUrl, stagedTooLong, stagedDwellMs, STAGE_LABELS, materialShort, shortLabel } from "./theme.js";
 import { backendMode, db } from "./lib/db.js";
+import { apiFetch } from "./lib/apiFetch.js";
 import { useAuth } from "./hooks/useAuth.js";
 import { useOrders } from "./hooks/useOrders.js";
 import { useWorkOrders } from "./hooks/useWorkOrders.js";
@@ -654,7 +655,7 @@ export default function App() {
     if (syncing) return;
     setSyncing(true);
     try {
-      const res = await fetch("/api/conductor-sync", { method: "POST" });
+      const res = await apiFetch("/api/conductor-sync", { method: "POST" });
       let data = null;
       try { data = await res.json(); } catch { /* slow/cut-off response — sync may still have run */ }
       await board.refetch();

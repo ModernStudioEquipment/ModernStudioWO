@@ -17,11 +17,15 @@
 //   SHOPIFY_STORE / SHOPIFY_SHOP_DOMAIN, SHOPIFY_ADMIN_TOKEN (needs read_orders),
 //   SHOPIFY_API_VERSION (optional), VITE_SUPABASE_URL, SUPABASE_SECRET_KEY
 
+import { callerIsStaff, notSignedIn } from "../lib/apiAuth.js";
+
 export async function GET(request) {
+  if (!(await callerIsStaff(request))) return notSignedIn();
   return resync(orderParam(request), false, linesParam(request));
 }
 
 export async function POST(request) {
+  if (!(await callerIsStaff(request))) return notSignedIn();
   return resync(orderParam(request), true);
 }
 
