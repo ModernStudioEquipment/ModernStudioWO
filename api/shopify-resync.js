@@ -18,7 +18,7 @@
 //   SHOPIFY_API_VERSION (optional), VITE_SUPABASE_URL, SUPABASE_SECRET_KEY
 
 export async function GET(request) {
-  return resync(orderParam(request), false);
+  return resync(orderParam(request), false, linesParam(request));
 }
 
 export async function POST(request) {
@@ -29,8 +29,9 @@ const orderParam = (request) => {
   const p = new URL(request.url).searchParams;
   return String(p.get("order") || p.get("resync") || "").trim();
 };
+const linesParam = (request) => new URL(request.url).searchParams.get("lines") === "1";
 
-async function resync(orderNo, commit) {
+async function resync(orderNo, commit, lines = false) {
   if (!orderNo) return json(400, { error: "Re-sync needs an order number." });
 
   const store = process.env.SHOPIFY_STORE || process.env.SHOPIFY_SHOP_DOMAIN;
@@ -112,6 +113,21 @@ async function resync(orderNo, commit) {
     cancelledInShopify: !!sh.cancelled_at,
     inSync: !toAdd.length && !toUpdate.length && !toRemove.length,
   };
+
+  // ?lines=1 dumps what Shopify actually sends per line, so a name that's wrong
+  // on the board can be traced to the field it came from without guessing. No
+  // customer data: the product, the variant, the SKU and the NAMES of any custom
+  // options — never their values, which shoppers can type anything into.
+  if (lines) {
+    plan.lines = (sh.line_items || []).map((li) => ({
+      name: lineName(li),
+      title: li.title || null,
+      variant_title: li.variant_title || null,
+      variant_id: li.variant_id || null,
+      sku: li.sku || null,
+      propertyNames: (li.properties || []).map((p) => p && p.name).filter(Boolean),
+    }));
+  }
 
   if (!commit) return json(200, { mode: "resync-preview", ...plan, note: "Nothing was changed. POST the same URL to apply." });
 
