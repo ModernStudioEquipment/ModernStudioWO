@@ -186,6 +186,12 @@ export const localAdapter = {
 
   // ---- Per-job floor notes (single-machine, localStorage) ----
   // Append-only, same as the hosted adapter: { itemId: [{ id, body, author, at }] }.
+  async listFeedback() {
+    let list = [];
+    try { list = JSON.parse(localStorage.getItem("mse_feedback_v1")) || []; } catch { list = []; }
+    return list.slice().reverse().map((r) => ({ ...r, fixedAt: r.fixedAt || null, author: r.author || null }));
+  },
+
   // Local mode has nowhere to send it, so it goes in this browser and says so.
   async sendFeedback({ kind, body, urgent, context }) {
     const text = String(body || "").trim();

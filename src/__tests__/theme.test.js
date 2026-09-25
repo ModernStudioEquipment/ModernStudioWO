@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { fmtDate, materialKey, totalAmounts, elapsed, stamp, quoteNoteFor, numQty, pickedUpLabel, whereIsItem, noteAuthorName, noteStamp, noteTrailOf, amountShort, addAmounts, materialShort, shortLabel } from "../theme.js";
+import { fmtDate, materialKey, totalAmounts, elapsed, stamp, quoteNoteFor, numQty, pickedUpLabel, whereIsItem, noteAuthorName, noteStamp, noteTrailOf, amountShort, addAmounts, materialShort, shortLabel, groupFeedback } from "../theme.js";
 
 // Pure helpers that quietly drive real decisions on the board — a wrong answer
 // here shows up as a wrong date on a work order or two materials that should
@@ -352,5 +352,41 @@ describe("short deliveries — what's still owed on a material", () => {
   it("is silent until something has actually been received", () => {
     expect(materialShort({ amount: "20 ft" })).toBeNull();
     expect(materialShort({ amount: "20 ft", receivedQty: null })).toBeNull();
+  });
+});
+
+describe("groupFeedback — the list under the bug button", () => {
+  const r = (over) => ({ id: over.id, body: over.id, at: over.at || "2026-09-20T12:00:00Z", ...over });
+
+  it("puts urgent reports at the top of the open ones", () => {
+    const { open } = groupFeedback([
+      r({ id: "old", at: "2026-09-01T12:00:00Z" }),
+      r({ id: "new", at: "2026-09-24T12:00:00Z" }),
+      r({ id: "urgent-old", at: "2026-09-02T12:00:00Z", urgent: true }),
+    ]);
+    expect(open.map((x) => x.id)).toEqual(["urgent-old", "new", "old"]);
+  });
+
+  it("separates what's been fixed, newest fix first", () => {
+    const { open, fixed } = groupFeedback([
+      r({ id: "still-open" }),
+      r({ id: "fixed-first", fixedAt: "2026-09-10T12:00:00Z" }),
+      r({ id: "fixed-last", fixedAt: "2026-09-22T12:00:00Z" }),
+    ]);
+    expect(open.map((x) => x.id)).toEqual(["still-open"]);
+    expect(fixed.map((x) => x.id)).toEqual(["fixed-last", "fixed-first"]);
+  });
+
+  // The panel is a glance, not an archive: it caps, but the count doesn't lie.
+  it("caps each list and still reports how many are open", () => {
+    const many = Array.from({ length: 12 }, (_, i) => r({ id: `o${i}`, at: `2026-09-${String(i + 1).padStart(2, "0")}T12:00:00Z` }));
+    const { open, openTotal } = groupFeedback(many, { openMax: 8 });
+    expect(open).toHaveLength(8);
+    expect(openTotal).toBe(12);
+  });
+
+  it("copes with nothing, or rubbish", () => {
+    expect(groupFeedback()).toMatchObject({ open: [], fixed: [], openTotal: 0 });
+    expect(groupFeedback(null)).toMatchObject({ open: [], fixed: [] });
   });
 });

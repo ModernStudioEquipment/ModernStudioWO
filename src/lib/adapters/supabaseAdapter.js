@@ -572,6 +572,22 @@ export const supabaseAdapter = {
     return url;
   },
 
+  // What's been reported, and what came of it. Everyone signed in can read
+  // these: seeing that a thing is already reported is what stops it being
+  // reported nine times.
+  async listFeedback(limit = 40) {
+    const { data, error } = await supabase
+      .from("app_feedback")
+      .select("id, kind, urgent, body, author, created_at, fixed_at, fixed_by, fixed_note")
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (error) return [];
+    return (data || []).map((r) => ({
+      id: r.id, kind: r.kind, urgent: !!r.urgent, body: r.body, author: r.author || null,
+      at: r.created_at || null, fixedAt: r.fixed_at || null, fixedBy: r.fixed_by || null, fixedNote: r.fixed_note || null,
+    }));
+  },
+
   // ---- "Something's wrong" / "I have an idea", from inside the app ----
   //
   // Saved first, emailed second. The row is the record; the mail is only how

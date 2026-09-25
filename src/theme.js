@@ -366,6 +366,25 @@ export const parseAmount = (raw) => {
   return isNaN(n) ? null : { n, unit: m[2].trim().toLowerCase() };
 };
 
+// Split the reports into what's still open and what's been dealt with.
+//
+// Open first, urgent at the top of those, newest first within each. Fixed ones
+// are the short tail: enough to see that reporting something leads somewhere,
+// not a history nobody scrolls.
+export function groupFeedback(rows = [], { openMax = 8, fixedMax = 5 } = {}) {
+  const list = Array.isArray(rows) ? rows : [];
+  const age = (r) => (r && r.at ? new Date(r.at).getTime() : 0);
+  const open = list
+    .filter((r) => !r.fixedAt)
+    .sort((a, b) => Number(!!b.urgent) - Number(!!a.urgent) || age(b) - age(a))
+    .slice(0, openMax);
+  const fixed = list
+    .filter((r) => r.fixedAt)
+    .sort((a, b) => new Date(b.fixedAt).getTime() - new Date(a.fixedAt).getTime())
+    .slice(0, fixedMax);
+  return { open, fixed, openTotal: list.filter((r) => !r.fixedAt).length };
+}
+
 // How much of a material is STILL owed, or null when it's all in — or when the
 // amounts can't be compared honestly.
 //

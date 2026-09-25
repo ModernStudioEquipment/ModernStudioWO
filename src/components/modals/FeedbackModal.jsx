@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { X, Bug, Lightbulb, Send, Check, AlertTriangle } from "lucide-react";
-import { C } from "../../theme.js";
+import { C, fmtDate, groupFeedback } from "../../theme.js";
 import { Btn } from "../ui.jsx";
 
 // The bug button: "something's wrong" / "I have an idea", in as few taps as it
@@ -11,7 +11,7 @@ import { Btn } from "../ui.jsx";
 // what were you holding — the app already knows, so it fills them in rather than
 // making a man with dirty hands type them on a phone at the saw. A form people
 // skip collects nothing.
-export function FeedbackModal({ tabLabel = "", onSend, onClose }) {
+export function FeedbackModal({ tabLabel = "", onSend, onList, onClose }) {
   const [kind, setKind] = useState("problem");
   const [body, setBody] = useState("");
   // "Where in the app" used to be a box to fill in. It was the one question the
@@ -22,6 +22,23 @@ export function FeedbackModal({ tabLabel = "", onSend, onClose }) {
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState(null);
+  // What's already been reported, so nobody files the same thing twice and
+  // everybody can see that reporting one leads somewhere.
+  const [reports, setReports] = useState(null);
+  const listRef = useRef(onList);
+  listRef.current = onList;
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const rows = listRef.current ? await listRef.current() : [];
+        if (alive) setReports(groupFeedback(rows || []));
+      } catch {
+        if (alive) setReports({ open: [], fixed: [], openTotal: 0 });
+      }
+    })();
+    return () => { alive = false; };
+  }, []);
 
   const send = async () => {
     const text = body.trim();
@@ -134,9 +151,60 @@ export function FeedbackModal({ tabLabel = "", onSend, onClose }) {
               </Btn>
               <Btn onClick={onClose}>Cancel</Btn>
             </div>
+
+            <ReportList reports={reports} />
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// Two short lists: what's still open, and what's been dealt with lately.
+function ReportList({ reports }) {
+  if (!reports || (!reports.open.length && !reports.fixed.length)) return null;
+  const head = { fontSize: 10.5, fontWeight: 800, color: C.gray, textTransform: "uppercase", letterSpacing: 0.6, margin: "14px 0 6px" };
+  const meta = { fontSize: 11, color: C.gray };
+
+  return (
+    <div style={{ borderTop: `1px solid ${C.line}`, marginTop: 18, paddingTop: 4, maxHeight: 240, overflowY: "auto" }}>
+      {!!reports.open.length && (
+        <>
+          <div style={head}>Waiting on a fix · {reports.openTotal}</div>
+          {reports.open.map((r) => (
+            <div key={r.id} className="flex items-start gap-2" style={{ marginBottom: 8 }}>
+              {r.kind === "idea"
+                ? <Lightbulb size={13} style={{ color: C.gold, flexShrink: 0, marginTop: 2 }} />
+                : <Bug size={13} style={{ color: r.urgent ? C.rush : C.inkSoft, flexShrink: 0, marginTop: 2 }} />}
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 12.5 }}>{r.body}</div>
+                <div style={meta}>
+                  {r.author || "someone"}{r.at ? ` · ${fmtDate(r.at)}` : ""}
+                  {r.urgent ? " · urgent" : ""}
+                </div>
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+
+      {!!reports.fixed.length && (
+        <>
+          <div style={head}>Fixed</div>
+          {reports.fixed.map((r) => (
+            <div key={r.id} className="flex items-start gap-2" style={{ marginBottom: 8 }}>
+              <Check size={13} style={{ color: C.green, flexShrink: 0, marginTop: 2 }} />
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 12.5, color: C.gray, textDecoration: "line-through" }}>{r.body}</div>
+                {r.fixedNote && <div style={{ fontSize: 12.5 }}>{r.fixedNote}</div>}
+                <div style={meta}>
+                  {r.fixedBy || "someone"}{r.fixedAt ? ` · ${fmtDate(r.fixedAt)}` : ""}
+                </div>
+              </div>
+            </div>
+          ))}
+        </>
+      )}
     </div>
   );
 }
