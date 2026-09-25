@@ -162,9 +162,19 @@ export function FeedbackModal({ tabLabel = "", onSend, onList, onClose }) {
 
 // Two short lists: what's still open, and what's been dealt with lately.
 function ReportList({ reports }) {
-  if (!reports || (!reports.open.length && !reports.fixed.length)) return null;
+  if (!reports) return null;                       // still loading
   const head = { fontSize: 10.5, fontWeight: 800, color: C.gray, textTransform: "uppercase", letterSpacing: 0.6, margin: "14px 0 6px" };
   const meta = { fontSize: 11, color: C.gray };
+
+  // Say so rather than showing a blank space: "nothing reported" and "this
+  // panel is broken" must not look the same.
+  if (!reports.open.length && !reports.fixed.length) {
+    return (
+      <div style={{ borderTop: `1px solid ${C.line}`, marginTop: 18, paddingTop: 12, fontSize: 12, color: C.gray }}>
+        Nothing reported yet. Anything sent from here shows up in this list.
+      </div>
+    );
+  }
 
   return (
     <div style={{ borderTop: `1px solid ${C.line}`, marginTop: 18, paddingTop: 4, maxHeight: 240, overflowY: "auto" }}>

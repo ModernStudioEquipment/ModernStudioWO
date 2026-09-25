@@ -576,11 +576,13 @@ export const supabaseAdapter = {
   // these: seeing that a thing is already reported is what stops it being
   // reported nine times.
   async listFeedback(limit = 40) {
-    const { data, error } = await supabase
-      .from("app_feedback")
-      .select("id, kind, urgent, body, author, created_at, fixed_at, fixed_by, fixed_note")
-      .order("created_at", { ascending: false })
-      .limit(limit);
+    const pull = (cols) =>
+      supabase.from("app_feedback").select(cols).order("created_at", { ascending: false }).limit(limit);
+    let { data, error } = await pull("id, kind, urgent, body, author, created_at, fixed_at, fixed_by, fixed_note");
+    // 0063 hasn't been run: the fixed_* columns aren't there yet. Show what's
+    // open rather than an empty panel that looks like a broken feature.
+    if (error) ({ data, error } = await pull("id, kind, urgent, body, author, created_at"));
+    // 0062 hasn't been run either, or it's not readable — nothing to show.
     if (error) return [];
     return (data || []).map((r) => ({
       id: r.id, kind: r.kind, urgent: !!r.urgent, body: r.body, author: r.author || null,
