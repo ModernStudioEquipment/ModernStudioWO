@@ -11,7 +11,7 @@ import { Btn } from "../ui.jsx";
 // what were you holding — the app already knows, so it fills them in rather than
 // making a man with dirty hands type them on a phone at the saw. A form people
 // skip collects nothing.
-export function FeedbackModal({ tabLabel = "", onSend, onList, onClose }) {
+export function FeedbackModal({ tabLabel = "", onSend, onList, onResolve, onClose }) {
   const [kind, setKind] = useState("problem");
   const [body, setBody] = useState("");
   // "Where in the app" used to be a box to fill in. It was the one question the
@@ -152,7 +152,7 @@ export function FeedbackModal({ tabLabel = "", onSend, onList, onClose }) {
               <Btn onClick={onClose}>Cancel</Btn>
             </div>
 
-            <ReportList reports={reports} />
+            <ReportList reports={reports} onResolve={onResolve} onDone={(id, note, by) => setReports((r) => closeLocally(r, id, note, by))} />
           </div>
         )}
       </div>
@@ -161,7 +161,42 @@ export function FeedbackModal({ tabLabel = "", onSend, onList, onClose }) {
 }
 
 // Two short lists: what's still open, and what's been dealt with lately.
-function ReportList({ reports }) {
+// Move a report from the open list to the fixed one without a round trip.
+function closeLocally(reports, id, note, by) {
+  if (!reports) return reports;
+  const row = reports.open.find((r) => r.id === id);
+  if (!row) return reports;
+  return {
+    ...reports,
+    open: reports.open.filter((r) => r.id !== id),
+    openTotal: Math.max(0, reports.openTotal - 1),
+    fixed: [{ ...row, fixedAt: new Date().toISOString(), fixedNote: note, fixedBy: by || "you" }, ...reports.fixed],
+  };
+}
+
+function ReportList({ reports, onResolve, onDone }) {
+  // Which report is being closed, and what's being typed about it.
+  const [closing, setClosing] = useState(null);
+  const [fixNote, setFixNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [said, setSaid] = useState(null);
+
+  const resolve = async (r) => {
+    const note = fixNote.trim();
+    if (!note || busy || !onResolve) return;
+    setBusy(true);
+    try {
+      const out = await onResolve(r.id, note);
+      if (out && out.ok === false) { setSaid(out.error || "It didn't send."); return; }
+      setSaid(out && out.emailed === false ? (out.why || "Closed. Nobody was emailed.") : `Closed, and ${r.author || "they"} ${out && out.to ? `(${out.to}) ` : ""}told.`);
+      setClosing(null);
+      setFixNote("");
+      onDone(r.id, note, (out && out.by) || null);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (!reports) return null;                       // still loading
   const head = { fontSize: 10.5, fontWeight: 800, color: C.gray, textTransform: "uppercase", letterSpacing: 0.6, margin: "14px 0 6px" };
   const meta = { fontSize: 11, color: C.gray };
@@ -186,15 +221,41 @@ function ReportList({ reports }) {
               {r.kind === "idea"
                 ? <Lightbulb size={13} style={{ color: C.gold, flexShrink: 0, marginTop: 2 }} />
                 : <Bug size={13} style={{ color: r.urgent ? C.rush : C.inkSoft, flexShrink: 0, marginTop: 2 }} />}
-              <div style={{ minWidth: 0 }}>
+              <div style={{ minWidth: 0, flex: 1 }}>
                 <div style={{ fontSize: 12.5 }}>{r.body}</div>
                 <div style={meta}>
                   {r.author || "someone"}{r.at ? ` · ${fmtDate(r.at)}` : ""}
                   {r.urgent ? " · urgent" : ""}
+                  {onResolve && closing !== r.id && (
+                    <button
+                      onClick={() => { setClosing(r.id); setFixNote(""); setSaid(null); }}
+                      style={{ marginLeft: 8, background: "none", border: "none", padding: 0, cursor: "pointer",
+                        color: C.green, fontSize: 11, fontWeight: 700, textDecoration: "underline" }}
+                    >
+                      fixed it
+                    </button>
+                  )}
                 </div>
+                {closing === r.id && (
+                  <div className="flex items-center gap-2" style={{ marginTop: 6 }}>
+                    <input
+                      autoFocus value={fixNote} onChange={(e) => setFixNote(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") resolve(r); if (e.key === "Escape") setClosing(null); }}
+                      placeholder="What you did — they get sent this"
+                      className="px-2 py-1 outline-none"
+                      style={{ flex: 1, minWidth: 0, border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 12.5, background: C.surface }}
+                    />
+                    <button onClick={() => resolve(r)} disabled={busy || !fixNote.trim()}
+                      style={{ border: "none", borderRadius: 6, padding: "5px 10px", fontSize: 11.5, fontWeight: 800,
+                        background: C.fill, color: "#fff", cursor: "pointer", opacity: busy || !fixNote.trim() ? 0.5 : 1 }}>
+                      {busy ? "…" : "Send"}
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           ))}
+          {said && <div style={{ fontSize: 11.5, color: C.gray, marginBottom: 8 }}>{said}</div>}
         </>
       )}
 

@@ -575,6 +575,25 @@ export const supabaseAdapter = {
   // What's been reported, and what came of it. Everyone signed in can read
   // these: seeing that a thing is already reported is what stops it being
   // reported nine times.
+  // Close a report from the board and tell whoever filed it. The server signs
+  // the reply with the closer's own name, read from their login.
+  async closeFeedback(id, note) {
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data?.session?.access_token;
+      if (!token) return { ok: false, error: "not signed in" };
+      const res = await fetch("/api/feedback-fix", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ id, note }),
+      });
+      const out = await res.json().catch(() => ({}));
+      return res.ok ? out : { ok: false, error: out.error || `HTTP ${res.status}` };
+    } catch (e) {
+      return { ok: false, error: String((e && e.message) || e) };
+    }
+  },
+
   async listFeedback(limit = 40) {
     const pull = (cols) =>
       supabase.from("app_feedback").select(cols).order("created_at", { ascending: false }).limit(limit);

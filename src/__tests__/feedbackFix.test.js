@@ -10,7 +10,7 @@ import { signId, verifyId } from "../../lib/signedId.js";
 const ID = "11111111-1111-4111-8111-111111111111";
 const KEY = "service_test_key";
 
-const base = { VITE_SUPABASE_URL: "https://db.example.co", SUPABASE_SECRET_KEY: KEY, RESEND_API_KEY: "re_test" };
+const base = { VITE_SUPABASE_URL: "https://db.example.co", VITE_SUPABASE_ANON_KEY: "anon", SUPABASE_SECRET_KEY: KEY, RESEND_API_KEY: "re_test" };
 const res = (status, body) => new Response(typeof body === "string" ? body : JSON.stringify(body), { status });
 
 let sent = [];
@@ -53,7 +53,7 @@ describe("/api/feedback-fix", () => {
   beforeEach(() => { sent = []; patched = []; Object.assign(process.env, base); });
   afterEach(() => {
     vi.unstubAllGlobals();
-    ["VITE_SUPABASE_URL", "SUPABASE_SECRET_KEY", "RESEND_API_KEY", "FEEDBACK_SIGN_AS", "FEEDBACK_EMAIL_FROM"].forEach((k) => delete process.env[k]);
+    ["VITE_SUPABASE_URL", "VITE_SUPABASE_ANON_KEY", "SUPABASE_SECRET_KEY", "RESEND_API_KEY", "FEEDBACK_SIGN_AS", "FEEDBACK_EMAIL_FROM"].forEach((k) => delete process.env[k]);
   });
 
   it("signs and verifies an id, and rejects a tampered one", () => {
@@ -123,6 +123,54 @@ describe("/api/feedback-fix", () => {
     expect(r.status).toBe(400);
     expect(sent).toHaveLength(0);
     expect(patched).toHaveLength(0);
+  });
+
+  // Closing from the board itself, by a signed-in staffer. This is the only way
+  // to close the reports that were filed before the email carried a link.
+  describe("closed from the board", () => {
+    const json = (body, headers = { authorization: "Bearer good", "content-type": "application/json" }) =>
+      new Request("https://modern-fulfillment.com/api/feedback-fix", { method: "POST", headers, body: JSON.stringify(body) });
+
+    const withUser = (opts = {}) => {
+      const inner = stub(opts);
+      return vi.fn(async (url, init) => {
+        if (String(url).includes("/auth/v1/user")) {
+          return opts.signedIn === false
+            ? res(401, {})
+            : res(200, { id: "u9", email: "maddox@modernstudio.com" });
+        }
+        return inner(url, init);
+      });
+    };
+
+    it("refuses anyone who isn't signed in", async () => {
+      vi.stubGlobal("fetch", withUser({ row, signedIn: false }));
+      expect((await POST(json({ id: ID, note: "did it" }))).status).toBe(401);
+      expect(patched).toHaveLength(0);
+      expect(sent).toHaveLength(0);
+    });
+
+    it("wants to know what was done", async () => {
+      vi.stubGlobal("fetch", withUser({ row }));
+      expect((await POST(json({ id: ID, note: "  " }))).status).toBe(400);
+      expect(sent).toHaveLength(0);
+    });
+
+    it("signs the reply with the closer's own name, from their login", async () => {
+      vi.stubGlobal("fetch", withUser({ row }));
+      const out = await (await POST(json({ id: ID, note: "Fixed and live." }))).json();
+      expect(out).toMatchObject({ ok: true, by: "Maddox", emailed: true, to: "jiro@modernstudio.com" });
+      expect(patched[0]).toMatchObject({ status: "done", fixed_by: "Maddox" });
+      expect(sent[0].text.trim().endsWith("Maddox")).toBe(true);
+    });
+
+    it("won't close the same report twice", async () => {
+      vi.stubGlobal("fetch", withUser({ row: { ...row, fixed_at: "2026-09-24T12:00:00Z" } }));
+      const out = await (await POST(json({ id: ID, note: "again" }))).json();
+      expect(out).toMatchObject({ ok: true, already: true });
+      expect(patched).toHaveLength(0);
+      expect(sent).toHaveLength(0);
+    });
   });
 
   it("says a report is already closed instead of asking twice", async () => {

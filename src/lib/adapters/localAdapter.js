@@ -186,6 +186,16 @@ export const localAdapter = {
 
   // ---- Per-job floor notes (single-machine, localStorage) ----
   // Append-only, same as the hosted adapter: { itemId: [{ id, body, author, at }] }.
+  // Local mode: close it in this browser, nobody to email.
+  async closeFeedback(id, note) {
+    let list = [];
+    try { list = JSON.parse(localStorage.getItem("mse_feedback_v1")) || []; } catch { list = []; }
+    const r = list.find((x) => x.id === id);
+    if (r) { r.fixedAt = new Date().toISOString(); r.fixedNote = note; r.fixedBy = "Demo"; }
+    try { localStorage.setItem("mse_feedback_v1", JSON.stringify(list)); } catch { /* ignore */ }
+    return { ok: true, by: "Demo", emailed: false, why: "Local mode — nothing was emailed." };
+  },
+
   async listFeedback() {
     let list = [];
     try { list = JSON.parse(localStorage.getItem("mse_feedback_v1")) || []; } catch { list = []; }

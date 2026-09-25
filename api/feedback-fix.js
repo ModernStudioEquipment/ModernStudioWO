@@ -15,6 +15,7 @@
 // FEEDBACK_SIGN_AS sets the name the reply is signed with.
 
 import { verifyId } from "../lib/signedId.js";
+import { callerStaff } from "../lib/apiAuth.js";
 
 export async function GET(request) {
   const ctx = await load(request);
@@ -41,6 +42,12 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
+  // From the board: a signed-in staffer closing one out of the list, which is
+  // the only way to close the reports filed before the email carried a link.
+  if ((request.headers.get("content-type") || "").includes("application/json")) {
+    return closeAsStaff(request);
+  }
+
   const ctx = await load(request);
   if (ctx.error) return page(ctx.status, ctx.error);
   const { fb, id, url, serviceKey } = ctx;
@@ -71,6 +78,53 @@ export async function POST(request) {
       ? `<p>Closed, and ${esc(email)} has been told.</p>${quote(note)}`
       : `<p>Closed and saved, but the email bounced off Resend: ${esc(sent.detail || "no reason given")}</p>`);
 }
+
+async function closeAsStaff(request) {
+  const who = await callerStaff(request);
+  if (!who) return json(401, { ok: false, error: "Not signed in." });
+
+  const url = process.env.VITE_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SECRET_KEY;
+  if (!url || !serviceKey) return json(503, { ok: false, error: "Not configured." });
+
+  const body = await request.json().catch(() => ({}));
+  const id = String(body.id || "").trim();
+  const note = String(body.note || "").trim();
+  if (!isUuid(id)) return json(400, { ok: false, error: "Which report?" });
+  if (!note) return json(400, { ok: false, error: "Say what you did." });
+
+  const rows = await fetch(`${url}/rest/v1/app_feedback?id=eq.${id}&select=id,kind,body,author,author_id,created_at,fixed_at`, {
+    headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
+  }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  const fb = Array.isArray(rows) ? rows[0] : null;
+  if (!fb) return json(404, { ok: false, error: "No such report." });
+  if (fb.fixed_at) return json(200, { ok: true, already: true });
+
+  // Signed with the name of whoever actually closed it, from their login.
+  const from = nameOf(who);
+  await fetch(`${url}/rest/v1/app_feedback?id=eq.${id}`, {
+    method: "PATCH",
+    headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ status: "done", fixed_note: note, fixed_by: from, fixed_at: new Date().toISOString() }),
+  }).catch(() => null);
+
+  const email = fb.author_id ? await emailOf(fb.author_id, url, serviceKey) : null;
+  if (!email) return json(200, { ok: true, by: from, emailed: false, why: `No address on file for ${fb.author || "them"}.` });
+  const sent = await sendReply({ to: email, from_name: from, fb, note });
+  return json(200, { ok: true, by: from, emailed: sent.ok, to: email, why: sent.ok ? null : sent.detail });
+}
+
+// "anoush@modernstudio.com" -> "Anoush", the same rule the board's notes use.
+function nameOf(user) {
+  const named = user && user.user_metadata && (user.user_metadata.name || user.user_metadata.full_name);
+  if (named) return String(named).trim();
+  const local = String((user && user.email) || "").split("@")[0];
+  if (!local) return process.env.FEEDBACK_SIGN_AS || "the office";
+  return local.charAt(0).toUpperCase() + local.slice(1);
+}
+
+const json = (status, obj) =>
+  new Response(JSON.stringify(obj), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
 
 // --- the reply itself -------------------------------------------------------
 //

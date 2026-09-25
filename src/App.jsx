@@ -1903,6 +1903,7 @@ export default function App() {
         <FeedbackModal
           tabLabel={(TABS.find((t) => t.k === tab) || {}).label || ""}
           onList={() => db.listFeedback()}
+          onResolve={(id, note) => db.closeFeedback(id, note)}
           onClose={() => setFeedbackOpen(false)}
           onSend={({ kind, body, urgent }) =>
             db.sendFeedback({
