@@ -18,6 +18,8 @@
 // VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY and SUPABASE_SECRET_KEY are the same
 // variables the floor-note mail uses.
 
+import { signId } from "../lib/signedId.js";
+
 const DEFAULT_TO = "maddoxleach@yahoo.com";
 const DEFAULT_FROM = "cnc@modernstudio.com";
 
@@ -87,6 +89,10 @@ export async function POST(request) {
          ctx.device && `Device: ${ctx.device}`,
          ctx.screen && `Screen: ${ctx.screen}`,
          ctx.url && `URL: ${ctx.url}`].filter(Boolean).join("\n"),
+        "",
+        // One tap from the inbox: say what you did, and they get told.
+        `Fixed it? Say what you did and close it:`,
+        `${origin(request)}/api/feedback-fix?id=${id}&sig=${signId(id, serviceKey)}`,
       ].join("\n"),
     }),
   }).then(async (r) => ({ ok: r.ok, detail: r.ok ? null : await r.text().catch(() => "") }))
@@ -97,6 +103,10 @@ export async function POST(request) {
 }
 
 const isUuid = (s) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
+// The board's own address, so the link works from whichever host the app is on.
+const origin = (request) => {
+  try { return new URL(request.url).origin; } catch { return "https://modern-fulfillment.com"; }
+};
 const trim = (s) => String(s || "").slice(0, 300);
 const json = (status, obj) =>
   new Response(JSON.stringify(obj), { status, headers: { "content-type": "application/json" } });
