@@ -1736,7 +1736,16 @@ export default function App() {
       {showNewNotice && (
         <NewNoticeModal onCreate={stock.createNotice} onClose={() => setShowNewNotice(false)} />
       )}
-      {matTarget && <MaterialModal onClose={() => setMatTarget(null)} onCommit={commitMaterials} openFor={openDemandFor} />}
+      {matTarget && (
+        <MaterialModal
+          // What it's being bought FOR. Retyping this from memory is how a
+          // 1-1/4" fitting ends up on the purchasing list with no size on it.
+          productName={findItem(matTarget)?.it?.name || ""}
+          onClose={() => setMatTarget(null)}
+          onCommit={commitMaterials}
+          openFor={openDemandFor}
+        />
+      )}
       {detailOrder && (
         <OrderDetail
           order={detailOrder}

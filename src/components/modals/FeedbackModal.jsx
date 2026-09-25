@@ -267,10 +267,20 @@ function ReportList({ reports, onResolve, onDone }) {
               <Check size={13} style={{ color: C.green, flexShrink: 0, marginTop: 2 }} />
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: 12.5, color: C.gray, textDecoration: "line-through" }}>{r.body}</div>
-                {r.fixedNote && <div style={{ fontSize: 12.5 }}>{r.fixedNote}</div>}
-                <div style={meta}>
-                  {r.fixedBy || "someone"}{r.fixedAt ? ` · ${fmtDate(r.fixedAt)}` : ""}
-                </div>
+                {/* Set in from the report and ruled down the side, so the answer
+                    reads as an answer rather than as more of the complaint. */}
+                {r.fixedNote ? (
+                  <div style={{ marginTop: 4, paddingLeft: 9, borderLeft: `2px solid ${C.green}` }}>
+                    <div style={{ fontSize: 12.5 }}>{r.fixedNote}</div>
+                    <div style={meta}>
+                      {r.fixedBy || "someone"} replied{r.fixedAt ? ` · ${fmtDate(r.fixedAt)}` : ""}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={meta}>
+                    Closed by {r.fixedBy || "someone"}{r.fixedAt ? ` · ${fmtDate(r.fixedAt)}` : ""}
+                  </div>
+                )}
               </div>
             </div>
           ))}

@@ -7,7 +7,7 @@ import { C } from "../../theme.js";
 // `openFor(name)` reports anything already sitting in Purchasing un-ordered, so
 // the same thing doesn't get bought twice — a warning, not a block, since two
 // orders legitimately needing the same material is normal.
-export function MaterialModal({ onClose, onCommit, openFor }) {
+export function MaterialModal({ productName = "", onClose, onCommit, openFor }) {
   const [rows, setRows] = useState([{ name: "", amount: "" }]);
   const [focusIdx, setFocusIdx] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -51,6 +51,24 @@ export function MaterialModal({ onClose, onCommit, openFor }) {
           <button onClick={onClose} className="ml-auto" style={{ color: "#fff" }}><X size={18} /></button>
         </div>
         <div className="p-4">
+          {/* What it's for, and one tap to buy the thing itself. Some of these
+              ARE the product (a fitting you stock and ship); others are the bar
+              you cut it from. Typing the name again from memory is how a
+              1-1/4" fitting reached Purchasing with no size on it, while the
+              one next to it kept its. */}
+          {productName && (
+            <div className="flex items-center gap-2 flex-wrap" style={{ fontSize: 12.5, marginBottom: 10 }}>
+              <span style={{ color: C.gray }}>For</span>
+              <span style={{ fontWeight: 700 }}>{productName}</span>
+              <button
+                onClick={() => { setConfirmed(false); upd(0, "name", productName); setFocusIdx(0); }}
+                style={{ background: "none", border: "none", padding: 0, cursor: "pointer",
+                  color: C.blue, fontSize: 12, fontWeight: 700, textDecoration: "underline" }}
+              >
+                buying this exact thing?
+              </button>
+            </div>
+          )}
           <div style={{ fontSize: 12, color: C.gray, marginBottom: 8 }}>
             Each material drops onto the Purchasing tab. Amount can be anything — 20 ft, 20 in, 2 sheets.
           </div>
