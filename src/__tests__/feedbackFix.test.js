@@ -94,10 +94,19 @@ describe("/api/feedback-fix", () => {
     const mail = sent[0];
     expect(mail.to).toEqual(["jiro@modernstudio.com"]);
     expect(mail.subject).toBe("Fixed: mark ordered flips back to un-ordered on its own");
-    expect(mail.text).toContain("You reported this on 09/16");
+    // Reads as a ticket response: labelled sections, so you can see where the
+    // report ends and the answer starts.
+    expect(mail.text).toContain("YOUR REPORT · 09/16/2026");
     expect(mail.text).toContain("mark ordered flips back to un-ordered on its own");
+    expect(mail.text).toContain("WHAT WE DID");
     expect(mail.text).toContain("The button was writing the old value back.");
-    expect(mail.text.trim().endsWith("Maddox")).toBe(true);
+    expect(mail.html).toContain("Your report");
+    expect(mail.html).toContain("What we did");
+    expect(mail.html).toContain("Modern Studio Equipment");
+    // Nobody's name on it, and a reply goes to the shop address.
+    expect(mail.text).not.toMatch(/maddox/i);
+    expect(mail.html).not.toMatch(/maddox/i);
+    expect(mail.reply_to).toBe("cnc@modernstudio.com");
     // No slop: none of the usual padding.
     expect(mail.text).not.toMatch(/thank you for|we apologize|reach out|any further questions|valued/i);
   });
@@ -161,7 +170,7 @@ describe("/api/feedback-fix", () => {
       const out = await (await POST(json({ id: ID, note: "Fixed and live." }))).json();
       expect(out).toMatchObject({ ok: true, by: "Maddox", emailed: true, to: "jiro@modernstudio.com" });
       expect(patched[0]).toMatchObject({ status: "done", fixed_by: "Maddox" });
-      expect(sent[0].text.trim().endsWith("Maddox")).toBe(true);
+      expect(sent[0].text).not.toMatch(/maddox/i);   // recorded on the row, not in the email
     });
 
     it("won't close the same report twice", async () => {

@@ -72,7 +72,7 @@ export async function POST(request) {
       quote(fb.body));
   }
 
-  const sent = await sendReply({ to: email, from_name: from, fb, note });
+  const sent = await sendReply({ to: email, fb, note });
   return page(sent.ok ? 200 : 502,
     sent.ok
       ? `<p>Closed, and ${esc(email)} has been told.</p>${quote(note)}`
@@ -110,7 +110,7 @@ async function closeAsStaff(request) {
 
   const email = fb.author_id ? await emailOf(fb.author_id, url, serviceKey) : null;
   if (!email) return json(200, { ok: true, by: from, emailed: false, why: `No address on file for ${fb.author || "them"}.` });
-  const sent = await sendReply({ to: email, from_name: from, fb, note });
+  const sent = await sendReply({ to: email, fb, note });
   return json(200, { ok: true, by: from, emailed: sent.ok, to: email, why: sent.ok ? null : sent.detail });
 }
 
@@ -128,35 +128,58 @@ const json = (status, obj) =>
 
 // --- the reply itself -------------------------------------------------------
 //
-// Short, and in the words of whoever fixed it. No preamble, no thanks-for-your-
-// patience, no invitation to reach out with further questions.
-async function sendReply({ to, from_name, fb, note }) {
+// Reads as a ticket response: their report, then what was done, under labels so
+// you can see where one ends and the other starts. Sent as both plain text and
+// HTML so it looks right whatever they read it in.
+//
+// Nobody's name is on it. It comes from the board, not from a person, and a
+// reply goes back to the shop address rather than to somebody's inbox.
+async function sendReply({ to, fb, note }) {
   const resendKey = process.env.RESEND_API_KEY;
   const from = process.env.FEEDBACK_EMAIL_FROM || "cnc@modernstudio.com";
-  const replyTo = process.env.FEEDBACK_EMAIL_TO || undefined;
+  const replyTo = process.env.FEEDBACK_REPLY_TO || from;
   if (!resendKey) return { ok: false, detail: "RESEND_API_KEY isn't set." };
 
   const gist = String(fb.body || "").replace(/\s+/g, " ").trim().slice(0, 50);
   const subject = `${fb.kind === "idea" ? "Done" : "Fixed"}: ${gist}${String(fb.body || "").length > 50 ? "…" : ""}`;
+  const ref = String(fb.id || "").slice(0, 8);
+  const when = date(fb.created_at);
+  const body = String(fb.body || "").trim();
+
+  const text = [
+    `YOUR REPORT · ${when}`,
+    body,
+    "",
+    "WHAT WE DID",
+    note,
+    "",
+    "--",
+    "Modern Studio Equipment · fulfillment board",
+    ref ? `Ref ${ref}` : "",
+  ].filter((l) => l !== null).join("\n");
+
+  const lbl = "font:600 11px/1.4 system-ui,sans-serif;letter-spacing:.09em;text-transform:uppercase;color:#6B7580;margin:0 0 6px";
+  const html =
+    `<div style="font:15px/1.55 system-ui,-apple-system,sans-serif;color:#16202B;max-width:560px">` +
+      `<div style="border:1px solid #E3E6E9;border-radius:10px;overflow:hidden">` +
+        `<div style="padding:16px 18px;background:#F7F8F9;border-bottom:1px solid #E3E6E9">` +
+          `<p style="${lbl}">Your report · ${esc(when)}</p>` +
+          `<div style="white-space:pre-wrap;color:#41505F">${esc(body)}</div>` +
+        `</div>` +
+        `<div style="padding:16px 18px">` +
+          `<p style="${lbl}">What we did</p>` +
+          `<div style="white-space:pre-wrap">${esc(note)}</div>` +
+        `</div>` +
+      `</div>` +
+      `<p style="font:12px/1.5 system-ui,sans-serif;color:#8A939C;margin:14px 0 0">` +
+        `Modern Studio Equipment · fulfillment board${ref ? `<br>Ref ${esc(ref)}` : ""}` +
+      `</p>` +
+    `</div>`;
 
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      from,
-      to: [to],
-      reply_to: replyTo,
-      subject,
-      text: [
-        `You reported this on ${date(fb.created_at)}:`,
-        "",
-        `  ${String(fb.body || "").trim()}`,
-        "",
-        note,
-        "",
-        from_name,
-      ].join("\n"),
-    }),
+    body: JSON.stringify({ from, to: [to], reply_to: replyTo, subject, text, html }),
   }).catch(() => null);
 
   if (!res || !res.ok) return { ok: false, detail: res ? `HTTP ${res.status}` : "no answer from Resend" };
