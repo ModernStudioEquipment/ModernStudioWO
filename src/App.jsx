@@ -75,12 +75,24 @@ export default function App() {
   const tabEls = useRef({});
   const tabFirst = useRef(true);
   const [pill, setPill] = useState({ left: 0, top: 0, width: 0, height: 0, animate: false });
+  // The last geometry we PUBLISHED, kept in a ref. This effect has no dependency
+  // array, so it runs after every render, and an unguarded setState here is what
+  // broke the board: calling it even when the value was unchanged scheduled
+  // another pass, whose effect scheduled another, and React stopped the whole
+  // app at "Maximum update depth exceeded". Returning the same object from the
+  // updater was not enough — the update is still scheduled. So compare FIRST and
+  // leave without touching state when nothing moved.
+  const pillRef = useRef({ left: 0, top: 0, width: 0, height: 0 });
   useLayoutEffect(() => {
     const el = tabEls.current[tab];
     if (!el) return;
-    const n = { left: el.offsetLeft, top: el.offsetTop, width: el.offsetWidth, height: el.offsetHeight, animate: !tabFirst.current };
+    const g = { left: el.offsetLeft, top: el.offsetTop, width: el.offsetWidth, height: el.offsetHeight };
+    const p = pillRef.current;
+    if (p.left === g.left && p.top === g.top && p.width === g.width && p.height === g.height) return;
+    pillRef.current = g;
+    const animate = !tabFirst.current;
     tabFirst.current = false;
-    setPill((p) => (p.left === n.left && p.top === n.top && p.width === n.width && p.height === n.height) ? p : n);
+    setPill({ ...g, animate });
   });
 
   // Sideways nav arrows: shown ONLY when a tab is actually cut off, and each side
@@ -88,14 +100,19 @@ export default function App() {
   // on resize, and after every render (tab counts change the strip's width).
   const tabStripRef = useRef(null);
   const [navScroll, setNavScroll] = useState({ left: false, right: false });
+  const navRef = useRef({ left: false, right: false });
   const measureTabs = useCallback(() => {
     const el = tabStripRef.current;
     if (!el) return;
     const max = el.scrollWidth - el.clientWidth;
     const l = max > 2 && el.scrollLeft > 2;
     const r = max > 2 && el.scrollLeft < max - 2;
-    // Same-object return when unchanged, so this can run every render without looping.
-    setNavScroll((p) => (p.left === l && p.right === r ? p : { left: l, right: r }));
+    // Same guard as the pill, for the same reason: this runs after every render,
+    // so it must not schedule an update when the answer hasn't changed.
+    const was = navRef.current;
+    if (was.left === l && was.right === r) return;
+    navRef.current = { left: l, right: r };
+    setNavScroll({ left: l, right: r });
   }, []);
   useLayoutEffect(measureTabs);
   useEffect(() => {
