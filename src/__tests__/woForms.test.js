@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { fieldsLostSwitching, remapFields, WO_FORMS } from "../components/workorders/forms.js";
+import { fieldsLostSwitching, remapFields, WO_FORMS, stationLabel, woDeptOptions, parseDeptValue, STATION_PROMPT } from "../components/workorders/forms.js";
 
 // Changing which department makes a work order is a real edit, not a relabel:
 // Shop and CNC are field sheets, Sewing and Saw are line-item sheets, and even
@@ -54,5 +54,63 @@ describe("moving a work order between departments", () => {
     WO_FORMS.saw.header.forEach((f) => expect(out).toHaveProperty(f.key));
     expect(out.lines).toHaveLength(1);
     expect(out.lines[0]).toEqual({ item: "", size: "", qty: "" });
+  });
+});
+
+// ---- Stations -------------------------------------------------------------
+//
+// A department is not one person: there are several sewers and several shop
+// benches, and a sheet that says only "Sewing" doesn't say which of them is
+// meant to make it. The station rides ALONGSIDE the department rather than
+// becoming a fifth one, because `type` is checked in the database and each type
+// draws a different sheet.
+describe("which bench inside the department", () => {
+  it("reads a number as a bench and anything else as a name", () => {
+    expect(stationLabel("sewing", "")).toBe("Sewing");
+    expect(stationLabel("sewing", null)).toBe("Sewing");
+    expect(stationLabel("sewing", "2")).toBe("Sewing 2");
+    expect(stationLabel("shop", "3")).toBe("Shop 3");
+    expect(stationLabel("sewing", "Maria")).toBe("Sewing · Maria");
+    // Typed with a stray space — still a name, not a blank.
+    expect(stationLabel("shop", " Jo ")).toBe("Shop · Jo");
+  });
+
+  it("offers each department, then its benches under it", () => {
+    const labels = woDeptOptions().map((o) => o.label);
+    expect(labels).toEqual([
+      "Shop", "Shop 1", "Shop 2", "Shop 3",
+      "CNC",
+      "Sewing", "Sewing 1", "Sewing 2", "Sewing 3",
+      "Saw",
+    ]);
+  });
+
+  it("gives CNC and Saw no benches — CNC already splits by machine on the floor", () => {
+    const values = woDeptOptions().map((o) => o.value);
+    expect(values).not.toContain("cnc::1");
+    expect(values).not.toContain("saw::1");
+    expect(values).toContain("cnc");
+    expect(values).toContain("saw");
+  });
+
+  it("reads a dropdown value back into a department and a bench", () => {
+    expect(parseDeptValue("sewing::2")).toEqual({ type: "sewing", station: "2" });
+    expect(parseDeptValue("sewing")).toEqual({ type: "sewing", station: "" });
+    expect(parseDeptValue("shop::Maria")).toEqual({ type: "shop", station: "Maria" });
+  });
+
+  // A saved value that no longer matches anything must not wedge the sheet:
+  // better the plain Shop form than a blank screen.
+  it("falls back to a real department rather than throwing", () => {
+    expect(parseDeptValue("nonsense::9").type).toBe("shop");
+    expect(parseDeptValue("").type).toBe("shop");
+    expect(parseDeptValue(undefined).type).toBe("shop");
+  });
+
+  // The sentinel the dropdowns use for "let me type one" must never collide
+  // with a real department.
+  it("keeps the type-a-name sentinel out of the department list", () => {
+    expect(woDeptOptions().map((o) => o.value)).not.toContain(STATION_PROMPT);
+    expect(WO_FORMS[STATION_PROMPT]).toBeUndefined();
   });
 });

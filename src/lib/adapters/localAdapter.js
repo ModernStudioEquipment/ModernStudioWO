@@ -758,11 +758,11 @@ export const localAdapter = {
     return list;
   },
 
-  async createWorkOrder({ type, title, fields, orderNo }) {
+  async createWorkOrder({ type, title, fields, orderNo, station }) {
     const list = readWO();
     const id = uid();
     const no = orderNo || String(nextWoNoFrom(list));
-    list.unshift({ id, orderNo: no, type, title: title || "", fields: fields || {}, done: false, createdAt: Date.now() });
+    list.unshift({ id, orderNo: no, type, title: title || "", fields: fields || {}, station: station || "", done: false, createdAt: Date.now() });
     writeWO(list);
     return id;
   },
@@ -774,13 +774,14 @@ export const localAdapter = {
     writeWO(list);
   },
 
-  async updateWorkOrder(id, { title, fields, type }) {
+  async updateWorkOrder(id, { title, fields, type, station }) {
     const list = readWO();
     const w = list.find((x) => x.id === id);
     if (w) {
       if (title !== undefined) w.title = title;
       if (fields !== undefined) w.fields = fields;
       if (type !== undefined) w.type = type;   // the department that makes it
+      if (station !== undefined) w.station = station || "";  // which bench/person in it
     }
     writeWO(list);
   },

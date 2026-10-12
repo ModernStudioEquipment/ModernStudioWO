@@ -4,7 +4,7 @@ import { Printer } from "lucide-react";
 import { C, fmtDate } from "../../theme.js";
 import { Btn } from "../ui.jsx";
 import { useDirty, UnsavedPrompt } from "../UnsavedGuard.jsx";
-import { WO_FORMS, initFields, emptyLine, fieldsLostSwitching, remapFields } from "../workorders/forms.js";
+import { WO_FORMS, initFields, emptyLine, fieldsLostSwitching, remapFields, woDeptOptions, parseDeptValue, stationLabel, STATION_PROMPT } from "../workorders/forms.js";
 import { bodyFor } from "../workorders/bodies.jsx";
 
 // The work-order SHEET — editable in place. Fields and line rows are inputs you
@@ -24,6 +24,10 @@ export function CustomWorkOrderDoc({ wo, onSave, onUploadPhoto, onPhotoHistory, 
   // a switch says what it will drop before it does it, rather than quietly emptying the sheet.
   const [t, setT] = useState(wo.type);
   const [pendingType, setPendingType] = useState(null);
+  // Which bench or person inside that department. "" is the department itself,
+  // which is what every sheet raised before this existed carries.
+  const [station, setStation] = useState(wo.station || "");
+  const [namingStation, setNamingStation] = useState(null); // the typed-name box, or null
   const form = WO_FORMS[t];
   const isLines = form.layout === "lineItems";
 
@@ -68,7 +72,7 @@ export function CustomWorkOrderDoc({ wo, onSave, onUploadPhoto, onPhotoHistory, 
             return { ...fields, lines: kept.length ? kept : [emptyLine(form)] };
           })()
         : fields;
-      const id = await onSave({ id: woId, type: t, title, fields: cleanFields, orderNo: wo.orderNo });
+      const id = await onSave({ id: woId, type: t, title, fields: cleanFields, orderNo: wo.orderNo, station });
       if (id && !woId) setWoId(id);
       if (thenPrint) setTimeout(() => window.print(), 50);
     } finally {
@@ -77,7 +81,7 @@ export function CustomWorkOrderDoc({ wo, onSave, onUploadPhoto, onPhotoHistory, 
   };
 
   // Closing with typing in the form used to bin it silently.
-  const dirty = useDirty({ fields, title });
+  const dirty = useDirty({ fields, title, station });
   const [askClose, setAskClose] = useState(false);
   const tryClose = () => (dirty ? setAskClose(true) : onClose());
 
@@ -103,25 +107,44 @@ export function CustomWorkOrderDoc({ wo, onSave, onUploadPhoto, onPhotoHistory, 
           <label className="flex items-center gap-2" style={{ fontSize: 12, color: C.gray }}>
             <span style={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>Department</span>
             <select
-              value={t}
+              value={station ? `${t}::${station}` : t}
               onChange={(e) => {
-                const next = e.target.value;
-                if (next === t) return;
+                const raw = e.target.value;
+                if (raw === STATION_PROMPT) { setNamingStation(station || ""); return; }
+                const { type: next, station: nextStation } = parseDeptValue(raw);
+                // Moving between benches of the SAME department is not a sheet
+                // change — same form, same fields, nothing to warn about.
+                if (next === t) { setStation(nextStation); return; }
                 const lost = fieldsLostSwitching(t, next, fields);
                 // Nothing to lose, nothing to ask about.
-                if (!lost.length) { setFields((f) => remapFields(t, next, f)); setT(next); return; }
-                setPendingType({ next, lost });
+                if (!lost.length) { setFields((f) => remapFields(t, next, f)); setT(next); setStation(nextStation); return; }
+                setPendingType({ next, lost, station: nextStation });
               }}
               // C.ink / C.surface, not invented keys — an undefined colour leaves the
               // select with no explicit foreground, which goes unreadable in dark mode.
               style={{ background: C.surface, color: C.ink, border: `1px solid ${C.line}`,
                        borderRadius: 6, padding: "5px 9px", fontWeight: 700 }}
             >
-              {Object.keys(WO_FORMS).map((k) => (
-                <option key={k} value={k}>{WO_FORMS[k].label || k}</option>
+              {woDeptOptions().map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
               ))}
+              {/* A name that isn't on the list — the typed station goes in the
+                  same place a number would. */}
+              {station && !/^\d+$/.test(station) && (
+                <option value={`${t}::${station}`}>{stationLabel(t, station)}</option>
+              )}
+              <option value={STATION_PROMPT}>Type a name…</option>
             </select>
           </label>
+          {station && (
+            <button
+              onClick={() => setStation("")}
+              title="Back to the whole department"
+              style={{ fontSize: 11, fontWeight: 700, color: C.gray, background: "none", border: "none", cursor: "pointer", textTransform: "uppercase", letterSpacing: 0.5 }}
+            >
+              Clear
+            </button>
+          )}
           <span className="flex-1" />
           <Btn kind="green" onClick={() => save(false)} disabled={saving}>{saving ? "Saving…" : "Save"}</Btn>
           <Btn kind="brass" onClick={() => save(true)} disabled={saving}><Printer size={15} />Save &amp; Print</Btn>
@@ -130,6 +153,27 @@ export function CustomWorkOrderDoc({ wo, onSave, onUploadPhoto, onPhotoHistory, 
         {/* Asked in the sheet rather than through window.confirm: a browser dialog can be
             suppressed, and a suppressed confirm returns false, which would look like the switch
             silently refusing to happen. */}
+        {namingStation !== null && (
+          <div className="no-print mb-2 rounded p-3" style={{ background: C.surface, border: `1px solid ${C.line}` }}>
+            <div style={{ fontWeight: 700, marginBottom: 6 }}>Who's making it?</div>
+            <div className="flex gap-2 items-center flex-wrap">
+              <input
+                autoFocus
+                value={namingStation}
+                onFocus={(e) => e.target.select()}
+                onChange={(e) => setNamingStation(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") { setStation(namingStation.trim()); setNamingStation(null); }
+                  if (e.key === "Escape") setNamingStation(null);
+                }}
+                placeholder="A name, or a bench number"
+                style={{ flex: 1, minWidth: 160, background: C.surface, color: C.ink, border: `1px solid ${C.line}`, borderRadius: 6, padding: "6px 9px" }}
+              />
+              <Btn kind="green" onClick={() => { setStation(namingStation.trim()); setNamingStation(null); }}>Use it</Btn>
+              <Btn onClick={() => setNamingStation(null)}>Cancel</Btn>
+            </div>
+          </div>
+        )}
         {pendingType && (
           <div className="no-print mb-2 rounded p-3"
                style={{ background: C.surface, border: `1px solid ${C.line}` }}>
@@ -146,6 +190,7 @@ export function CustomWorkOrderDoc({ wo, onSave, onUploadPhoto, onPhotoHistory, 
               <Btn kind="green" onClick={() => {
                 setFields((f) => remapFields(t, pendingType.next, f));
                 setT(pendingType.next);
+                setStation(pendingType.station || "");
                 setPendingType(null);
               }}>
                 Move it
@@ -155,6 +200,14 @@ export function CustomWorkOrderDoc({ wo, onSave, onUploadPhoto, onPhotoHistory, 
           </div>
         )}
         <div id="wo" style={{ background: C.surface, border: `1px solid ${C.line}`, padding: "30px 34px" }}>
+          {/* The whole point of a station: the printed sheet says which bench it
+              belongs to, so it can be handed to the right one. */}
+          {station && (
+            <div style={{ textAlign: "right", fontSize: 12, fontWeight: 800, letterSpacing: 0.6,
+                          textTransform: "uppercase", color: C.inkSoft, marginBottom: 8 }}>
+              {stationLabel(t, station)}
+            </div>
+          )}
           <Body {...bodyProps} />
         </div>
       </div>

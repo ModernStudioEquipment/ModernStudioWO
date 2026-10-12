@@ -41,7 +41,7 @@ import { BulkMaterialModal } from "./components/modals/BulkMaterialModal.jsx";
 import { FeedbackModal } from "./components/modals/FeedbackModal.jsx";
 import { ReceiveModal } from "./components/modals/ReceiveModal.jsx";
 import { CustomWorkOrderDoc } from "./components/modals/CustomWorkOrderDoc.jsx";
-import { WO_TYPES, fieldsLostSwitching, remapFields } from "./components/workorders/forms.js";
+import { WO_TYPES, fieldsLostSwitching, remapFields, woDeptOptions, parseDeptValue, stationLabel, STATION_PROMPT } from "./components/workorders/forms.js";
 
 export default function App() {
   const auth = useAuth();
@@ -215,7 +215,8 @@ export default function App() {
   const me = noteAuthorName(auth.user);
 
   const [feedbackOpen, setFeedbackOpen] = useState(false); // "something's wrong / I have an idea"
-  const [deptSwitch, setDeptSwitch] = useState(null); // { wo, next, lost } — work order changing department
+  const [deptSwitch, setDeptSwitch] = useState(null); // { wo, next, lost, station } — work order changing department
+  const [stationTarget, setStationTarget] = useState(null); // { wo, name } — naming a bench from the card
   const [orderTarget, setOrderTarget] = useState(null); // purchasing material being marked ordered (asks who/vendor/PO)
   const [receiveTarget, setReceiveTarget] = useState(null); // { it, m } material being received (asks dest tab/qty/note)
   const [syncing, setSyncing] = useState(false); // QuickBooks sync in progress
@@ -745,7 +746,7 @@ export default function App() {
   // Returns the id so a freshly-saved new sheet keeps editing the same record.
   const saveWorkOrder = async (woPayload) => {
     if (woPayload.id) {
-      await wo.updateWorkOrder(woPayload.id, { title: woPayload.title, fields: woPayload.fields, type: woPayload.type });
+      await wo.updateWorkOrder(woPayload.id, { title: woPayload.title, fields: woPayload.fields, type: woPayload.type, station: woPayload.station });
       return woPayload.id;
     }
     return await wo.createWorkOrder(woPayload);
@@ -756,17 +757,29 @@ export default function App() {
   // form (Shop/CNC are field sheets, Sewing/Saw are line-item sheets), so a
   // department change is a real edit: anything the target sheet has nowhere to
   // put is named before it goes, never dropped silently.
-  const switchWoDept = async (w, next) => {
+  const switchWoDept = async (w, next, station = "") => {
     if (!w || next === w.type) return;
     const fields = remapFields(w.type, next, w.fields || {});
     setDeptSwitch(null);
-    await wo.updateWorkOrder(w.id, { type: next, fields });
+    await wo.updateWorkOrder(w.id, { type: next, fields, station });
   };
-  const askSwitchWoDept = (w, next) => {
+  const askSwitchWoDept = (w, next, station = "") => {
     if (next === w.type) return;
     const lost = fieldsLostSwitching(w.type, next, w.fields || {});
-    if (!lost.length) return switchWoDept(w, next);
-    setDeptSwitch({ wo: w, next, lost });
+    if (!lost.length) return switchWoDept(w, next, station);
+    setDeptSwitch({ wo: w, next, lost, station });
+  };
+  // Picking a bench from the card. Staying inside the same department is just a
+  // station change — same sheet, nothing to warn about; crossing departments
+  // goes through the usual "this will clear..." question.
+  const pickWoStation = (w, value) => {
+    if (value === STATION_PROMPT) { setStationTarget({ wo: w, name: w.station || "" }); return; }
+    const { type: next, station } = parseDeptValue(value);
+    if (next === w.type) {
+      if ((w.station || "") === station) return;
+      return wo.updateWorkOrder(w.id, { station });
+    }
+    askSwitchWoDept(w, next, station);
   };
 
   // ---- derived views ----
@@ -1287,15 +1300,15 @@ export default function App() {
                       <span className="font-bold" style={{ fontFamily: "ui-monospace,monospace", fontSize: 15 }}>WO #{w.orderNo}</span>
                       <span onClick={(e) => e.stopPropagation()}>
                         <InlineMenu
-                          options={WO_TYPES.map((t) => ({ value: t.key, label: t.label }))}
-                          onSelect={(next) => askSwitchWoDept(w, next)}
+                          options={[...woDeptOptions(), { value: STATION_PROMPT, label: "Type a name…" }]}
+                          onSelect={(value) => pickWoStation(w, value)}
                         >
                           <span
-                            title="Which department makes it — click to change"
+                            title="Who makes it — click to change"
                             className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-bold uppercase"
                             style={{ background: C.grayBg, color: C.inkSoft, cursor: "pointer" }}
                           >
-                            {w.type}
+                            {stationLabel(w.type, w.station)}
                             <ChevronDown size={12} />
                           </span>
                         </InlineMenu>
@@ -1989,8 +2002,48 @@ export default function App() {
                 {deptSwitch.lost.map((l) => <li key={l}>{l}</li>)}
               </ul>
               <div className="flex gap-2">
-                <button onClick={() => switchWoDept(deptSwitch.wo, deptSwitch.next)} className="flex-1 py-2.5 rounded font-bold uppercase tracking-wide text-xs" style={{ background: C.rush, color: "#fff" }}>Change it — lose those</button>
+                <button onClick={() => switchWoDept(deptSwitch.wo, deptSwitch.next, deptSwitch.station)} className="flex-1 py-2.5 rounded font-bold uppercase tracking-wide text-xs" style={{ background: C.rush, color: "#fff" }}>Change it — lose those</button>
                 <button onClick={() => setDeptSwitch(null)} className="flex-1 py-2.5 rounded font-bold uppercase tracking-wide text-xs" style={{ background: C.surface, color: C.inkSoft, border: `1px solid ${C.line}` }}>Keep it as it is</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Naming a bench from the card. Same question the sheet asks, so the two
+          places behave alike. */}
+      {stationTarget && (
+        <div
+          onClick={() => setStationTarget(null)}
+          style={{ position: "fixed", inset: 0, background: "rgba(20,28,38,0.5)", display: "flex", alignItems: "flex-start", justifyContent: "center", overflowY: "auto", zIndex: 60, padding: "24px 12px" }}
+        >
+          <div onClick={(e) => e.stopPropagation()} style={{ width: 420, maxWidth: "92vw", background: C.concrete, borderRadius: 8, overflow: "hidden", marginTop: "12vh" }}>
+            <div className="flex items-center gap-2 px-4 py-3 font-bold" style={{ background: C.fill, color: "#fff" }}>
+              WO #{stationTarget.wo.orderNo} — who's making it?
+              <button onClick={() => setStationTarget(null)} className="ml-auto" style={{ color: "#fff" }}><X size={18} /></button>
+            </div>
+            <div className="p-4">
+              <input
+                autoFocus
+                value={stationTarget.name}
+                onFocus={(e) => e.target.select()}
+                onChange={(e) => setStationTarget((p) => ({ ...p, name: e.target.value }))}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") { wo.updateWorkOrder(stationTarget.wo.id, { station: stationTarget.name.trim() }); setStationTarget(null); }
+                  if (e.key === "Escape") setStationTarget(null);
+                }}
+                placeholder="A name, or a bench number"
+                className="w-full px-2 py-2 mb-3"
+                style={{ background: C.surface, color: C.ink, border: `1px solid ${C.line}`, borderRadius: 6 }}
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { wo.updateWorkOrder(stationTarget.wo.id, { station: stationTarget.name.trim() }); setStationTarget(null); }}
+                  className="flex-1 py-2.5 rounded font-bold uppercase tracking-wide text-xs"
+                  style={{ background: C.fill, color: "#fff" }}
+                >
+                  Use it
+                </button>
+                <button onClick={() => setStationTarget(null)} className="flex-1 py-2.5 rounded font-bold uppercase tracking-wide text-xs" style={{ background: C.surface, color: C.inkSoft, border: `1px solid ${C.line}` }}>Cancel</button>
               </div>
             </div>
           </div>

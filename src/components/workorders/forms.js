@@ -18,6 +18,54 @@ export const WO_TYPES = [
   { key: "saw", label: "Saw" },
 ];
 
+// ---- Stations ------------------------------------------------------------
+//
+// A department is not always one person. There are several sewers and several
+// shop benches, and a sheet that says only "Sewing" doesn't tell the floor which
+// of them is meant to make it. So a work order can carry a station alongside its
+// department: type stays 'sewing', station holds '2'.
+//
+// Numbered benches are offered because that's what was asked for, and a typed
+// name is offered beside them because nobody has settled yet on whether these
+// are benches or people. Either works; the station is free text underneath.
+//
+// CNC isn't listed: its machines already split on the floor monitors, by name,
+// and a second numbering beside those would be one too many.
+export const WO_STATIONS = { shop: 3, sewing: 3 };
+
+// The sentinel the dropdowns use for "let me type one".
+export const STATION_PROMPT = "__name";
+
+// How a department + station reads on a card, a dropdown and a printed sheet.
+// A bare number becomes "Sewing 2"; anything else is a name, so it gets a
+// separator: "Sewing · Maria".
+export function stationLabel(type, station) {
+  const dept = WO_TYPES.find((t) => t.key === type)?.label || type;
+  const s = String(station ?? "").trim();
+  if (!s) return dept;
+  return /^\d+$/.test(s) ? `${dept} ${s}` : `${dept} · ${s}`;
+}
+
+// Every entry of the department dropdown, in order: each department, then its
+// benches underneath it. Values are "<type>" or "<type>::<station>".
+export function woDeptOptions() {
+  const out = [];
+  for (const t of WO_TYPES) {
+    out.push({ value: t.key, label: t.label, type: t.key, station: "" });
+    for (let i = 1; i <= (WO_STATIONS[t.key] || 0); i++) {
+      out.push({ value: `${t.key}::${i}`, label: `${t.label} ${i}`, type: t.key, station: String(i) });
+    }
+  }
+  return out;
+}
+
+// Read a dropdown value back. Unknown values fall back to the plain department
+// rather than throwing, so an old saved value can never wedge the sheet.
+export function parseDeptValue(value) {
+  const [type, station = ""] = String(value || "").split("::");
+  return { type: WO_FORMS[type] ? type : "shop", station };
+}
+
 export const WO_FORMS = {
   // The single-product MODERN sheet (formerly "Basic").
   shop: {

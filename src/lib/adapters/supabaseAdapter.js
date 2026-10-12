@@ -1079,16 +1079,17 @@ export const supabaseAdapter = {
       type: r.type,
       title: r.title,
       fields: r.fields || {},
+      station: r.station || "",
       done: r.done,
       createdAt: new Date(r.created_at).getTime(),
     }));
   },
 
-  async createWorkOrder({ type, title, fields, orderNo }) {
+  async createWorkOrder({ type, title, fields, orderNo, station }) {
     const order_no = orderNo || (await supabaseAdapter.nextWorkOrderNo());
     const { data, error } = await supabase
       .from("work_orders")
-      .insert({ order_no, type, title: title || "", fields: fields || {} })
+      .insert({ order_no, type, title: title || "", fields: fields || {}, station: station || null })
       .select("id")
       .single();
     fail(error);
@@ -1104,11 +1105,14 @@ export const supabaseAdapter = {
   // `type` is the department that makes it. It was missing here, so changing the
   // department on a sheet that had already been saved wrote everything EXCEPT
   // the department — the selector moved, the record didn't.
-  async updateWorkOrder(id, { title, fields, type }) {
+  async updateWorkOrder(id, { title, fields, type, station }) {
     const patch = {};
     if (title !== undefined) patch.title = title || "";
     if (fields !== undefined) patch.fields = fields || {};
     if (type !== undefined) patch.type = type;
+    // "" clears it back to the plain department, so this checks for undefined
+    // rather than truthiness — otherwise unassigning a bench would do nothing.
+    if (station !== undefined) patch.station = station || null;
     const { error } = await supabase.from("work_orders").update(patch).eq("id", id);
     fail(error);
   },
