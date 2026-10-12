@@ -6,7 +6,9 @@
   "description": "Internal work-order management for Modern Studio Equipment (Phase 1 spine).",
   "scripts": {
     "dev": "vite",
+    "dev:demo": "vite --config vite.demo.config.js",
     "build": "vite build",
+    "build:demo": "vite build --config vite.demo.config.js",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest"

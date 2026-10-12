@@ -8,7 +8,7 @@ const SEED_ORDERS = [
     items: [{ name: "Black rag 4x4", qty: 6, dept: "Sewing" }],
   },
   {
-    orderNo: "1050", customer: "Apex Rentals", contact: "Dave R.", minsAgo: 125, priority: "High", source: "phone",
+    orderNo: "1050", customer: "Harbor Grip Rentals", contact: "Ray D.", minsAgo: 125, priority: "High", source: "phone",
     items: [
       { name: '1/2" baby pin', qty: 10 },
       { name: "Knuckle head, anodized", qty: 4 },
@@ -16,14 +16,14 @@ const SEED_ORDERS = [
     ],
   },
   {
-    orderNo: "1048", customer: "Lupe Films", contact: "Lupe", minsAgo: 1500, priority: "Normal", source: "phone",
+    orderNo: "1048", customer: "Verano Films", contact: "Nico", minsAgo: 1500, priority: "Normal", source: "phone",
     items: [
       { name: "C-stand arm", qty: 8, stage: "picklist" },
       { name: "Grip head", qty: 6, stage: "workorder", color: "Black" },
     ],
   },
   {
-    orderNo: "1047", customer: "Sunset Stages", contact: "Order desk", minsAgo: 2900, priority: "Normal", source: "phone",
+    orderNo: "1047", customer: "Westbay Stages", contact: "Order desk", minsAgo: 2900, priority: "Normal", source: "phone",
     items: [
       {
         name: "Cardellini-style clamp", qty: 12, stage: "awaiting", needsMaterial: true, color: "Black",
@@ -32,27 +32,27 @@ const SEED_ORDERS = [
     ],
   },
   {
-    orderNo: "1042", customer: "R. Mendez (DP)", contact: "Mendez", minsAgo: 4300, priority: "Normal", source: "phone",
+    orderNo: "1042", customer: "R. Alder (DP)", contact: "Alder", minsAgo: 4300, priority: "Normal", source: "phone",
     items: [{ name: "Mafer clamp", qty: 5, stage: "done" }],
   },
   {
-    orderNo: "1053", customer: "Indie DP — Sarah K.", contact: "Sarah K.", minsAgo: 8, priority: "RUSH", source: "phone",
+    orderNo: "1053", customer: "Indie DP — Nina T.", contact: "Nina T.", minsAgo: 8, priority: "RUSH", source: "phone",
     items: [{ name: "Cheese plate", qty: 4 }],
   },
   {
-    orderNo: "1052", customer: "Griffith Park Studios", contact: "Tony", minsAgo: 45, priority: "High", source: "phone",
+    orderNo: "1052", customer: "Canyon Road Studios", contact: "Vince", minsAgo: 45, priority: "High", source: "phone",
     items: [{ name: "Junior pin", qty: 20 }, { name: "Baby plate", qty: 10 }],
   },
   {
-    orderNo: "1056", customer: "Hand Held Films", contact: "Marco", minsAgo: 95, priority: "High", source: "phone",
+    orderNo: "1056", customer: "Northgate Cine", contact: "Owen", minsAgo: 95, priority: "High", source: "phone",
     items: [{ name: "Turtle base", qty: 2 }],
   },
   {
-    orderNo: "1054", customer: "Keslow Camera", contact: "Front desk", minsAgo: 210, priority: "Normal", source: "phone",
+    orderNo: "1054", customer: "Meridian Camera", contact: "Front desk", minsAgo: 210, priority: "Normal", source: "phone",
     items: [{ name: "Grid clamp", qty: 16 }, { name: "Sound blanket", qty: 4, dept: "Sewing" }],
   },
   {
-    orderNo: "1055", customer: "Quixote Studios", contact: "Purchasing", minsAgo: 640, priority: "Normal", source: "phone",
+    orderNo: "1055", customer: "Cordova Studios", contact: "Purchasing", minsAgo: 640, priority: "Normal", source: "phone",
     items: [
       { name: "Offset arm", qty: 8 },
       { name: "C-stand riser", qty: 12 },
@@ -60,11 +60,11 @@ const SEED_ORDERS = [
     ],
   },
   {
-    orderNo: "1057", customer: "Sirui Rentals", contact: "Order desk", minsAgo: 1320, priority: "Normal", source: "phone",
+    orderNo: "1057", customer: "Tidewater Rentals", contact: "Order desk", minsAgo: 1320, priority: "Normal", source: "phone",
     items: [{ name: "Empty sandbag (15 lb)", qty: 50, dept: "Sewing" }],
   },
   {
-    orderNo: "1058", customer: "Mole-Richardson", contact: "Shop", minsAgo: 2100, priority: "Normal", source: "phone",
+    orderNo: "1058", customer: "Brightline Lighting", contact: "Shop", minsAgo: 2100, priority: "Normal", source: "phone",
     items: [{ name: "Wall spreader", qty: 6 }, { name: "Scaffold clamp", qty: 24 }],
   },
 ];

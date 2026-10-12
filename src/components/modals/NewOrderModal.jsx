@@ -107,11 +107,11 @@ export function NewOrderModal({ getNextOrderNo, onCreate, onClose }) {
             </div>
             <div>
               <div style={label}>Company *</div>
-              <input value={customer} onChange={(e) => setCustomer(e.target.value)} placeholder="Apex Rentals" className="w-full px-2 py-2 outline-none" style={inp} />
+              <input value={customer} onChange={(e) => setCustomer(e.target.value)} placeholder="Harbor Grip Rentals" className="w-full px-2 py-2 outline-none" style={inp} />
             </div>
             <div>
               <div style={label}>Ordered by</div>
-              <input value={contact} onChange={(e) => setContact(e.target.value)} placeholder="Dave R." className="w-full px-2 py-2 outline-none" style={inp} />
+              <input value={contact} onChange={(e) => setContact(e.target.value)} placeholder="Ray D." className="w-full px-2 py-2 outline-none" style={inp} />
             </div>
           </div>
 
