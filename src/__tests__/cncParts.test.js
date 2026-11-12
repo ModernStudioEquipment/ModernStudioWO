@@ -57,3 +57,36 @@ describe("duplicating a CNC part", () => {
     expect(isSkuTaken({ message: "network down" })).toBe(false);
   });
 });
+
+// Extra photos (0065). The one that matters most here is shouldWritePhotos:
+// naming a column the database doesn't have yet fails the whole save, so before
+// the migration a part with no photos must save exactly as it always did.
+import { cleanPhotos, shouldWritePhotos, MAX_PHOTOS } from "../floor/cncParts.js";
+
+describe("a part's extra photos", () => {
+  it("keeps real URLs in order, once each", () => {
+    expect(cleanPhotos(["a", " b ", "a", "", null, 3, "c"])).toEqual(["a", "b", "c"]);
+    expect(cleanPhotos(undefined)).toEqual([]);
+  });
+
+  it(`stops at ${MAX_PHOTOS}`, () => {
+    expect(cleanPhotos(Array.from({ length: 20 }, (_, i) => `u${i}`))).toHaveLength(MAX_PHOTOS);
+  });
+
+  it("doesn't mention the column on a database that hasn't got it, when there's nothing to keep", () => {
+    expect(shouldWritePhotos({ photos: [] })).toBe(false);
+    expect(shouldWritePhotos({})).toBe(false);
+  });
+
+  it("writes it once the column exists, so removing the last photo sticks", () => {
+    expect(shouldWritePhotos({ photosColumn: true, photos: [] })).toBe(true);
+  });
+
+  it("writes it whenever there are photos to keep", () => {
+    expect(shouldWritePhotos({ photos: ["u"] })).toBe(true);
+  });
+
+  it("carries the photos onto a duplicate", () => {
+    expect(duplicatePart({ name: "x", sku: "1", steps: [], photos: ["u1", "u2"] }).photos).toEqual(["u1", "u2"]);
+  });
+});

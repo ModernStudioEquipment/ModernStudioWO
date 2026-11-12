@@ -345,6 +345,14 @@ function NowCard({ item, photos, productPhotos, qtyLabel, deptLabel, part, note,
         <div className="floor-photo">
           <span className="tag">{part && part.blueprint ? "Blueprint" : src ? "Product photo" : "No photo"}</span>
           {src ? <img src={src} alt={item.product} /> : <span className="mono">{initials(item.product)}</span>}
+          {/* The part's extra pictures from the CNC Catalog (0065), small along
+              the bottom so the main image stays the thing you read from across
+              the shop. */}
+          {part && part.photos && part.photos.length > 0 && (
+            <div className="floor-photostrip">
+              {part.photos.slice(0, 4).map((u) => <img key={u} src={u} alt="" />)}
+            </div>
+          )}
         </div>
         {rich ? (
           <div className="floor-detail">

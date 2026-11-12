@@ -4,6 +4,7 @@
 // concurrency-safe across users.
 
 import { supabase } from "../supabase.js";
+import { cleanPhotos, shouldWritePhotos } from "../../floor/cncParts.js";
 import { noteStamp, noteAuthorName, addAmounts, amountShort } from "../../theme.js";
 
 // Who is writing. Read from the session rather than passed down through the
@@ -738,6 +739,7 @@ export const supabaseAdapter = {
       id: r.id, sku: r.sku || "", name: r.name || "", steps: Array.isArray(r.steps) ? r.steps : [],
       blueprintUrl: r.blueprint_url || null, material: r.material || "", notes: r.notes || "",
       productNo: r.product_no || "", programNo: r.program_no || "",
+      photos: cleanPhotos(r.photos), photosColumn: "photos" in r,
     }));
   },
   async saveCncPart(p) {
@@ -748,6 +750,9 @@ export const supabaseAdapter = {
       notes: (p.notes || "").trim() || null, updated_at: new Date().toISOString(),
       product_no: (p.productNo || "").trim() || null, program_no: (p.programNo || "").trim() || null,
     };
+    // Only named once the column exists (0065), or there are photos to keep —
+    // see shouldWritePhotos for why mentioning it early would break every save.
+    if (shouldWritePhotos(p)) row.photos = cleanPhotos(p.photos);
     if (p.id) {
       const { data, error } = await supabase.from("cnc_parts").update(row).eq("id", p.id).select("id").single();
       fail(error); return data?.id;

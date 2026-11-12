@@ -39,10 +39,11 @@ export default function FloorSheetView({ sheet, part, onClose }) {
         </header>
 
         <div className="fcs-body">
-          {(sheet.image || part?.blueprintUrl) && (
+          {(sheet.image || part?.blueprintUrl || part?.photos?.length > 0) && (
             <div className="fcs-pics">
               {sheet.image && <img src={sheet.image} alt="product" />}
               {part?.blueprintUrl && <img src={part.blueprintUrl} alt="blueprint" />}
+              {(part?.photos || []).map((u) => <img key={u} src={u} alt="part" />)}
             </div>
           )}
 

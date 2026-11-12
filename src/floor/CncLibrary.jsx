@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Plus, Trash2, Upload, ImageOff, Check, Copy } from "lucide-react";
 import { db } from "../lib/db.js";
-import { duplicatePart, isSkuTaken } from "./cncParts.js";
+import { duplicatePart, isSkuTaken, cleanPhotos, MAX_PHOTOS } from "./cncParts.js";
 import "./cncLibrary.css";
 
-const BLANK = { id: null, sku: "", name: "", material: "", notes: "", blueprintUrl: null, steps: [""], productNo: "", programNo: "" };
+const BLANK = { id: null, sku: "", name: "", material: "", notes: "", blueprintUrl: null, photos: [], steps: [""], productNo: "", programNo: "" };
 
 export default function CncLibrary({ onClose, embedded = false }) {
   const [parts, setParts] = useState([]);
@@ -15,6 +15,8 @@ export default function CncLibrary({ onClose, embedded = false }) {
   const [savedAt, setSavedAt] = useState(0);
   const [err, setErr] = useState("");
   const fileRef = useRef(null);
+  const photoRef = useRef(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
 
   async function reload(selectId) {
     const list = await db.getCncParts();
@@ -52,6 +54,29 @@ export default function CncLibrary({ onClose, embedded = false }) {
     }
   }
 
+  // Extra pictures, beyond the blueprint. Several can be picked at once; each
+  // goes up through the same upload the blueprint uses, and they keep the
+  // order they were added in. Nothing is saved to the part until Save.
+  const photos = cleanPhotos(draft.photos);
+  async function onPhotos(e) {
+    const files = [...(e.target.files || [])].slice(0, MAX_PHOTOS - photos.length);
+    e.target.value = "";
+    if (!files.length) return;
+    setPhotoBusy(true);
+    setErr("");
+    try {
+      const urls = [];
+      for (const f of files) urls.push(await db.uploadBlueprint(draft.id, f));
+      setDraft((d) => ({ ...d, photos: cleanPhotos([...(d.photos || []), ...urls]) }));
+    } catch (e2) {
+      setErr(`Couldn't upload that picture${e2?.message ? ` — ${e2.message}` : ""}.`);
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
+  const removePhoto = (u) => setDraft((d) => ({ ...d, photos: cleanPhotos(d.photos).filter((x) => x !== u) }));
+  const firstPhoto = (u) => setDraft((d) => ({ ...d, photos: [u, ...cleanPhotos(d.photos).filter((x) => x !== u)] }));
+
   async function save() {
     if (!draft.name.trim()) return;
     setSaving(true);
@@ -62,6 +87,7 @@ export default function CncLibrary({ onClose, embedded = false }) {
       setSavedAt(Date.now());
     } catch (e) {
       setErr(isSkuTaken(e) ? `SKU ${draft.sku} is already on another part. Change it and save again.`
+        : /photos/.test(e?.message || "") ? "Extra photos need migration 0065 run first. Everything else on the part is fine."
         : /cnc_parts/.test(e?.message || "") ? "Run migration 0041 to enable the CNC library." : e?.message || "Couldn't save.");
     } finally {
       setSaving(false);
@@ -157,6 +183,27 @@ export default function CncLibrary({ onClose, embedded = false }) {
                     </button>
                   )}
                   <input ref={fileRef} type="file" accept="image/*" hidden onChange={onFile} />
+                </div>
+
+                <span className="cl-lab" style={{ marginTop: 14 }}>More photos{photos.length ? ` · ${photos.length}` : ""}</span>
+                {photos.length > 0 && (
+                  <div className="cl-photos">
+                    {photos.map((u, i) => (
+                      <div className="cl-photo" key={u}>
+                        <a href={u} target="_blank" rel="noopener noreferrer" title="Open full size"><img src={u} alt={`photo ${i + 1}`} /></a>
+                        <div className="cl-photobtns">
+                          {i > 0 && <button onClick={() => firstPhoto(u)} title="Show this one first">First</button>}
+                          <button onClick={() => removePhoto(u)} title="Remove this photo" aria-label="Remove this photo"><Trash2 size={13} /></button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="cl-bpbtns">
+                  <button className="cl-btn" onClick={() => photoRef.current?.click()} disabled={photoBusy || photos.length >= MAX_PHOTOS}>
+                    <Plus size={15} /> {photoBusy ? "Uploading…" : photos.length >= MAX_PHOTOS ? `${MAX_PHOTOS} is the most` : "Add photos"}
+                  </button>
+                  <input ref={photoRef} type="file" accept="image/*" multiple hidden onChange={onPhotos} />
                 </div>
                 <label className="cl-field" style={{ marginTop: 14 }}>
                   <span className="cl-lab">Material</span>

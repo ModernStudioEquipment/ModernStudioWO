@@ -51,9 +51,13 @@ const norm = (s) => (s || "").toLowerCase().replace(/\s+/g, " ").trim();
 // monitor can match whatever part is up next.
 export async function fetchCncParts() {
   if (!floorClient) return { bySku: {}, byName: {} };
-  const { data, error } = await floorClient
-    .from("floor_cnc_parts")
-    .select("sku, name, steps, blueprint_url, material, notes");
+  const COLS = "sku, name, steps, blueprint_url, material, notes";
+  // Ask for the extra photos too (0065). If that migration hasn't run, the view
+  // has no such column and the whole query fails — which would take every
+  // step and blueprint off every monitor, not just the photos. So fall back to
+  // the old column list rather than show nothing.
+  let { data, error } = await floorClient.from("floor_cnc_parts").select(`${COLS}, photos`);
+  if (error) ({ data, error } = await floorClient.from("floor_cnc_parts").select(COLS));
   if (error) return { bySku: {}, byName: {} };
   const bySku = {};
   const byName = {};
@@ -64,6 +68,7 @@ export async function fetchCncParts() {
       blueprint: r.blueprint_url || null,
       material: r.material || "",
       notes: r.notes || "",
+      photos: Array.isArray(r.photos) ? r.photos.filter((u) => typeof u === "string" && u) : [],
     };
     if (r.sku) bySku[r.sku] = rec;
     if (r.name) byName[norm(r.name)] = rec;

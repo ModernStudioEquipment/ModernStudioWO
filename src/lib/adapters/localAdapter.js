@@ -4,6 +4,7 @@
 // the realtime that Supabase provides for real multi-user use).
 
 import { buildSeed } from "../seed.js";
+import { cleanPhotos } from "../../floor/cncParts.js";
 import { noteStamp, addAmounts, amountShort } from "../../theme.js";
 
 const KEY = "mse_orders_v1";
@@ -269,6 +270,7 @@ export const localAdapter = {
       steps: (p.steps || []).filter((s) => s && s.trim()),
       blueprintUrl: p.blueprintUrl || null, material: (p.material || "").trim(), notes: (p.notes || "").trim(),
       productNo: (p.productNo || "").trim(), programNo: (p.programNo || "").trim(),
+      photos: cleanPhotos(p.photos),
     };
     const i = list.findIndex((x) => x.id === id);
     if (i >= 0) list[i] = rec; else list.push(rec);

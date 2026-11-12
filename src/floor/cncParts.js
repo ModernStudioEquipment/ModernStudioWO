@@ -33,3 +33,29 @@ export function isSkuTaken(err) {
   const m = `${err?.code || ""} ${err?.message || ""}`;
   return /23505|duplicate key/i.test(m) && /sku/i.test(m);
 }
+
+// ---- Extra photos -----------------------------------------------------------
+//
+// A part's pictures beyond the blueprint (finished part, fixture, setup), kept
+// as an ordered list of URLs. Anything that isn't a non-empty string is dropped,
+// and a URL can only appear once — uploading the same picture twice is a slip,
+// not a wish to see it twice.
+export const MAX_PHOTOS = 12;
+
+export function cleanPhotos(list) {
+  const out = [];
+  for (const u of Array.isArray(list) ? list : []) {
+    const s = typeof u === "string" ? u.trim() : "";
+    if (s && !out.includes(s)) out.push(s);
+  }
+  return out.slice(0, MAX_PHOTOS);
+}
+
+// Whether a save should write the photos column. Before migration 0065 runs
+// that column doesn't exist, and naming it in a save makes the WHOLE save fail —
+// so a part that has never had photos, on a database that has never had the
+// column, must not mention it. Once the column is there (photosColumn, seen on
+// load) it is always written, so removing the last photo still sticks.
+export function shouldWritePhotos(p) {
+  return !!p.photosColumn || cleanPhotos(p.photos).length > 0;
+}

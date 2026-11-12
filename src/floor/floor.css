@@ -206,3 +206,7 @@ html:has(.floor-root), body:has(.floor-root) { background: #0D0F12; }
   .floor-qty{margin-left:0; padding-left:0}
   .floor-wo h1{font-size:23px}
 }
+
+/* Extra part photos (0065): a strip along the bottom of the main picture. */
+.floor-photo .floor-photostrip{position:absolute;left:10px;right:10px;bottom:10px;display:flex;gap:8px;justify-content:flex-end;pointer-events:none}
+.floor-photo .floor-photostrip img{width:76px;height:76px;object-fit:cover;border-radius:10px;border:2px solid var(--line2);background:var(--panel2);box-shadow:0 4px 14px rgba(0,0,0,.45)}
