@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, GripVertical, ExternalLink, Flame, ChevronsUp, StickyNote, BookOpen, Bug } from "lucide-react";
+import { ArrowLeft, GripVertical, ExternalLink, Flame, ChevronsUp, StickyNote, BookOpen, Bug, FileText } from "lucide-react";
 import Sortable from "sortablejs";
 import { db } from "../lib/db.js";
 import CncLibrary from "./CncLibrary.jsx";
+import FloorSheetView from "./FloorSheetView.jsx";
+import { sheetFromItem, sheetFromWorkOrder } from "./floorSheet.js";
 import { FeedbackModal } from "../components/modals/FeedbackModal.jsx";
 import { FLOOR_DEPTS } from "./depts.js";
 import { stamp } from "../theme.js";
@@ -67,6 +69,7 @@ function collect(orders, dbDept, workOrders = []) {
           rush: o.priority === "RUSH",
           receivedAt: o.receivedAt,
           image: it.imageUrl || null,
+          sheet: sheetFromItem(o, it),   // what View opens — client-free, see floorSheet.js
         });
       }
     })
@@ -95,6 +98,7 @@ function collect(orders, dbDept, workOrders = []) {
       rush: false,
       receivedAt: w.createdAt ? new Date(w.createdAt).getTime() : Date.now(),
       image: f.imageUrl || null,
+      sheet: sheetFromWorkOrder(w),
     });
   });
   return out;
@@ -124,6 +128,10 @@ export default function FloorControl({ orders, workOrders = [], onClose, cncOnly
   // The bug button. Floor Control covers the office header, and a CNC login
   // never sees that header at all, so this screen carries its own.
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  // The work order opened read-only from a card, and the catalogue it may point
+  // into (a part number on the sheet matches a CNC Catalog SKU).
+  const [viewing, setViewing] = useState(null);
+  const [parts, setParts] = useState([]);
   const dept = DEPTS.find((d) => d.key === active) || DEPTS[1]; // fallback CNC (amber) for the Book tab
   // Where a report was filed from, so it reads "Floor · CNC" or "CNC Catalog"
   // in the email instead of whatever office tab sat underneath.
@@ -132,6 +140,7 @@ export default function FloorControl({ orders, workOrders = [], onClose, cncOnly
   useEffect(() => {
     db.getFloorNotes().then(setNotes);
     db.getCncMachines().then(setMachines);
+    db.getCncParts().then((p) => setParts(Array.isArray(p) ? p : [])).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -364,6 +373,13 @@ export default function FloorControl({ orders, workOrders = [], onClose, cncOnly
           )}
         </header>
 
+        {viewing && (
+          <FloorSheetView
+            sheet={viewing}
+            part={viewing.partNo ? parts.find((p) => p.sku && p.sku.toLowerCase() === viewing.partNo.toLowerCase()) : null}
+            onClose={() => setViewing(null)}
+          />
+        )}
         {feedbackOpen && (
           <FeedbackModal
             tabLabel={where}
@@ -451,6 +467,11 @@ export default function FloorControl({ orders, workOrders = [], onClose, cncOnly
                   {idx === 0 && canOrder && <span className="fc-nowtag">On the monitor now</span>}
                 </span>
                 <span className="fc-right">
+                  {it.sheet && (
+                    <button className="fc-viewbtn" title="View the work order (read only)" onClick={() => setViewing(it.sheet)}>
+                      <FileText size={15} /> View
+                    </button>
+                  )}
                   <button className="fc-notebtn" title={notesFor(it.id).length ? "Add another note" : "Add note"} onClick={() => startEditNote(it.id)}>
                     <StickyNote size={16} />
                   </button>

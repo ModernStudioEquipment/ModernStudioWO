@@ -161,3 +161,29 @@
   .fc-assign{flex-wrap:wrap}
   .fc-meta .nm{font-size:16px}
 }
+
+/* ---- Read-only work order sheet (FloorSheetView) ---- */
+.fcs-overlay{position:fixed; inset:0; z-index:10; background:rgba(5,7,9,.72); display:flex; align-items:flex-start; justify-content:center; overflow:auto; padding:40px 16px}
+.fcs-sheet{width:640px; max-width:100%; background:var(--panel); border:1px solid var(--line); border-radius:16px; color:#F3F6F8}
+.fcs-head{display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:20px 22px 14px; border-bottom:1px solid var(--line)}
+.fcs-no{font-size:12px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--accent); display:flex; align-items:center; gap:10px}
+.fcs-rush{display:inline-flex; align-items:center; gap:4px; color:#FF6B6B}
+.fcs-title{font-size:24px; font-weight:800; margin:6px 0 0; line-height:1.2}
+.fcs-x{background:transparent; border:1px solid var(--line); color:var(--muted); border-radius:10px; padding:6px; cursor:pointer}
+.fcs-x:hover{color:#F3F6F8; border-color:var(--line2)}
+.fcs-body{padding:18px 22px 22px; display:flex; flex-direction:column; gap:16px}
+.fcs-pics{display:flex; gap:10px; flex-wrap:wrap}
+.fcs-pics img{max-height:220px; max-width:100%; border-radius:10px; border:1px solid var(--line); background:#0b0d10; object-fit:contain}
+.fcs-facts{display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:10px; margin:0}
+.fcs-facts div{background:rgba(255,255,255,.03); border:1px solid var(--line); border-radius:10px; padding:9px 12px}
+.fcs-facts dt{font-size:11px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--muted)}
+.fcs-facts dd{margin:3px 0 0; font-size:17px; font-weight:700}
+.fcs-lines{width:100%; border-collapse:collapse; font-size:15px}
+.fcs-lines th{text-align:left; font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); padding:0 8px 6px; border-bottom:1px solid var(--line)}
+.fcs-lines td{padding:8px; border-bottom:1px solid var(--line)}
+.fcs-lab{font-size:11px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin-right:6px}
+.fcs-steps ol{list-style:decimal; margin:8px 0 0; padding-left:22px; display:flex; flex-direction:column; gap:6px; font-size:15px}
+.fcs-note{font-size:14px; line-height:1.5}
+.fcs-ro{margin:4px 0 0; font-size:12.5px; color:var(--muted)}
+.fc-viewbtn{display:inline-flex; align-items:center; gap:5px; background:transparent; border:1px solid var(--line); color:var(--muted); border-radius:9px; padding:6px 9px; cursor:pointer; font:inherit; font-size:12.5px; font-weight:700}
+.fc-viewbtn:hover{color:#F3F6F8; border-color:var(--line2)}
