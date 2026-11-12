@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, Plus, Trash2, Upload, ImageOff, Check, Copy } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Upload, ImageOff, Check, Copy, GripVertical } from "lucide-react";
+import Sortable from "sortablejs";
 import { db } from "../lib/db.js";
-import { duplicatePart, isSkuTaken, cleanPhotos, MAX_PHOTOS } from "./cncParts.js";
+import { duplicatePart, isSkuTaken, cleanPhotos, MAX_PHOTOS, moveStep } from "./cncParts.js";
 import "./cncLibrary.css";
 
 const BLANK = { id: null, sku: "", name: "", material: "", notes: "", blueprintUrl: null, photos: [], steps: [""], productNo: "", programNo: "" };
@@ -40,6 +41,25 @@ export default function CncLibrary({ onClose, embedded = false }) {
   const setStep = (i, v) => setDraft((d) => { const s = d.steps.slice(); s[i] = v; return { ...d, steps: s }; });
   const addStep = () => setDraft((d) => ({ ...d, steps: [...d.steps, ""] }));
   const removeStep = (i) => setDraft((d) => { const s = d.steps.filter((_, j) => j !== i); return { ...d, steps: s.length ? s : [""] }; });
+
+  // Drag a step by its grip to reorder. Sortable moves the DOM node; we put it
+  // back and let React re-render from the reordered state.
+  const stepSortRef = useRef(null);
+  const attachSteps = (el) => {
+    if (stepSortRef.current) { stepSortRef.current.destroy(); stepSortRef.current = null; }
+    if (!el) return;
+    stepSortRef.current = Sortable.create(el, {
+      handle: ".cl-grip",
+      animation: 150,
+      ghostClass: "cl-step-ghost",
+      onEnd: ({ oldIndex, newIndex, item, from }) => {
+        if (oldIndex == null || newIndex == null || oldIndex === newIndex) return;
+        from.removeChild(item);
+        from.insertBefore(item, from.children[oldIndex] || null);
+        setDraft((d) => ({ ...d, steps: moveStep(d.steps, oldIndex, newIndex) }));
+      },
+    });
+  };
 
   async function onFile(e) {
     const file = e.target.files?.[0];
@@ -213,9 +233,12 @@ export default function CncLibrary({ onClose, embedded = false }) {
 
               <div className="cl-steps">
                 <span className="cl-lab">How to make it — steps</span>
-                <div className="cl-steplist">
+                <div className="cl-steplist" ref={attachSteps}>
                   {draft.steps.map((s, i) => (
                     <div className="cl-step" key={i}>
+                      <span className="cl-grip" title="Drag to reorder" aria-label={`Drag step ${i + 1} to reorder`}>
+                        <GripVertical size={16} />
+                      </span>
                       <span className="n">{i + 1}</span>
                       <input value={s} onChange={(e) => setStep(i, e.target.value)} placeholder={`Step ${i + 1}`} />
                       <button className="cl-x" onClick={() => removeStep(i)} title="Remove step">

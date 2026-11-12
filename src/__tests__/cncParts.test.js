@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect } from "vitest";
-import { duplicatePart, isSkuTaken } from "../floor/cncParts.js";
+import { duplicatePart, isSkuTaken, moveStep } from "../floor/cncParts.js";
 
 // Duplicating a catalogue part. SKU is unique in cnc_parts, so a copy that kept
 // it could never be saved — the DUP- prefix (QuickBooks' own convention) is
@@ -88,5 +88,25 @@ describe("a part's extra photos", () => {
 
   it("carries the photos onto a duplicate", () => {
     expect(duplicatePart({ name: "x", sku: "1", steps: [], photos: ["u1", "u2"] }).photos).toEqual(["u1", "u2"]);
+  });
+});
+
+describe("moveStep", () => {
+  const steps = ["Saw", "Face", "Drill", "Deburr"];
+  it("moves a step down", () => {
+    expect(moveStep(steps, 0, 2)).toEqual(["Face", "Drill", "Saw", "Deburr"]);
+  });
+  it("moves a step up", () => {
+    expect(moveStep(steps, 3, 0)).toEqual(["Deburr", "Saw", "Face", "Drill"]);
+  });
+  it("never mutates the original or loses a step", () => {
+    const out = moveStep(steps, 1, 3);
+    expect(steps).toEqual(["Saw", "Face", "Drill", "Deburr"]);
+    expect([...out].sort()).toEqual([...steps].sort());
+  });
+  it("ignores out-of-range moves", () => {
+    expect(moveStep(steps, 0, 9)).toEqual(steps);
+    expect(moveStep(steps, -1, 2)).toEqual(steps);
+    expect(moveStep(undefined, 0, 1)).toEqual([]);
   });
 });

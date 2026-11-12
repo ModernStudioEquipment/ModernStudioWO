@@ -77,6 +77,10 @@
 .cl-step .n{flex:none; width:26px; height:26px; border-radius:8px; background:var(--panel2); border:1px solid var(--line2);
   color:var(--accent); font-size:13px; font-weight:800; display:flex; align-items:center; justify-content:center}
 .cl-step input{flex:1}
+.cl-grip{flex:none; width:22px; height:34px; display:inline-flex; align-items:center; justify-content:center; color:var(--dim); cursor:grab; touch-action:none; border-radius:6px}
+.cl-grip:hover{color:inherit; background:var(--panel2)}
+.cl-grip:active{cursor:grabbing}
+.cl-step-ghost{opacity:.35}
 .cl-x{flex:none; width:34px; height:34px; border-radius:9px; background:transparent; border:1px solid var(--line); color:var(--dim); cursor:pointer; display:inline-flex; align-items:center; justify-content:center}
 .cl-x:hover{border-color:var(--red,#FF5C5C); color:var(--red,#FF5C5C)}
 .cl-addstep{align-self:flex-start; display:inline-flex; align-items:center; gap:7px; background:transparent; border:1px dashed var(--line2);

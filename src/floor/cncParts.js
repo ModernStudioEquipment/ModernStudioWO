@@ -59,3 +59,11 @@ export function cleanPhotos(list) {
 export function shouldWritePhotos(p) {
   return !!p.photosColumn || cleanPhotos(p.photos).length > 0;
 }
+
+// Move one step from index `from` to index `to`, returning a new array.
+export function moveStep(steps, from, to) {
+  const list = Array.isArray(steps) ? steps.slice() : [];
+  if (from === to || from < 0 || from >= list.length || to < 0 || to >= list.length) return list;
+  list.splice(to, 0, list.splice(from, 1)[0]);
+  return list;
+}
