@@ -90,6 +90,7 @@
 .cl-err{color:#FF7A7A; font-size:13px; font-weight:600}
 .cl-del{display:inline-flex; align-items:center; gap:7px; background:transparent; border:1px solid var(--line); color:var(--muted); font:inherit; font-size:13px; padding:9px 14px; border-radius:10px; cursor:pointer}
 .cl-del:hover{border-color:#FF5C5C; color:#FF5C5C}
+.cl-dup:hover{border-color:var(--line2, #3a4048); color:#F3F6F8}
 
 @media (max-width:860px){
   .cl-body{grid-template-columns:1fr}

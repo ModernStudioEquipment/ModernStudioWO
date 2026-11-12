@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, Plus, Trash2, Upload, ImageOff, Check } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Upload, ImageOff, Check, Copy } from "lucide-react";
 import { db } from "../lib/db.js";
+import { duplicatePart, isSkuTaken } from "./cncParts.js";
 import "./cncLibrary.css";
 
 const BLANK = { id: null, sku: "", name: "", material: "", notes: "", blueprintUrl: null, steps: [""], productNo: "", programNo: "" };
@@ -31,6 +32,8 @@ export default function CncLibrary({ onClose, embedded = false }) {
 
   const edit = (p) => setDraft({ ...p, steps: p.steps.length ? p.steps : [""] });
   const newPart = () => setDraft({ ...BLANK, steps: [""] });
+  // Opens a copy in the editor, unsaved. See cncParts.js for what changes.
+  const duplicate = () => { setDraft(duplicatePart(draft)); setSavedAt(0); setErr(""); };
   const setField = (k, v) => setDraft((d) => ({ ...d, [k]: v }));
   const setStep = (i, v) => setDraft((d) => { const s = d.steps.slice(); s[i] = v; return { ...d, steps: s }; });
   const addStep = () => setDraft((d) => ({ ...d, steps: [...d.steps, ""] }));
@@ -58,7 +61,8 @@ export default function CncLibrary({ onClose, embedded = false }) {
       await reload(id);
       setSavedAt(Date.now());
     } catch (e) {
-      setErr(/cnc_parts/.test(e?.message || "") ? "Run migration 0041 to enable the CNC library." : e?.message || "Couldn't save.");
+      setErr(isSkuTaken(e) ? `SKU ${draft.sku} is already on another part. Change it and save again.`
+        : /cnc_parts/.test(e?.message || "") ? "Run migration 0041 to enable the CNC library." : e?.message || "Couldn't save.");
     } finally {
       setSaving(false);
     }
@@ -193,7 +197,15 @@ export default function CncLibrary({ onClose, embedded = false }) {
                 </span>
               )}
               {err && <span className="cl-err">{err}</span>}
+              {!draft.id && draft.copiedFrom && !err && (
+                <span className="cl-saved">Copy of {draft.copiedFrom}, not saved yet</span>
+              )}
               <div className="cl-spacer" />
+              {draft.id && (
+                <button className="cl-del cl-dup" onClick={duplicate} title="Open a copy of this part to edit">
+                  <Copy size={15} /> Duplicate
+                </button>
+              )}
               {draft.id && (
                 <button className="cl-del" onClick={remove}>
                   <Trash2 size={15} /> Delete
