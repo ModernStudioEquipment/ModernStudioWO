@@ -28,7 +28,7 @@ const MACHINES = [
 ];
 
 // Arrangement keys we load up front (dept queues + the three CNC machines).
-const ARR_KEYS = [...DEPTS.map((d) => d.key), ...MACHINES.map((m) => `cnc_${m.key}`)];
+const ARR_KEYS = [...DEPTS.map((d) => d.key), ...MACHINES.map((m) => `cnc_${m.key}`), "cnc_priority"];
 
 // Arranged items first (in dragged order), then anything new falls in behind,
 // rush-first, then oldest.
@@ -220,9 +220,25 @@ export default function FloorControl({ orders, workOrders = [], onClose, cncOnly
   const byMachine = {};
   MACHINES.forEach((m) => (byMachine[m.key] = cncItems.filter((it) => machines[it.id] === m.key)));
 
+  // Overall priority across the whole CNC department. A part that two machines
+  // can make has no single queue that says how much it matters, so this is one
+  // ranking over every CNC job, assigned or not. It doesn't reorder the machine
+  // queues — each machine still runs top to bottom in its own order — it puts a
+  // "#N overall" badge on every card so whoever loads a machine can see which
+  // of the jobs in front of them comes first for the shop.
+  const priorityIds = order.cnc_priority || [];
+  const overallRank = new Map(applyOrder(cncItems, priorityIds).map((it, i) => [it.id, i + 1]));
+  const showRank = isCnc && cncView !== "priority" && priorityIds.length > 0;
+  const isPriority = isCnc && cncView === "priority";
+
   let baseItems, queueKey, canOrder, viewLabel;
   if (isCnc) {
-    if (cncView === "unassigned") {
+    if (isPriority) {
+      baseItems = cncItems;
+      queueKey = "cnc_priority";
+      canOrder = true;
+      viewLabel = "Priority";
+    } else if (cncView === "unassigned") {
       baseItems = unassigned;
       queueKey = null;
       canOrder = false;
@@ -240,7 +256,12 @@ export default function FloorControl({ orders, workOrders = [], onClose, cncOnly
     viewLabel = dept.label;
   }
 
-  const items = canOrder ? applyOrder(baseItems, order[queueKey] || []) : byRush(baseItems);
+  // Unassigned has no order of its own. Once the CNC Priority list exists it
+  // follows that, since it's the list you pick the next job to assign from;
+  // until then, rush first, then oldest, as before.
+  const items = canOrder
+    ? applyOrder(baseItems, order[queueKey] || [])
+    : isCnc && priorityIds.length ? applyOrder(baseItems, priorityIds) : byRush(baseItems);
   const ids = items.map((i) => i.id);
   const qtyUnit = active === "saw" ? "cuts" : "pcs";
   // Per-lane tint: each CNC machine gets its own accent for the queue area; the
@@ -315,13 +336,17 @@ export default function FloorControl({ orders, workOrders = [], onClose, cncOnly
   }, [queueKey]);
 
   const headHint = isCnc
-    ? cncView === "unassigned"
+    ? isPriority
+      ? "Drag to rank every CNC job, whichever machine it's on. Each card shows its rank in the machine queues."
+      : cncView === "unassigned"
       ? "Assign each order to a machine — it moves into that machine's queue."
       : `Drag to set the order — the top card runs first on the ${viewLabel}.`
     : `Drag to set the order — the top card is what shows big on the ${dept.label} monitor.`;
 
   const emptyMsg = isCnc
-    ? cncView === "unassigned"
+    ? isPriority
+      ? "No CNC jobs to rank yet."
+      : cncView === "unassigned"
       ? "No unassigned CNC orders — everything's on a machine."
       : `Nothing assigned to ${viewLabel} yet — assign orders from Unassigned.`
     : `Items appear here once they're routed to ${dept.label} in the Work stage.`;
@@ -413,6 +438,11 @@ export default function FloorControl({ orders, workOrders = [], onClose, cncOnly
 
         {isCnc && (
           <div className="fc-subnav">
+            <button className={`fc-subtab${isPriority ? " on" : ""}`} style={{ "--seg": dept.accent }} onClick={() => setCncView("priority")} title="Rank every CNC job overall">
+              <span className="lbl">Priority</span>
+              <span className="n">{cncItems.length}</span>
+            </button>
+            <span className="fc-subdiv" />
             <button className={`fc-subtab${cncView === "unassigned" ? " on" : ""}`} style={{ "--seg": dept.accent }} onClick={() => setCncView("unassigned")}>
               <span className="lbl">Unassigned</span>
               <span className="n">{unassigned.length}</span>
@@ -442,7 +472,7 @@ export default function FloorControl({ orders, workOrders = [], onClose, cncOnly
 
         <div className="fc-list" ref={attachList}>
           {items.map((it, idx) => (
-            <div key={it.id} className={`fc-row${idx === 0 && canOrder ? " now" : ""}`} data-id={it.id}>
+            <div key={it.id} className={`fc-row${idx === 0 && canOrder && !isPriority ? " now" : ""}`} data-id={it.id}>
               <div className="fc-rowmain">
                 <span className="fc-grip">
                   <GripVertical size={18} />
@@ -464,7 +494,15 @@ export default function FloorControl({ orders, workOrders = [], onClose, cncOnly
                       </i>
                     </span>
                   ))}
-                  {idx === 0 && canOrder && <span className="fc-nowtag">On the monitor now</span>}
+                  {idx === 0 && canOrder && !isPriority && <span className="fc-nowtag">On the monitor now</span>}
+                  {showRank && overallRank.has(it.id) && (
+                    <span className="fc-overall" title="Rank in the CNC Priority list">#{overallRank.get(it.id)} overall</span>
+                  )}
+                  {isPriority && (
+                    <span className="fc-overall where">
+                      {MACHINES.find((m) => m.key === machines[it.id])?.short || "Unassigned"}
+                    </span>
+                  )}
                 </span>
                 <span className="fc-right">
                   {it.sheet && (
@@ -545,7 +583,9 @@ export default function FloorControl({ orders, workOrders = [], onClose, cncOnly
 
         {canOrder && items.length > 0 && (
           <div className="fc-savebar">
-            <span>Order saves automatically and updates the {viewLabel} monitor within seconds.</span>
+            <span>{isPriority
+              ? "Order saves automatically. It ranks jobs across all three machines; each machine's own queue is unchanged."
+              : `Order saves automatically and updates the ${viewLabel} monitor within seconds.`}</span>
             {(order[queueKey] || []).length > 0 && (
               <button className="reset" onClick={() => persist(queueKey, [])}>
                 Reset to rush-first
