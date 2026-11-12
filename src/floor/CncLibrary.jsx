@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, Plus, Trash2, Upload, ImageOff, Check, Copy, GripVertical } from "lucide-react";
 import Sortable from "sortablejs";
 import { db } from "../lib/db.js";
@@ -44,8 +44,12 @@ export default function CncLibrary({ onClose, embedded = false }) {
 
   // Drag a step by its grip to reorder. Sortable moves the DOM node; we put it
   // back and let React re-render from the reordered state.
+  // Must be a stable callback: a fresh function each render makes React
+  // detach/re-attach the ref, destroying Sortable mid-drag whenever the parent
+  // re-renders (live floor data refreshes). The drop then moves the DOM but
+  // never reaches onEnd, so the numbers and the saved order go stale.
   const stepSortRef = useRef(null);
-  const attachSteps = (el) => {
+  const attachSteps = useCallback((el) => {
     if (stepSortRef.current) { stepSortRef.current.destroy(); stepSortRef.current = null; }
     if (!el) return;
     stepSortRef.current = Sortable.create(el, {
@@ -59,7 +63,7 @@ export default function CncLibrary({ onClose, embedded = false }) {
         setDraft((d) => ({ ...d, steps: moveStep(d.steps, oldIndex, newIndex) }));
       },
     });
-  };
+  }, []);
 
   async function onFile(e) {
     const file = e.target.files?.[0];
