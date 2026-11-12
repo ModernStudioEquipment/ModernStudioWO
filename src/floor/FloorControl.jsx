@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, GripVertical, ExternalLink, Flame, ChevronsUp, StickyNote, BookOpen } from "lucide-react";
+import { ArrowLeft, GripVertical, ExternalLink, Flame, ChevronsUp, StickyNote, BookOpen, Bug } from "lucide-react";
 import Sortable from "sortablejs";
 import { db } from "../lib/db.js";
 import CncLibrary from "./CncLibrary.jsx";
+import { FeedbackModal } from "../components/modals/FeedbackModal.jsx";
 import { FLOOR_DEPTS } from "./depts.js";
 import { stamp } from "../theme.js";
 import "./floorControl.css";
@@ -120,7 +121,13 @@ export default function FloorControl({ orders, workOrders = [], onClose, cncOnly
   const [editingId, setEditingId] = useState(null);
   const [noteDraft, setNoteDraft] = useState("");
   const isBook = active === "book";
+  // The bug button. Floor Control covers the office header, and a CNC login
+  // never sees that header at all, so this screen carries its own.
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const dept = DEPTS.find((d) => d.key === active) || DEPTS[1]; // fallback CNC (amber) for the Book tab
+  // Where a report was filed from, so it reads "Floor · CNC" or "CNC Catalog"
+  // in the email instead of whatever office tab sat underneath.
+  const where = isBook ? "CNC Catalog" : `Floor · ${dept.label}`;
 
   useEffect(() => {
     db.getFloorNotes().then(setNotes);
@@ -343,6 +350,9 @@ export default function FloorControl({ orders, workOrders = [], onClose, cncOnly
               <ExternalLink size={15} /> Open live monitor
             </a>
           )}
+          <button className="fc-back" onClick={() => setFeedbackOpen(true)} title="Report a problem, or an idea" aria-label="Report a problem, or an idea">
+            <Bug size={16} />
+          </button>
           {cncOnly ? (
             <button className="fc-back" onClick={onSignOut}>
               <ArrowLeft size={16} /> Sign out
@@ -354,6 +364,25 @@ export default function FloorControl({ orders, workOrders = [], onClose, cncOnly
           )}
         </header>
 
+        {feedbackOpen && (
+          <FeedbackModal
+            tabLabel={where}
+            onList={() => db.listFeedback()}
+            onResolve={(id, note) => db.closeFeedback(id, note)}
+            onClose={() => setFeedbackOpen(false)}
+            onSend={({ kind, body, urgent }) =>
+              db.sendFeedback({
+                kind, body, urgent,
+                context: {
+                  tab: where,
+                  device: /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) ? "phone or tablet" : "desktop",
+                  screen: `${window.innerWidth}×${window.innerHeight}`,
+                  url: location.href,
+                },
+              })
+            }
+          />
+        )}
         {isBook ? (
           <CncLibrary embedded />
         ) : (
