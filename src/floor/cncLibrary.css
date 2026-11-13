@@ -73,10 +73,15 @@
 
 .cl-steps{display:flex; flex-direction:column; gap:8px; min-width:0}
 .cl-steplist{display:flex; flex-direction:column; gap:8px}
-.cl-step{display:flex; align-items:center; gap:10px}
+.cl-step{display:flex; align-items:flex-start; gap:10px}
 .cl-step .n{flex:none; width:26px; height:26px; border-radius:8px; background:var(--panel2); border:1px solid var(--line2);
   color:var(--accent); font-size:13px; font-weight:800; display:flex; align-items:center; justify-content:center}
-.cl-step input{flex:1}
+.cl-step textarea{flex:1; min-width:0; resize:none; overflow:hidden; min-height:34px; line-height:1.45; white-space:pre-wrap; overflow-wrap:anywhere}
+.cl-step .n{margin-top:6px}
+.cl-progs{display:flex; flex-direction:column; gap:8px}
+.cl-prog{display:flex; align-items:center; gap:8px}
+.cl-prog input{flex:1; min-width:0}
+.cl-addprog{align-self:flex-start}
 .cl-grip{flex:none; width:22px; height:34px; display:inline-flex; align-items:center; justify-content:center; color:var(--dim); cursor:grab; touch-action:none; border-radius:6px}
 .cl-grip:hover{color:inherit; background:var(--panel2)}
 .cl-grip:active{cursor:grabbing}

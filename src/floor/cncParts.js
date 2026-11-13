@@ -22,7 +22,7 @@ export function duplicatePart(p) {
     copiedFrom: p.name || "this part",   // for the "not saved yet" note; never saved
     sku: dup(p.sku),
     productNo: dup(p.productNo),
-    programNo: dup(p.programNo),
+    programNo: joinPrograms(splitPrograms(p.programNo).map(dup)),
     steps: (p.steps && p.steps.length ? p.steps : [""]).slice(),
   };
 }
@@ -66,4 +66,14 @@ export function moveStep(steps, from, to) {
   if (from === to || from < 0 || from >= list.length || to < 0 || to >= list.length) return list;
   list.splice(to, 0, list.splice(from, 1)[0]);
   return list;
+}
+
+// A part can run more than one CNC program. They share the one program_no
+// column, comma separated, so no migration and old rows read as one program.
+export function splitPrograms(v) {
+  const list = String(v || "").split(/[,;\n]+/).map((x) => x.trim()).filter(Boolean);
+  return list.length ? list : [""];
+}
+export function joinPrograms(list) {
+  return (list || []).map((x) => String(x || "").trim()).filter(Boolean).join(", ");
 }

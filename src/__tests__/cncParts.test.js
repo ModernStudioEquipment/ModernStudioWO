@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect } from "vitest";
-import { duplicatePart, isSkuTaken, moveStep } from "../floor/cncParts.js";
+import { duplicatePart, isSkuTaken, moveStep, splitPrograms, joinPrograms } from "../floor/cncParts.js";
 
 // Duplicating a catalogue part. SKU is unique in cnc_parts, so a copy that kept
 // it could never be saved — the DUP- prefix (QuickBooks' own convention) is
@@ -108,5 +108,25 @@ describe("moveStep", () => {
     expect(moveStep(steps, 0, 9)).toEqual(steps);
     expect(moveStep(steps, -1, 2)).toEqual(steps);
     expect(moveStep(undefined, 0, 1)).toEqual([]);
+  });
+});
+
+describe("more than one CNC program", () => {
+  it("an old single program reads as one", () => {
+    expect(splitPrograms("O41207")).toEqual(["O41207"]);
+    expect(splitPrograms("")).toEqual([""]);
+    expect(splitPrograms(null)).toEqual([""]);
+  });
+  it("round trips through the one column", () => {
+    const saved = joinPrograms(["O41207", " O41208 ", ""]);
+    expect(saved).toBe("O41207, O41208");
+    expect(splitPrograms(saved)).toEqual(["O41207", "O41208"]);
+  });
+  it("blank program boxes save as nothing", () => {
+    expect(joinPrograms(["", "  "])).toBe("");
+  });
+  it("a duplicate marks every program, not just the first", () => {
+    expect(duplicatePart({ name: "X", programNo: "O1, O2" }).programNo).toBe("DUP-O1, DUP-O2");
+    expect(duplicatePart({ name: "X", programNo: "" }).programNo).toBe("");
   });
 });

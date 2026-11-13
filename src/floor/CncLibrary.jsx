@@ -1,15 +1,30 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ArrowLeft, Plus, Trash2, Upload, ImageOff, Check, Copy, GripVertical } from "lucide-react";
 import Sortable from "sortablejs";
 import { db } from "../lib/db.js";
-import { duplicatePart, isSkuTaken, cleanPhotos, MAX_PHOTOS, moveStep } from "./cncParts.js";
+import { duplicatePart, isSkuTaken, cleanPhotos, MAX_PHOTOS, moveStep, splitPrograms, joinPrograms } from "./cncParts.js";
 import "./cncLibrary.css";
 
 const BLANK = { id: null, sku: "", name: "", material: "", notes: "", blueprintUrl: null, photos: [], steps: [""], productNo: "", programNo: "" };
+// The editor works on a list of programs; the part stores them joined.
+const toDraft = (p) => ({ ...p, steps: p.steps && p.steps.length ? p.steps : [""], programs: splitPrograms(p.programNo) });
+const fromDraft = (d) => ({ ...d, programNo: joinPrograms(d.programs) });
+
+// A step box that grows to show the whole step instead of cutting it off.
+function StepBox({ value, onChange, placeholder }) {
+  const ref = useRef(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight + 2}px`;
+  }, [value]);
+  return <textarea ref={ref} rows={1} value={value} onChange={onChange} placeholder={placeholder} />;
+}
 
 export default function CncLibrary({ onClose, embedded = false }) {
   const [parts, setParts] = useState([]);
-  const [draft, setDraft] = useState({ ...BLANK });
+  const [draft, setDraft] = useState(toDraft(BLANK));
   const [q, setQ] = useState("");
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -24,7 +39,7 @@ export default function CncLibrary({ onClose, embedded = false }) {
     setParts(list);
     if (selectId) {
       const found = list.find((p) => p.id === selectId);
-      if (found) setDraft({ ...found, steps: found.steps.length ? found.steps : [""] });
+      if (found) setDraft(toDraft(found));
     }
   }
   useEffect(() => {
@@ -33,13 +48,16 @@ export default function CncLibrary({ onClose, embedded = false }) {
 
   const filtered = parts.filter((p) => !q || `${p.name} ${p.sku}`.toLowerCase().includes(q.toLowerCase()));
 
-  const edit = (p) => setDraft({ ...p, steps: p.steps.length ? p.steps : [""] });
-  const newPart = () => setDraft({ ...BLANK, steps: [""] });
+  const edit = (p) => setDraft(toDraft(p));
+  const newPart = () => setDraft(toDraft(BLANK));
   // Opens a copy in the editor, unsaved. See cncParts.js for what changes.
-  const duplicate = () => { setDraft(duplicatePart(draft)); setSavedAt(0); setErr(""); };
+  const duplicate = () => { setDraft(toDraft(duplicatePart(fromDraft(draft)))); setSavedAt(0); setErr(""); };
   const setField = (k, v) => setDraft((d) => ({ ...d, [k]: v }));
   const setStep = (i, v) => setDraft((d) => { const s = d.steps.slice(); s[i] = v; return { ...d, steps: s }; });
   const addStep = () => setDraft((d) => ({ ...d, steps: [...d.steps, ""] }));
+  const setProgram = (i, v) => setDraft((d) => { const l = d.programs.slice(); l[i] = v; return { ...d, programs: l }; });
+  const addProgram = () => setDraft((d) => ({ ...d, programs: [...d.programs, ""] }));
+  const removeProgram = (i) => setDraft((d) => { const l = d.programs.filter((_, j) => j !== i); return { ...d, programs: l.length ? l : [""] }; });
   const removeStep = (i) => setDraft((d) => { const s = d.steps.filter((_, j) => j !== i); return { ...d, steps: s.length ? s : [""] }; });
 
   // Drag a step by its grip to reorder. Sortable moves the DOM node; we put it
@@ -106,7 +124,7 @@ export default function CncLibrary({ onClose, embedded = false }) {
     setSaving(true);
     setErr("");
     try {
-      const id = await db.saveCncPart(draft);
+      const id = await db.saveCncPart(fromDraft(draft));
       await reload(id);
       setSavedAt(Date.now());
     } catch (e) {
@@ -178,10 +196,24 @@ export default function CncLibrary({ onClose, embedded = false }) {
                 <span className="cl-lab">Product number</span>
                 <input value={draft.productNo} onChange={(e) => setField("productNo", e.target.value)} placeholder="e.g. JR-1125" />
               </label>
-              <label className="cl-field">
-                <span className="cl-lab">CNC program number</span>
-                <input value={draft.programNo} onChange={(e) => setField("programNo", e.target.value)} placeholder="e.g. O41207" />
-              </label>
+              <div className="cl-field">
+                <span className="cl-lab">CNC program number{draft.programs.length > 1 ? "s" : ""}</span>
+                <div className="cl-progs">
+                  {draft.programs.map((pg, i) => (
+                    <div className="cl-prog" key={i}>
+                      <input value={pg} onChange={(e) => setProgram(i, e.target.value)} placeholder={i ? "Another program" : "e.g. O41207"} aria-label={`Program ${i + 1}`} />
+                      {draft.programs.length > 1 && (
+                        <button className="cl-x" onClick={() => removeProgram(i)} title="Remove program">
+                          <Trash2 size={15} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <button className="cl-addstep cl-addprog" onClick={addProgram}>
+                    <Plus size={15} /> Add program
+                  </button>
+                </div>
+              </div>
             </div>
 
             <div className="cl-grid">
@@ -244,7 +276,7 @@ export default function CncLibrary({ onClose, embedded = false }) {
                         <GripVertical size={16} />
                       </span>
                       <span className="n">{i + 1}</span>
-                      <input value={s} onChange={(e) => setStep(i, e.target.value)} placeholder={`Step ${i + 1}`} />
+                      <StepBox value={s} onChange={(e) => setStep(i, e.target.value)} placeholder={`Step ${i + 1}`} />
                       <button className="cl-x" onClick={() => removeStep(i)} title="Remove step">
                         <Trash2 size={15} />
                       </button>
