@@ -219,7 +219,7 @@ export default function CncLibrary({ onClose, embedded = false }) {
             <div className="cl-grid">
               <div className="cl-bp">
                 <span className="cl-lab">Blueprint / drawing</span>
-                <div className="cl-bpbox">
+                <div className={`cl-bpbox${draft.blueprintUrl ? " has-img" : ""}`}>
                   {draft.blueprintUrl ? (
                     <img src={draft.blueprintUrl} alt="blueprint" />
                   ) : (
