@@ -274,7 +274,7 @@ export default function App() {
   // Scoped login: a CNC lead (role "cnc") only ever sees the CNC Floor Control —
   // no office board, no other departments, no way back to the office.
   if (auth.role === "cnc") {
-    return <FloorControl cncOnly orders={orders} workOrders={wo.workOrders} onSignOut={auth.signOut} />;
+    return <FloorControl cncOnly orders={orders} workOrders={wo.workOrders} wo={wo} onSignOut={auth.signOut} />;
   }
 
   // Search result clicked: take you to that order in the tab you're already in
@@ -1153,7 +1153,7 @@ export default function App() {
         </div>
       )}
 
-      {floorOpen && <FloorControl orders={orders} workOrders={wo.workOrders} onClose={() => setFloorOpen(false)} />}
+      {floorOpen && <FloorControl orders={orders} workOrders={wo.workOrders} wo={wo} onClose={() => setFloorOpen(false)} />}
       {costingOpen && (
         <Costing costing={costing} productNames={costing.catalog} onClose={() => setCostingOpen(false)} />
       )}

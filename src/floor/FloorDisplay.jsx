@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { FLOOR_DEPTS, exitMonitor } from "./depts.js";
 import { fmtDate } from "../theme.js";
 import { fetchFloorQueue, fetchFloorPhotosFor, fetchFloorArrangement, fetchCncParts, matchCncPart, fetchFloorNotes, completeItem, fetchCncMachines, fetchFloorProductPhotosFor } from "./floorData.js";
+import { MACHINES } from "./machines.js";
 
 // Order the queue the way the office set it: items in the arrangement come
 // first, in the dragged order. Anything not yet arranged (a brand-new arrival)
@@ -25,11 +26,7 @@ const MAX_QUEUE = 6; // rows visible under the NOW card
 
 // CNC monitor is split by machine — clickable tabs at the top of the screen.
 // Colors match Floor Control so a machine reads the same everywhere.
-const MACHINES = [
-  { key: "vf4", short: "VF-4", color: "#FFB224" },
-  { key: "st10", short: "ST-10", color: "#FF8A5C" },
-  { key: "ds30ssy", short: "DS-30SSY", color: "#F5CE3A" },
-];
+// (list lives in machines.js, shared with the catalogue)
 
 function useClock() {
   const [now, setNow] = useState(() => new Date());

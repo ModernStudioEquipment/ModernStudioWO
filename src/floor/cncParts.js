@@ -77,3 +77,33 @@ export function splitPrograms(v) {
 export function joinPrograms(list) {
   return (list || []).map((x) => String(x || "").trim()).filter(Boolean).join(", ");
 }
+
+// Which CNC machine(s) make a part. Stored as machine keys, comma separated,
+// in cnc_parts.machine (0066). Unknown keys are dropped so a renamed machine
+// can't leave a dead chip lit.
+const MACHINE_KEYS = ["vf4", "st10", "ds30ssy"];
+export function splitMachines(v) {
+  const seen = new Set();
+  for (const k of String(v || "").split(/[,;\s]+/)) {
+    const key = k.trim().toLowerCase();
+    if (MACHINE_KEYS.includes(key)) seen.add(key);
+  }
+  return MACHINE_KEYS.filter((k) => seen.has(k)); // always in machine order
+}
+export const joinMachines = (list) => splitMachines((list || []).join(",")).join(",");
+
+// Only name the machine column once it exists (seen on load), or when there's
+// a machine to keep. Naming it before 0066 runs would fail every save.
+export const shouldWriteMachine = (p) => !!p.machineColumn || splitMachines(p.machine).length > 0;
+
+// A new CNC work order filled in from a catalogue part: the name, the part #
+// the floor matches back to the catalogue (SKU first), and the steps. The CNC
+// sheet has six step lines, so anything past six goes on the sixth.
+export function workOrderFieldsFromPart(p) {
+  const steps = (p.steps || []).map((s) => String(s || "").trim()).filter(Boolean);
+  const fields = { product: (p.name || "").trim(), partNo: (p.sku || p.productNo || "").trim() };
+  for (let i = 0; i < 6; i++) fields[`step${i + 1}`] = "";
+  steps.slice(0, 5).forEach((s, i) => (fields[`step${i + 1}`] = s));
+  if (steps.length > 5) fields.step6 = steps.slice(5).join(" / ");
+  return fields;
+}

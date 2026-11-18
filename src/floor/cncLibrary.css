@@ -115,3 +115,23 @@
 .cl-photobtns{position:absolute; inset:auto 4px 4px 4px; display:flex; justify-content:flex-end; gap:4px}
 .cl-photobtns button{background:rgba(10,15,21,.85); border:1px solid var(--line2); color:#F3F6F8; font:inherit; font-size:11px; font-weight:700; border-radius:7px; padding:3px 7px; cursor:pointer; display:inline-flex; align-items:center}
 .cl-photobtns button:hover{border-color:var(--accent)}
+
+/* Picture viewer: arrows on the main box, clickable thumbnails. */
+.cl-bpbox{position:relative}
+.cl-nav{position:absolute; top:50%; transform:translateY(-50%); width:36px; height:36px; border-radius:50%; border:1px solid rgba(0,0,0,.12);
+  background:rgba(255,255,255,.92); color:#1a1f26; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,.25)}
+.cl-nav.prev{left:8px} .cl-nav.next{right:8px}
+.cl-nav:hover{background:#fff}
+.cl-photoshow{display:block; width:100%; height:100%; padding:0; border:0; background:#fff; cursor:pointer}
+.cl-photoshow img{width:100%; height:100%; object-fit:cover; display:block}
+.cl-photo.on{border-color:var(--accent); box-shadow:0 0 0 2px var(--accent)}
+
+/* Which machine(s) make the part. */
+.cl-machines{display:flex; flex-wrap:wrap; gap:8px}
+.cl-mchip{font:inherit; font-size:13px; font-weight:700; padding:8px 14px; border-radius:999px; cursor:pointer;
+  background:transparent; color:var(--muted); border:1px solid var(--line2)}
+.cl-mchip:hover{color:#F3F6F8}
+.cl-mchip.on{background:color-mix(in srgb, var(--m) 18%, transparent); border-color:var(--m); color:#F3F6F8}
+
+.cl-mkwo{border-color:var(--accent); color:var(--accent)}
+.cl-mkwo:hover{background:color-mix(in srgb, var(--accent) 12%, transparent)}

@@ -193,3 +193,7 @@
   color:var(--accent); background:color-mix(in srgb,var(--accent) 13%,transparent); border:1px solid color-mix(in srgb,var(--accent) 40%,transparent);
   border-radius:7px; padding:2px 7px}
 .fc-overall.where{color:var(--muted); background:transparent; border-color:var(--line)}
+
+/* Office sheets portal to <body>; lift them above this z-index:2000 screen
+   when they're opened from it (Make CNC work order in the catalogue). */
+body.fc-open .print-doc-overlay{z-index:2100 !important}

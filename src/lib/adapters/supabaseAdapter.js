@@ -4,7 +4,7 @@
 // concurrency-safe across users.
 
 import { supabase } from "../supabase.js";
-import { cleanPhotos, shouldWritePhotos } from "../../floor/cncParts.js";
+import { cleanPhotos, shouldWritePhotos, shouldWriteMachine, splitMachines, joinMachines } from "../../floor/cncParts.js";
 import { noteStamp, noteAuthorName, addAmounts, amountShort } from "../../theme.js";
 
 // Who is writing. Read from the session rather than passed down through the
@@ -740,6 +740,7 @@ export const supabaseAdapter = {
       blueprintUrl: r.blueprint_url || null, material: r.material || "", notes: r.notes || "",
       productNo: r.product_no || "", programNo: r.program_no || "",
       photos: cleanPhotos(r.photos), photosColumn: "photos" in r,
+      machine: r.machine || "", machineColumn: "machine" in r,
     }));
   },
   async saveCncPart(p) {
@@ -753,6 +754,8 @@ export const supabaseAdapter = {
     // Only named once the column exists (0065), or there are photos to keep —
     // see shouldWritePhotos for why mentioning it early would break every save.
     if (shouldWritePhotos(p)) row.photos = cleanPhotos(p.photos);
+    // Same for the machine column (0066).
+    if (shouldWriteMachine(p)) row.machine = joinMachines(splitMachines(p.machine)) || null;
     if (p.id) {
       const { data, error } = await supabase.from("cnc_parts").update(row).eq("id", p.id).select("id").single();
       fail(error); return data?.id;

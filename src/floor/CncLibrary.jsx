@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ArrowLeft, Plus, Trash2, Upload, ImageOff, Check, Copy, GripVertical } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Upload, ImageOff, Check, Copy, GripVertical, ChevronLeft, ChevronRight, ClipboardList } from "lucide-react";
 import Sortable from "sortablejs";
 import { db } from "../lib/db.js";
-import { duplicatePart, isSkuTaken, cleanPhotos, MAX_PHOTOS, moveStep, splitPrograms, joinPrograms } from "./cncParts.js";
+import { duplicatePart, isSkuTaken, cleanPhotos, MAX_PHOTOS, moveStep, splitPrograms, joinPrograms, splitMachines, joinMachines } from "./cncParts.js";
+import { MACHINES } from "./machines.js";
 import "./cncLibrary.css";
 
-const BLANK = { id: null, sku: "", name: "", material: "", notes: "", blueprintUrl: null, photos: [], steps: [""], productNo: "", programNo: "" };
+const BLANK = { id: null, sku: "", name: "", material: "", notes: "", blueprintUrl: null, photos: [], steps: [""], productNo: "", programNo: "", machine: "" };
 // The editor works on a list of programs; the part stores them joined.
 const toDraft = (p) => ({ ...p, steps: p.steps && p.steps.length ? p.steps : [""], programs: splitPrograms(p.programNo) });
 const fromDraft = (d) => ({ ...d, programNo: joinPrograms(d.programs) });
@@ -22,7 +23,7 @@ function StepBox({ value, onChange, placeholder }) {
   return <textarea ref={ref} rows={1} value={value} onChange={onChange} placeholder={placeholder} />;
 }
 
-export default function CncLibrary({ onClose, embedded = false }) {
+export default function CncLibrary({ onClose, embedded = false, onMakeWorkOrder = null }) {
   const [parts, setParts] = useState([]);
   const [draft, setDraft] = useState(toDraft(BLANK));
   const [q, setQ] = useState("");
@@ -57,6 +58,20 @@ export default function CncLibrary({ onClose, embedded = false }) {
   const addStep = () => setDraft((d) => ({ ...d, steps: [...d.steps, ""] }));
   const setProgram = (i, v) => setDraft((d) => { const l = d.programs.slice(); l[i] = v; return { ...d, programs: l }; });
   const addProgram = () => setDraft((d) => ({ ...d, programs: [...d.programs, ""] }));
+  const draftMachines = splitMachines(draft.machine);
+  const toggleMachine = (k) => setDraft((d) => {
+    const cur = splitMachines(d.machine);
+    return { ...d, machine: joinMachines(cur.includes(k) ? cur.filter((x) => x !== k) : [...cur, k]) };
+  });
+  const [making, setMaking] = useState(false);
+  async function makeWorkOrder() {
+    if (!onMakeWorkOrder || making) return;
+    setMaking(true);
+    setErr("");
+    try { await onMakeWorkOrder(fromDraft(draft)); }
+    catch (e) { setErr(`Couldn't start the work order${e?.message ? ` — ${e.message}` : ""}.`); }
+    finally { setMaking(false); }
+  }
   const removeProgram = (i) => setDraft((d) => { const l = d.programs.filter((_, j) => j !== i); return { ...d, programs: l.length ? l : [""] }; });
   const removeStep = (i) => setDraft((d) => { const s = d.steps.filter((_, j) => j !== i); return { ...d, steps: s.length ? s : [""] }; });
 
@@ -100,6 +115,16 @@ export default function CncLibrary({ onClose, embedded = false }) {
   // goes up through the same upload the blueprint uses, and they keep the
   // order they were added in. Nothing is saved to the part until Save.
   const photos = cleanPhotos(draft.photos);
+  // Pictures cycle in the main box like a product page: the drawing first,
+  // then the extra photos. Clicking a photo shows it here instead of opening
+  // a new browser tab.
+  const pics = [...(draft.blueprintUrl ? [draft.blueprintUrl] : []), ...photos];
+  const [shownUrl, setShownUrl] = useState(null);
+  const shownIdx = Math.max(0, pics.indexOf(shownUrl));
+  const shown = pics[shownIdx] || null;
+  const showingDrawing = !!draft.blueprintUrl && shownIdx === 0;
+  const step = (dir) => pics.length > 1 && setShownUrl(pics[(shownIdx + dir + pics.length) % pics.length]);
+  useEffect(() => { setShownUrl(null); }, [draft.id]);
   async function onPhotos(e) {
     const files = [...(e.target.files || [])].slice(0, MAX_PHOTOS - photos.length);
     e.target.value = "";
@@ -130,6 +155,7 @@ export default function CncLibrary({ onClose, embedded = false }) {
     } catch (e) {
       setErr(isSkuTaken(e) ? `SKU ${draft.sku} is already on another part. Change it and save again.`
         : /photos/.test(e?.message || "") ? "Extra photos need migration 0065 run first. Everything else on the part is fine."
+        : /machine/.test(e?.message || "") ? "Picking a machine needs migration 0066 run first. Clear the machine to save everything else."
         : /cnc_parts/.test(e?.message || "") ? "Run migration 0041 to enable the CNC library." : e?.message || "Couldn't save.");
     } finally {
       setSaving(false);
@@ -173,6 +199,7 @@ export default function CncLibrary({ onClose, embedded = false }) {
                   <span className="sub">
                     {p.sku ? `SKU ${p.sku}` : "no SKU"} · {p.steps.length} step{p.steps.length === 1 ? "" : "s"}
                     {p.blueprintUrl ? " · blueprint" : ""}
+                    {splitMachines(p.machine).length ? ` · ${splitMachines(p.machine).map((k) => MACHINES.find((m) => m.key === k)?.short).join(" + ")}` : ""}
                   </span>
                 </button>
               ))}
@@ -216,12 +243,41 @@ export default function CncLibrary({ onClose, embedded = false }) {
               </div>
             </div>
 
+            <div className="cl-field">
+              <span className="cl-lab">CNC machine{draftMachines.length > 1 ? "s" : ""}</span>
+              <div className="cl-machines">
+                {MACHINES.map((m) => (
+                  <button
+                    key={m.key}
+                    className={`cl-mchip${draftMachines.includes(m.key) ? " on" : ""}`}
+                    style={{ "--m": m.color }}
+                    onClick={() => toggleMachine(m.key)}
+                    aria-pressed={draftMachines.includes(m.key)}
+                    title={draftMachines.includes(m.key) ? `Not made on the ${m.label}` : `Made on the ${m.label}`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="cl-grid">
               <div className="cl-bp">
-                <span className="cl-lab">Blueprint / drawing</span>
-                <div className={`cl-bpbox${draft.blueprintUrl ? " has-img" : ""}`}>
-                  {draft.blueprintUrl ? (
-                    <img src={draft.blueprintUrl} alt="blueprint" />
+                <span className="cl-lab">
+                  {shown && !showingDrawing ? "Photo" : "Blueprint / drawing"}
+                  {pics.length > 1 ? ` · ${shownIdx + 1} of ${pics.length}` : ""}
+                </span>
+                <div className={`cl-bpbox${shown ? " has-img" : ""}`}>
+                  {shown ? (
+                    <>
+                      <img src={shown} alt={showingDrawing ? "blueprint" : `photo ${shownIdx + 1}`} />
+                      {pics.length > 1 && (
+                        <>
+                          <button className="cl-nav prev" onClick={() => step(-1)} aria-label="Previous picture"><ChevronLeft size={20} /></button>
+                          <button className="cl-nav next" onClick={() => step(1)} aria-label="Next picture"><ChevronRight size={20} /></button>
+                        </>
+                      )}
+                    </>
                   ) : (
                     <div className="cl-bpempty">
                       <ImageOff size={26} />
@@ -231,11 +287,11 @@ export default function CncLibrary({ onClose, embedded = false }) {
                 </div>
                 <div className="cl-bpbtns">
                   <button className="cl-btn" onClick={() => fileRef.current?.click()} disabled={uploading}>
-                    <Upload size={15} /> {uploading ? "Uploading…" : draft.blueprintUrl ? "Replace" : "Upload"}
+                    <Upload size={15} /> {uploading ? "Uploading…" : draft.blueprintUrl ? (showingDrawing ? "Replace" : "Replace drawing") : "Upload drawing"}
                   </button>
                   {draft.blueprintUrl && (
                     <button className="cl-btn ghost" onClick={() => setField("blueprintUrl", null)}>
-                      Remove
+                      {showingDrawing ? "Remove" : "Remove drawing"}
                     </button>
                   )}
                   <input ref={fileRef} type="file" accept="image/*" hidden onChange={onFile} />
@@ -245,8 +301,8 @@ export default function CncLibrary({ onClose, embedded = false }) {
                 {photos.length > 0 && (
                   <div className="cl-photos">
                     {photos.map((u, i) => (
-                      <div className="cl-photo" key={u}>
-                        <a href={u} target="_blank" rel="noopener noreferrer" title="Open full size"><img src={u} alt={`photo ${i + 1}`} /></a>
+                      <div className={`cl-photo${shown === u ? " on" : ""}`} key={u}>
+                        <button className="cl-photoshow" onClick={() => setShownUrl(u)} title="Show this one above"><img src={u} alt={`photo ${i + 1}`} /></button>
                         <div className="cl-photobtns">
                           {i > 0 && <button onClick={() => firstPhoto(u)} title="Show this one first">First</button>}
                           <button onClick={() => removePhoto(u)} title="Remove this photo" aria-label="Remove this photo"><Trash2 size={13} /></button>
@@ -307,6 +363,11 @@ export default function CncLibrary({ onClose, embedded = false }) {
                 <span className="cl-saved">Copy of {draft.copiedFrom}, not saved yet</span>
               )}
               <div className="cl-spacer" />
+              {draft.id && onMakeWorkOrder && (
+                <button className="cl-del cl-mkwo" onClick={makeWorkOrder} disabled={making} title="Open a new CNC work order filled in from this part">
+                  <ClipboardList size={15} /> {making ? "Opening…" : "Make CNC work order"}
+                </button>
+              )}
               {draft.id && (
                 <button className="cl-del cl-dup" onClick={duplicate} title="Open a copy of this part to edit">
                   <Copy size={15} /> Duplicate

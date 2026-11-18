@@ -270,7 +270,7 @@ export const localAdapter = {
       steps: (p.steps || []).filter((s) => s && s.trim()),
       blueprintUrl: p.blueprintUrl || null, material: (p.material || "").trim(), notes: (p.notes || "").trim(),
       productNo: (p.productNo || "").trim(), programNo: (p.programNo || "").trim(),
-      photos: cleanPhotos(p.photos),
+      photos: cleanPhotos(p.photos), machine: p.machine || "",
     };
     const i = list.findIndex((x) => x.id === id);
     if (i >= 0) list[i] = rec; else list.push(rec);

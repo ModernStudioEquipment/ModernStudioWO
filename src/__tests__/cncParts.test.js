@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect } from "vitest";
-import { duplicatePart, isSkuTaken, moveStep, splitPrograms, joinPrograms } from "../floor/cncParts.js";
+import { duplicatePart, isSkuTaken, moveStep, splitPrograms, joinPrograms, splitMachines, joinMachines, shouldWriteMachine, workOrderFieldsFromPart } from "../floor/cncParts.js";
+import { MACHINES } from "../floor/machines.js";
 
 // Duplicating a catalogue part. SKU is unique in cnc_parts, so a copy that kept
 // it could never be saved — the DUP- prefix (QuickBooks' own convention) is
@@ -128,5 +129,44 @@ describe("more than one CNC program", () => {
   it("a duplicate marks every program, not just the first", () => {
     expect(duplicatePart({ name: "X", programNo: "O1, O2" }).programNo).toBe("DUP-O1, DUP-O2");
     expect(duplicatePart({ name: "X", programNo: "" }).programNo).toBe("");
+  });
+});
+
+describe("which machine makes a part", () => {
+  it("keeps known machines, in machine order, once each", () => {
+    expect(splitMachines("st10,vf4,st10")).toEqual(["vf4", "st10"]);
+    expect(splitMachines("ST10")).toEqual(["st10"]);
+    expect(splitMachines("lathe, ")).toEqual([]);
+    expect(splitMachines(null)).toEqual([]);
+    expect(joinMachines(["ds30ssy", "vf4"])).toBe("vf4,ds30ssy");
+  });
+  it("knows every machine Floor Control knows (lists can't drift)", () => {
+    expect(splitMachines(MACHINES.map((m) => m.key).join(","))).toEqual(MACHINES.map((m) => m.key));
+  });
+  it("only names the column once it exists or there's a machine to keep", () => {
+    expect(shouldWriteMachine({ machine: "" })).toBe(false);
+    expect(shouldWriteMachine({ machine: "", machineColumn: true })).toBe(true);
+    expect(shouldWriteMachine({ machine: "vf4" })).toBe(true);
+  });
+});
+
+describe("a CNC work order from a catalogue part", () => {
+  it("fills the product, part # and steps", () => {
+    const f = workOrderFieldsFromPart({ name: " 3in Steel Baby Pin ", sku: "BP-3", productNo: "P1", steps: ["Saw", "", "Turn", "Thread"] });
+    expect(f.product).toBe("3in Steel Baby Pin");
+    expect(f.partNo).toBe("BP-3");
+    expect([f.step1, f.step2, f.step3, f.step4]).toEqual(["Saw", "Turn", "Thread", ""]);
+  });
+  it("falls back to the product number when there's no SKU", () => {
+    expect(workOrderFieldsFromPart({ name: "X", sku: "", productNo: "JR-1125" }).partNo).toBe("JR-1125");
+  });
+  it("never loses a step past the sheet's six lines", () => {
+    const f = workOrderFieldsFromPart({ name: "X", steps: ["1", "2", "3", "4", "5", "6", "7", "8"] });
+    expect(f.step5).toBe("5");
+    expect(f.step6).toBe("6 / 7 / 8");
+  });
+  it("carries nothing a customer would be on", () => {
+    const f = workOrderFieldsFromPart({ name: "X", notes: "for ACME", material: "6061" });
+    expect(Object.keys(f).sort()).toEqual(["partNo", "product", "step1", "step2", "step3", "step4", "step5", "step6"]);
   });
 });

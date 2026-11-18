@@ -6,9 +6,12 @@ import CncLibrary from "./CncLibrary.jsx";
 import FloorSheetView from "./FloorSheetView.jsx";
 import { sheetFromItem, sheetFromWorkOrder } from "./floorSheet.js";
 import { FeedbackModal } from "../components/modals/FeedbackModal.jsx";
+import { CustomWorkOrderDoc } from "../components/modals/CustomWorkOrderDoc.jsx";
+import { workOrderFieldsFromPart, splitMachines } from "./cncParts.js";
 import { FLOOR_DEPTS } from "./depts.js";
 import { stamp } from "../theme.js";
 import "./floorControl.css";
+import { MACHINES } from "./machines.js";
 
 // The four departments in the dark floor world. Colors match the wall monitors
 // so the office associates a column with its screen.
@@ -21,11 +24,7 @@ const DEPTS = [
 
 // CNC splits into three machines. Each has its own drag-ordered queue and its
 // own tint (warm, so the CNC identity holds) so the lanes read as distinct.
-const MACHINES = [
-  { key: "vf4", short: "VF-4", label: "Haas VF-4", color: "#FFB224" },
-  { key: "st10", short: "ST-10", label: "Haas ST-10", color: "#FF8A5C" },
-  { key: "ds30ssy", short: "DS-30SSY", label: "Haas DS-30SSY", color: "#F5CE3A" },
-];
+// (list lives in machines.js, shared with the catalogue)
 
 // Arrangement keys we load up front (dept queues + the three CNC machines).
 const ARR_KEYS = [...DEPTS.map((d) => d.key), ...MACHINES.map((m) => `cnc_${m.key}`), "cnc_priority"];
@@ -109,7 +108,17 @@ function initials(name = "") {
   return (w[0]?.[0] || "?").toUpperCase() + (w[1]?.[0] || "").toUpperCase();
 }
 
-export default function FloorControl({ orders, workOrders = [], onClose, cncOnly = false, onSignOut }) {
+export default function FloorControl({ orders, workOrders = [], onClose, cncOnly = false, onSignOut, wo: woApi = null }) {
+  // A new CNC work order started from a catalogue part (Make work order). The
+  // same sheet the office opens with its CNC button, filled in from the part.
+  const [newWo, setNewWo] = useState(null);
+  // The work order sheet portals to <body> (so it prints alone), which puts it
+  // under this full-screen layer. While Floor Control is up, body.fc-open lifts
+  // office sheets above it (floorControl.css).
+  useEffect(() => {
+    document.body.classList.add("fc-open");
+    return () => document.body.classList.remove("fc-open");
+  }, []);
   const navDepts = cncOnly ? DEPTS.filter((d) => d.key === "cnc") : DEPTS;
   const [active, setActive] = useState("cnc");
   const [cncView, setCncView] = useState("unassigned"); // "unassigned" | machine key
@@ -405,6 +414,30 @@ export default function FloorControl({ orders, workOrders = [], onClose, cncOnly
             onClose={() => setViewing(null)}
           />
         )}
+        {newWo && woApi && (
+            <CustomWorkOrderDoc
+              wo={newWo}
+              onSave={async (payload) => {
+                if (payload.id) {
+                  await woApi.updateWorkOrder(payload.id, { title: payload.title, fields: payload.fields, type: payload.type, station: payload.station });
+                  return payload.id;
+                }
+                const id = await woApi.createWorkOrder(payload);
+                // A part made on one machine goes straight into that machine's
+                // queue. More than one (or none) waits in Unassigned to be placed.
+                if (id && newWo.machine) {
+                  try {
+                    await db.setCncMachine(id, newWo.machine);
+                    setMachines((m) => ({ ...m, [id]: newWo.machine }));
+                  } catch { /* stays in Unassigned; the sheet itself saved */ }
+                }
+                return id;
+              }}
+              onUploadPhoto={woApi.uploadPhoto}
+              onPhotoHistory={(id) => db.listPhotoHistory(`wo/${id || "new"}`)}
+              onClose={() => setNewWo(null)}
+            />
+        )}
         {feedbackOpen && (
           <FeedbackModal
             tabLabel={where}
@@ -425,7 +458,14 @@ export default function FloorControl({ orders, workOrders = [], onClose, cncOnly
           />
         )}
         {isBook ? (
-          <CncLibrary embedded />
+          <CncLibrary
+            embedded
+            onMakeWorkOrder={woApi ? async (part) => {
+              const orderNo = await woApi.nextWorkOrderNo();
+              const ms = splitMachines(part.machine);
+              setNewWo({ type: "cnc", orderNo, title: part.name, fields: workOrderFieldsFromPart(part), machine: ms.length === 1 ? ms[0] : null });
+            } : null}
+          />
         ) : (
         <>
         <div className="fc-head">
