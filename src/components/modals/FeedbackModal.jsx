@@ -57,7 +57,9 @@ export function FeedbackModal({ tabLabel = "", onSend, onList, onResolve, onClos
   };
 
   const label = { fontSize: 11, fontWeight: 700, color: C.gray, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 };
-  const inp = { border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 14, background: C.surface };
+  // color set here, not inherited: Floor Control is dark with near-white text,
+  // and the report box typed invisible white-on-white there.
+  const inp = { border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 14, background: C.surface, color: C.ink };
   const pick = (k, Icon, text) => (
     <button
       onClick={() => setKind(k)}
@@ -75,7 +77,7 @@ export function FeedbackModal({ tabLabel = "", onSend, onList, onResolve, onClos
 
   return (
     <div style={overlay} onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: 460, maxWidth: "94vw", background: C.concrete, borderRadius: 8, overflow: "hidden" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: 460, maxWidth: "94vw", background: C.concrete, color: C.ink, borderRadius: 8, overflow: "hidden" }}>
         <div className="flex items-center gap-2 px-4 py-3 font-bold" style={{ background: C.fill, color: "#fff" }}>
           {done ? "Thanks — it's in" : "Report it"}
           <button onClick={onClose} className="ml-auto" style={{ color: "#fff" }}><X size={18} /></button>
