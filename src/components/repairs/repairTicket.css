@@ -1,0 +1,286 @@
+/* The repair ticket, drawn like the paper "MODERN Repairs & Recovers" form.
+   It's paper on screen too: white sheet, black ink, whatever the board's theme.
+   Every blank is an input with no chrome of its own; the ruled lines and the
+   table grid are the form's, so what you type sits on the line like pen. */
+
+.rt-sheet {
+  --rt-ink: #111;
+  --rt-rule: #222;
+  --rt-band: #4a4a4a;
+  --rt-row: 21px;
+  background: #fff;
+  color: var(--rt-ink);
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 14px;
+  padding: 26px 30px 18px;
+  border: 1px solid #d5d8dc;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+}
+
+.rt-in {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: 0 3px;
+  min-width: 0;
+  border-radius: 2px;
+}
+.rt-in:focus {
+  background: #fff6d6;
+}
+
+/* ---- letterhead ---- */
+.rt-top {
+  display: grid;
+  /* minmax(0, ...) lets the ruled lines give up width to the logo; a plain 1fr
+     can't shrink below its inputs and pushed the order box off the sheet. */
+  grid-template-columns: minmax(0, 1fr) auto 140px;
+  gap: 18px;
+  align-items: start;
+}
+.rt-topleft .rt-line {
+  margin-bottom: 4px;
+}
+.rt-est {
+  font-size: 11.5px;
+  font-style: italic;
+  margin-top: 1px;
+}
+.rt-logo {
+  padding-top: 4px;
+}
+.rt-orderno {
+  text-align: center;
+}
+.rt-orderbox {
+  display: block;
+  border: 2px solid var(--rt-ink);
+  height: 34px;
+  cursor: text;
+}
+.rt-ordin {
+  width: 100%;
+  height: 100%;
+  text-align: center;
+  font-weight: 700;
+  font-size: 16px;
+}
+.rt-orderlab {
+  font-size: 12px;
+  margin-top: 3px;
+  letter-spacing: 0.2px;
+}
+
+/* ---- a label on a ruled line ---- */
+.rt-line {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  border-bottom: 1px solid var(--rt-rule);
+  min-height: 22px;
+  cursor: text;
+}
+.rt-lab {
+  white-space: nowrap;
+  padding-bottom: 1px;
+}
+.rt-line .rt-in {
+  flex: 1;
+  height: 21px;
+  font-weight: 700;
+}
+
+/* ---- quote yes / no ---- */
+.rt-quote {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 22px;
+  margin: 8px 0 3px;
+}
+.rt-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  cursor: pointer;
+}
+.rt-box {
+  width: 15px;
+  height: 15px;
+  border: 1.5px solid var(--rt-ink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+/* ---- section bands ---- */
+.rt-band {
+  background: var(--rt-band);
+  color: #fff;
+  text-align: center;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  font-size: 14px;
+  padding: 3px 0;
+  margin: 6px 0 4px;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.rt-client .rt-line {
+  margin-bottom: 5px;
+}
+.rt-two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+}
+.rt-two .rt-line + .rt-line .rt-lab {
+  padding-left: 8px;
+}
+
+/* ---- services ordered ---- */
+.rt-services {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  padding: 4px 0 2px;
+  flex-wrap: wrap;
+}
+.rt-svclab {
+  white-space: nowrap;
+}
+.rt-count {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 4px;
+  cursor: text;
+  white-space: nowrap;
+}
+.rt-blank {
+  width: 56px;
+  border-bottom: 1px solid var(--rt-rule);
+  text-align: center;
+  font-weight: 700;
+  height: 20px;
+}
+
+/* ---- items table ---- */
+.rt-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  margin-top: 2px;
+}
+.rt-table th {
+  font-weight: 700;
+  font-size: 13px;
+  text-align: left;
+  padding: 0 4px 2px;
+  border: none;
+}
+.rt-table th:nth-child(3) {
+  text-align: center;
+}
+.rt-table th:nth-child(4) {
+  text-align: center;
+}
+.rt-table tbody {
+  border: 2px solid var(--rt-ink);
+}
+.rt-table td {
+  border: 1px solid var(--rt-rule);
+  padding: 0;
+  height: var(--rt-row);
+  vertical-align: top;
+}
+.rt-table td:nth-child(2) {
+  border-right-width: 2px;
+}
+.rt-cell {
+  display: block;
+  width: 100%;
+  min-height: calc(var(--rt-row) - 1px);
+  line-height: 1.2;
+  padding: 2px 4px 1px;
+  font-size: 13px;
+}
+.rt-qty {
+  text-align: center;
+}
+.rt-grow {
+  resize: none;
+  overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* ---- footer ---- */
+.rt-foot {
+  text-align: center;
+  font-size: 12px;
+  margin-top: 8px;
+  color: #333;
+}
+.rt-foot span {
+  margin: 0 8px;
+}
+
+/* ---- phones: the paper doesn't fit 375px, so it stacks ---- */
+@media (max-width: 640px) {
+  .rt-sheet { padding: 16px 12px; font-size: 13px; }
+  .rt-top { grid-template-columns: 1fr; gap: 10px; }
+  .rt-logo { order: -1; }
+  .rt-orderno { max-width: 180px; }
+  .rt-quote { justify-content: flex-start; flex-wrap: wrap; gap: 10px; }
+  .rt-two { grid-template-columns: 1fr; }
+  .rt-two .rt-line + .rt-line .rt-lab { padding-left: 0; }
+  /* The paper's column split leaves DEPT two letters wide on a phone. */
+  .rt-table col:nth-child(1) { width: 19% !important; }
+  .rt-table col:nth-child(2) { width: 10% !important; }
+  .rt-table col:nth-child(3) { width: 37% !important; }
+  .rt-table col:nth-child(4) { width: 34% !important; }
+  .rt-cell { font-size: 12.5px; }
+}
+
+/* ---- print: one Letter page, like the pad ---- */
+@media print {
+  .rt-sheet {
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    font-size: 12.5px;
+    width: 100% !important;
+  }
+  /* A fixed paper width, so the layout is the same whatever margins the
+     print dialog uses (fits up to about 0.55in each side on Letter). */
+  #wo.rt-sheet { width: 7.4in !important; margin: 0 auto; }
+  .rt-table tr.rt-spare { display: none; }
+  .rt-in:focus { background: transparent !important; }
+  .rt-orderbox { height: 30px; }
+  .rt-line { min-height: 20px; }
+  .rt-line .rt-in { height: 19px; }
+  .rt-client .rt-line { margin-bottom: 3px; }
+  .rt-band { font-size: 12.5px; padding: 2px 0; margin: 4px 0 2px; }
+  /* Rows a pixel shorter than on screen: 28 of them is what decides the page. */
+  .rt-sheet { --rt-row: 20px; }
+  .rt-cell { padding: 1px 4px 1px; }
+  .rt-foot { margin-top: 5px; }
+  /* The MODERN letterhead's black bar prints black, like the section bands,
+     even with "Background graphics" off in the print dialog. */
+  .rt-logo, .rt-logo * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .rt-table tr { break-inside: avoid; }
+  /* the phone layout never applies on paper */
+  .rt-top { grid-template-columns: minmax(0, 1fr) auto 140px !important; }
+  .rt-two { grid-template-columns: 1fr 1fr !important; }
+}

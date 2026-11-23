@@ -11,6 +11,9 @@ import { useOrders } from "./hooks/useOrders.js";
 import { useWorkOrders } from "./hooks/useWorkOrders.js";
 import { useUndo } from "./hooks/useUndo.js";
 import { useStockNotices } from "./hooks/useStockNotices.js";
+import { useRepairs } from "./hooks/useRepairs.js";
+import { RepairsTab } from "./components/repairs/RepairsTab.jsx";
+import { RepairTicketDoc } from "./components/repairs/RepairTicketDoc.jsx";
 import { useCosting } from "./hooks/useCosting.js";
 import {
   Pill, Btn, Group, ItemLine, Empty, Tabwrap, DeptBadge, DuePill, CompletionPill, MethodBadge, InvoicedBadge, MoveMenu, SittingBadge, InlineMenu, NoteTrail,
@@ -51,6 +54,8 @@ export default function App() {
   const undoer = useUndo();
   const [costingOpen, setCostingOpen] = useState(false); // full-screen costing / margins world
   const stock = useStockNotices(authed);
+  // Repair tickets (Repairs tab). Office only: the CNC lead login never sees them.
+  const repairs = useRepairs(authed && auth.role !== "cnc");
   const costing = useCosting(authed && costingOpen);
   // Cancelled orders are kept on record in the DB but hidden from every board.
   const allOrders = board.orders;
@@ -220,6 +225,7 @@ export default function App() {
   const [orderTarget, setOrderTarget] = useState(null); // purchasing material being marked ordered (asks who/vendor/PO)
   const [receiveTarget, setReceiveTarget] = useState(null); // { it, m } material being received (asks dest tab/qty/note)
   const [syncing, setSyncing] = useState(false); // QuickBooks sync in progress
+  const [repairDoc, setRepairDoc] = useState(null); // { repair } open on the Repairs tab; repair null = new ticket
   const [customDoc, setCustomDoc] = useState(null); // work order sheet open for edit ({type} = new, or a saved WO)
   const [workCombined, setWorkCombined] = useState(false); // Work Order tab: combine like items across orders
   const [floorOpen, setFloorOpen] = useState(false); // full-screen dark "Floor Control" world
@@ -1027,6 +1033,7 @@ export default function App() {
     { k: "pick", label: "Pick List", n: count(pickOrders, (it) => it.stage === "picklist") },
     { k: "work", label: "Work Order", n: count(workOrders, (it) => it.stage === "workorder") },
     { k: "buy", label: "Purchasing", n: buyOrders.reduce((n, o) => n + o.items.reduce((s, it) => s + (it.needsMaterial ? it.materials.filter((m) => !m.received).length : 0), 0), 0) },
+    { k: "repairs", label: "Repairs", n: repairs.repairs.filter((r) => r.status !== "done").length },
     { k: "inventory", label: "Inventory", dot: openNotices.length },
     { k: "orders", label: "Orders" },
     { k: "urgent", label: "Urgent", dot: urgentOrders.length },
@@ -1696,6 +1703,10 @@ export default function App() {
               </Tabwrap>
             )}
 
+            {tab === "repairs" && (
+              <RepairsTab rp={repairs} now={now} onOpen={(r) => setRepairDoc({ repair: r })} />
+            )}
+
             {tab === "shipping" && (
               <Tabwrap title="Shipping" action={<SortMenu value={sortBy} onChange={setSortBy} />}>
                 <FulfillmentBoard variant="shipping" orders={sortOrders(shippingOrders)} now={now} onOpen={setDetailId} onMarkShipped={(o) => setPartialTarget({ order: o, kind: "shipment" })} onSetLocation={board.setLocation} onReopen={board.reopenOrder} emptyText="Nothing shipping yet. Completed orders land here when you mark them Ship." />
@@ -2076,6 +2087,17 @@ export default function App() {
           order={trackTarget}
           onConfirm={confirmTracking}
           onClose={() => setTrackTarget(null)}
+        />
+      )}
+      {repairDoc && (
+        <RepairTicketDoc
+          key={repairDoc.repair?.id || "new"}
+          repair={repairDoc.repair}
+          onSave={async ({ id, fields, status }) => {
+            if (id) { await repairs.updateRepair(id, { fields, status }); return id; }
+            return await repairs.createRepair({ fields, status });
+          }}
+          onClose={() => setRepairDoc(null)}
         />
       )}
       {customDoc && (

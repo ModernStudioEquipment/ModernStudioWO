@@ -36,6 +36,15 @@ function write(orders) {
   channel?.postMessage("changed");
 }
 
+const REPAIRS_KEY = "mse_repairs_v1";
+function readRepairs() {
+  try { return JSON.parse(localStorage.getItem(REPAIRS_KEY)) || []; } catch { return []; }
+}
+function writeRepairs(list) {
+  try { localStorage.setItem(REPAIRS_KEY, JSON.stringify(list)); } catch { /* ignore */ }
+  channel?.postMessage("changed");
+}
+
 function readWO() {
   try {
     const raw = localStorage.getItem(WO_KEY);
@@ -786,6 +795,34 @@ export const localAdapter = {
       if (station !== undefined) w.station = station || "";  // which bench/person in it
     }
     writeWO(list);
+  },
+
+  // ---- repair tickets (Repairs tab) ----
+  async getRepairs() {
+    return readRepairs().sort((a, b) => b.createdAt - a.createdAt);
+  },
+  async createRepair({ fields, status }) {
+    const list = readRepairs();
+    const id = uid();
+    list.push({ id, status: status || "open", fields: fields || {}, createdAt: Date.now(), updatedAt: Date.now() });
+    writeRepairs(list);
+    return id;
+  },
+  async updateRepair(id, { fields, status }) {
+    const list = readRepairs();
+    const r = list.find((x) => x.id === id);
+    if (r) {
+      if (fields !== undefined) r.fields = fields || {};
+      if (status !== undefined) r.status = status;
+      r.updatedAt = Date.now();
+    }
+    writeRepairs(list);
+  },
+  async deleteRepair(id) {
+    writeRepairs(readRepairs().filter((x) => x.id !== id));
+  },
+  subscribeRepairs(cb) {
+    return this.subscribe(cb);
   },
 
   // ---- low-stock notices (Inventory tab) ----

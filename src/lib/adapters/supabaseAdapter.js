@@ -1125,6 +1125,48 @@ export const supabaseAdapter = {
     fail(error);
   },
 
+  // ---- repair tickets (Repairs tab, 0067) ----
+  async getRepairs() {
+    const { data, error } = await supabase.from("repairs").select("*").order("created_at", { ascending: false });
+    fail(error);
+    return (data || []).map((r) => ({
+      id: r.id,
+      status: r.status || "open",
+      fields: r.fields || {},
+      createdAt: new Date(r.created_at).getTime(),
+      updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : null,
+    }));
+  },
+  async createRepair({ fields, status }) {
+    const { data, error } = await supabase
+      .from("repairs")
+      .insert({ fields: fields || {}, status: status || "open" })
+      .select("id")
+      .single();
+    fail(error);
+    return data?.id;
+  },
+  async updateRepair(id, { fields, status }) {
+    const patch = { updated_at: new Date().toISOString() };
+    if (fields !== undefined) patch.fields = fields || {};
+    if (status !== undefined) patch.status = status;
+    const { error } = await supabase.from("repairs").update(patch).eq("id", id);
+    fail(error);
+  },
+  async deleteRepair(id) {
+    const { error } = await supabase.from("repairs").delete().eq("id", id);
+    fail(error);
+  },
+  // Its own channel: the board's subscribe reloads every order on any change it
+  // can't patch, and a repair ticket has nothing to do with the orders.
+  subscribeRepairs(cb) {
+    const channel = supabase
+      .channel(`repairs-${++channelSeq}-${Date.now()}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "repairs" }, cb)
+      .subscribe();
+    return () => supabase.removeChannel(channel);
+  },
+
   // ---- low-stock notices (Inventory tab) ----
   async getStockNotices() {
     const { data, error } = await supabase
