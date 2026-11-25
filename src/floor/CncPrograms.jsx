@@ -1,3 +1,4 @@
+import CncPasteProgram from "./CncPasteProgram.jsx";
 import { useEffect, useRef, useState } from "react";
 import { Upload, Trash2, Check, CheckCircle2, Circle, Copy, Download, Eye, EyeOff, ShieldCheck, ShieldAlert, AlertTriangle, GitCompare, FileText, Box, ArrowRight } from "lucide-react";
 import { FACT_FIELDS, programLine, buildPack, finishedSizes } from "./cncPack.js";
@@ -224,6 +225,7 @@ export function ProgramsView({ part, onFact, machineFacts = NO_FACTS, onStep, on
           <Upload size={15} /> {busy ? "Uploading…" : programs.length ? "Upload a new version" : "Upload program file"}
         </button>
         <input ref={fileRef} type="file" multiple hidden onChange={onFiles} aria-label="Program file" />
+        {partId && <CncPasteProgram busy={busy} label="Paste the program" onAdd={async (file) => (await pp.addFiles([file])) > 0} />}
       </div>
       {err && <div className="cl-err">{err}</div>}
       {sheetFor && <CncRunSheet part={part} program={sheetFor} machineFacts={machineFacts} onClose={() => setSheetFor(null)} />}

@@ -833,3 +833,10 @@ button.cp-checkrow > span{flex:1; min-width:0; display:flex; flex-direction:colu
 .ci-drop span{font-size:13px}
 .ci-drop.on, .ci-over .ci-drop{border-color:var(--accent); background:color-mix(in srgb, var(--accent) 10%, transparent); color:var(--accent)}
 .ci-over{outline:2px solid var(--accent); outline-offset:6px; border-radius:14px}
+
+/* ---- pasting a program ---- */
+.pp-box{display:flex; flex-direction:column; gap:8px; width:100%; border:1px solid var(--line2); border-radius:12px; padding:12px; background:var(--rail)}
+.cl-editor .pp-box textarea, .pp-box textarea{font-family:var(--mono, ui-monospace, Menlo, monospace); font-size:13px; line-height:1.45; min-height:150px; resize:vertical; white-space:pre; overflow-x:auto}
+.pp-read{display:inline-flex; align-items:center; gap:6px; font-size:13.5px; font-weight:700; color:#3DDC97}
+.pp-btns{display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap}
+.pp-add{border-color:var(--accent) !important; color:#F3F6F8 !important}

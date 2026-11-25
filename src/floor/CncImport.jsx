@@ -5,6 +5,7 @@ import { MACHINES } from "./machines.js";
 import { planImport, importCounts, programLine, machineForKind } from "./cncPack.js";
 import { readText } from "./CncPrograms.jsx";
 import { readZip, isZip } from "./unzip.js";
+import CncPasteProgram from "./CncPasteProgram.jsx";
 
 // Import a whole USB stick of programs at once.
 //
@@ -156,6 +157,7 @@ export default function CncImport({ parts, onDone, onClose }) {
         <button className="cl-btn" onClick={() => dirRef.current?.click()} disabled={!!busy}><FolderOpen size={15} /> Pick a whole folder</button>
         <input ref={fileRef} type="file" multiple hidden onChange={onFiles} aria-label="Program files to import" />
         <input ref={dirRef} type="file" multiple hidden onChange={onFiles} webkitdirectory="" directory="" aria-label="Folder of programs to import" />
+        <CncPasteProgram busy={!!busy} onAdd={(file) => readFiles([file])} />
       </div>
       {busy && <div className="cp-note">{busy}</div>}
       {err && <div className="cl-err">{err}</div>}

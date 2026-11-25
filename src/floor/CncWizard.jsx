@@ -1,3 +1,4 @@
+import CncPasteProgram from "./CncPasteProgram.jsx";
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Check, Upload, X, CheckCircle2 } from "lucide-react";
 import { WIZARD_STEPS, wizardAnswer, programLine } from "./cncPack.js";
@@ -133,6 +134,7 @@ export default function CncWizard({ keys, part, pp, machineFacts = {}, onCommit,
               <Upload size={20} /> {pp.busy ? "Reading it…" : pp.newest ? "Add another version" : "Choose the program file"}
             </button>
             <input ref={fileRef} type="file" multiple hidden onChange={onProgram} aria-label="Program file" />
+            {part?.id && <CncPasteProgram busy={pp.busy} label="Or paste the program's text" onAdd={async (file) => (await pp.addFiles([file])) > 0} />}
             {pp.err && <div className="cl-err">{pp.err}</div>}
           </div>
         )}

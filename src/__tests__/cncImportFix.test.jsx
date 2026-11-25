@@ -192,3 +192,25 @@ describe("dropping files on the import page", () => {
     expect(got.map((x) => x.name)).toEqual(["O1.nc", "O2.nc", "O3.nc"]);
   });
 });
+
+describe("pasting a program's text", () => {
+  it("is named from its O-number and title, or what's typed", async () => {
+    const { pastedName } = await import("../floor/CncPasteProgram.jsx");
+    expect(pastedName(PIN)).toBe("O00636 - 006-1596.nc");
+    expect(pastedName(PIN, "CNC-0240 - STACK 6")).toBe("CNC-0240 - STACK 6.nc");
+    expect(pastedName(PIN, "x.NC")).toBe("x.NC");
+    expect(pastedName("G01 X1.\nG01 Z-1.\nM30")).toBe("Pasted program.nc");
+  });
+  it("on the import page: says what it read, and goes into the plan like a file", async () => {
+    render(<CncImport parts={[]} onDone={vi.fn()} onClose={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: /Paste a program/ }));
+    expect(screen.getByRole("button", { name: /Add this program/ }).disabled).toBe(true);
+    fireEvent.change(screen.getByLabelText("Program text"), { target: { value: "hello there" } });
+    expect(screen.getByText(/doesn't read like a program/)).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Program text"), { target: { value: PIN } });
+    expect(screen.getByText(/O00636 · T5/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Add this program/ }));
+    expect(await screen.findByRole("button", { name: /Import 1 program/ })).toBeTruthy();
+    expect(screen.getByText("O00636 - 006-1596.nc")).toBeTruthy();
+  });
+});
