@@ -121,3 +121,44 @@ export function fmtDuration(seconds) {
   const m = Math.round((s % 3600) / 60);
   return m ? `${h} h ${m} min` : `${h} h`;
 }
+
+// ---- playing a program back on screen ----------------------------------------
+//
+// How long each move should take to WATCH (nothing to do with how long it takes
+// to run). A move's share of the time follows how far the tool travels, so a
+// long cut takes long and a short one is quick, and the tool moves at a steady
+// pace instead of hopping from the end of one line to the end of the next.
+// Rapids go by faster than cuts, the way they do at the machine, and no single
+// rapid (a trip home for a tool change) is allowed to eat the show.
+//
+// Positions are "moves done so far", with a fraction for part way along the
+// next: 3.5 is half way through the fourth move.
+export function playClock(path) {
+  const segs = path?.segs || [];
+  const len = (s) => Math.hypot(s.b[0] - s.a[0], s.b[1] - s.a[1], s.b[2] - s.a[2]);
+  const lens = segs.map(len);
+  const cutLen = segs.reduce((n, s, i) => n + (s.type === "rapid" ? 0 : lens[i]), 0);
+  const base = cutLen > 0 ? cutLen : lens.reduce((a, b) => a + b, 0) || 1;
+  const cum = new Float64Array(segs.length + 1);
+  segs.forEach((s, i) => {
+    const w = s.type === "rapid" ? Math.min(lens[i] * 0.3, base * 0.04) : lens[i];
+    cum[i + 1] = cum[i] + Math.max(w, base * 0.002);
+  });
+  const total = cum[segs.length] || 1;
+  // long enough to follow, short enough to sit through
+  const seconds = Math.max(18, Math.min(40, 16 + segs.length * 0.04));
+  const timeOf = (pos) => {
+    const p = Math.max(0, Math.min(segs.length, pos));
+    const n = Math.min(segs.length - 1, Math.floor(p));
+    return n < 0 ? 0 : ((cum[n] + (cum[n + 1] - cum[n]) * (p - n)) / total) * seconds;
+  };
+  const posAt = (t) => {
+    const want = (Math.max(0, Math.min(seconds, t)) / seconds) * total;
+    let lo = 0;
+    let hi = segs.length;
+    while (lo < hi) { const m = (lo + hi) >> 1; if (cum[m + 1] <= want) lo = m + 1; else hi = m; }
+    if (lo >= segs.length) return segs.length;
+    return lo + (want - cum[lo]) / Math.max(cum[lo + 1] - cum[lo], 1e-12);
+  };
+  return { seconds, timeOf, posAt };
+}

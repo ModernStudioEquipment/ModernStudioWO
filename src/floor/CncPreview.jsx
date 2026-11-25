@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Play, Pause, RotateCcw, ZoomIn, ZoomOut, AlertOctagon, Timer, SkipBack, SkipForward, CheckCircle2 } from "lucide-react";
 import { toolpath, project, VIEWS } from "./cncPath.js";
 import { simulateLathe, parseStock, partSizes, sizeLabel, sizeText, zText } from "./cncSolid.js";
-import { estimateTime, fmtDuration } from "./cncTime.js";
+import { estimateTime, fmtDuration, playClock } from "./cncTime.js";
 
 // What a program does, shown two ways that share one slider:
 //
@@ -38,7 +38,15 @@ export default function CncPreview({ content, kind = "", toolNames = {}, stockTe
 
   const [mode, setMode] = useState(sim ? "part" : "path");
   const [noGl, setNoGl] = useState(false);
-  const [upTo, setUpTo] = useState(total);
+  // Where the program has got to: moves done, with a fraction while it plays
+  // (3.5 is half way along the fourth move). Everything that talks about "the
+  // line it's on" uses the whole number; the picture uses all of it.
+  const [pos, setPos] = useState(total);
+  const upTo = Math.min(total, Math.floor(pos + 1e-9));
+  const part = upTo < total ? Math.max(0, pos - upTo) : 0;
+  const clock = useMemo(() => playClock(path), [path]);
+  const posRef = useRef(pos);
+  posRef.current = pos;
   const [playing, setPlaying] = useState(false);
   const [showRapids, setShowRapids] = useState(true);
   const [showStock, setShowStock] = useState(true);
@@ -51,35 +59,60 @@ export default function CncPreview({ content, kind = "", toolNames = {}, stockTe
   const views = mode === "part" ? VIEWS.lathe : VIEWS[path.kind] || VIEWS.mill;
   const [view, setView] = useState({ key: mode === "part" ? "3d" : views[0].key, nonce: 0 });
 
-  // A new program: whole thing, best view for it.
-  useEffect(() => {
-    setUpTo(total);
+  // A new program: whole thing, best view for it. Done while rendering, not in
+  // an effect, so the very first frame of the new program is already stopped at
+  // the end. (As an effect, a playing program got one more tick in after the
+  // switch and left the new part parked on some early line.)
+  const [seen, setSeen] = useState({ path, hasSim: !!sim });
+  if (seen.path !== path || seen.hasSim !== !!sim) {
+    setSeen({ path, hasSim: !!sim });
+    setPos(total);
     setPlaying(false);
     const m = sim && !noGl ? "part" : "path";
     setMode(m);
     setView({ key: m === "part" ? "3d" : (VIEWS[path.kind] || VIEWS.mill)[0].key, nonce: 0 });
-  }, [path, !!sim]);
+  }
+
+  const liveRef = useRef(null);            // the program that is playing right now, if one is
+  liveRef.current = playing ? path : null;
 
   // ---- play through it ----
   useEffect(() => {
     if (!playing) return;
-    const step = Math.max(1, Math.round(total / 300)); // the whole program in about 10 seconds
-    const id = setInterval(() => setUpTo((n) => { if (n >= total) { setPlaying(false); return total; } return Math.min(total, n + step); }), 33);
-    return () => clearInterval(id);
-  }, [playing, total]);
+    // One step per screen refresh, by the clock: the tool travels along each
+    // move at a steady pace instead of jumping to the end of it.
+    let id = 0;
+    let last = performance.now();
+    let t = clock.timeOf(posRef.current);
+    const tick = (now) => {
+      // A tick already on its way when the program changed or was paused must
+      // not move anything: React tidies this effect up a moment AFTER the
+      // screen has changed, and a late tick would undo the change.
+      if (liveRef.current !== path) return;
+      t += Math.min(0.1, Math.max(0, (now - last) / 1000)); // a stalled tab picks up where it was, it doesn't leap ahead
+      last = now;
+      if (t >= clock.seconds) { setPos(total); setPlaying(false); return; }
+      setPos(clock.posAt(t));
+      id = requestAnimationFrame(tick);
+    };
+    id = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(id);
+  }, [playing, clock, total, path]);
 
   if (!total) {
     return <div className="cp-note">Nothing to draw: this program has no moves the preview understands.</div>;
   }
 
-  const cur = upTo > 0 ? path.segs[Math.min(upTo, total) - 1] : null;
+  const moving = part > 0 ? path.segs[upTo] : null;                     // the move it's part way along, while playing
+  const cur = moving || (upTo > 0 ? path.segs[Math.min(upTo, total) - 1] : null);
+  const at = moving ? moving.a.map((v, i) => v + (moving.b[i] - v) * part) : cur?.b;
   const st = path.stats;
   const u = path.units === "mm" ? " mm" : path.units === "in" ? "″" : "";
   const lathe = path.kind === "lathe";
   const su = path.units === "mm" ? "mm" : "in";
   const hits = sim?.collisions || [];
   const pick = (m) => { setMode(m); setView({ key: m === "part" ? "3d" : (VIEWS[path.kind] || VIEWS.mill)[0].key, nonce: 0 }); };
-  const jump = (n) => { setPlaying(false); setUpTo(Math.max(0, Math.min(total, n))); };
+  const jump = (n) => { setPlaying(false); setPos(Math.max(0, Math.min(total, Math.round(n)))); };
 
   return (
     <div className="pv">
@@ -107,14 +140,14 @@ export default function CncPreview({ content, kind = "", toolNames = {}, stockTe
         {mode === "part" && sim ? (
           <Suspense fallback={<div className="pv-loading">Loading the 3D view…</div>}>
             <CncSolid
-              sim={sim} upTo={upTo} total={total} material={material}
+              sim={sim} upTo={pos} total={total} material={material}
               view={view.key} viewNonce={view.nonce} showStock={showStock} playing={playing}
               sizes={playing ? null : onScreen} units={path.units === "mm" ? "mm" : "in"}
               height={height} onFail={() => { setNoGl(true); setMode("path"); }}
             />
           </Suspense>
         ) : (
-          <PathCanvas path={path} upTo={upTo} showRapids={showRapids} view={view} onTurn={() => setView((s) => (s.key ? { ...s, key: "" } : s))} height={height} />
+          <PathCanvas path={path} upTo={upTo} part={part} showRapids={showRapids} view={view} onTurn={() => setView((s) => (s.key ? { ...s, key: "" } : s))} height={height} />
         )}
 
         {/* where the tool is, like the position page on the machine */}
@@ -122,9 +155,9 @@ export default function CncPreview({ content, kind = "", toolNames = {}, stockTe
           <div className={`pv-dro ${cur.type === "rapid" ? "rapid" : "cut"}`} aria-label="Tool position">
             <span className="t">T{cur.tool || "?"}</span>
             {lathe ? (
-              <><span><i>X</i>{dro(cur.b[2] * 2)}</span><span><i>Z</i>{dro(cur.b[0])}</span></>
+              <><span><i>X</i>{dro(at[2] * 2)}</span><span><i>Z</i>{dro(at[0])}</span></>
             ) : (
-              <><span><i>X</i>{dro(cur.b[0])}</span><span><i>Y</i>{dro(cur.b[1])}</span><span><i>Z</i>{dro(cur.b[2])}</span></>
+              <><span><i>X</i>{dro(at[0])}</span><span><i>Y</i>{dro(at[1])}</span><span><i>Z</i>{dro(at[2])}</span></>
             )}
             <span className="m">{upTo >= total ? "End" : MOVE[cur.type] || "Cutting"}</span>
           </div>
@@ -134,12 +167,12 @@ export default function CncPreview({ content, kind = "", toolNames = {}, stockTe
 
       <div className="pv-scrub">
         <button className="pv-icon" onClick={() => jump(0)} aria-label="Back to the start"><SkipBack size={15} /></button>
-        <button className="pv-icon pv-play" onClick={() => { if (upTo >= total) setUpTo(0); setPlaying((p) => !p); }} aria-label={playing ? "Pause" : "Play the program"}>
+        <button className="pv-icon pv-play" onClick={() => { if (pos >= total) setPos(0); setPlaying((p) => !p); }} aria-label={playing ? "Pause" : "Play the program"}>
           {playing ? <Pause size={16} /> : <Play size={16} />}
         </button>
         <button className="pv-icon" onClick={() => jump(total)} aria-label="Skip to the end"><SkipForward size={15} /></button>
         <input
-          type="range" min={0} max={total} value={upTo}
+          type="range" min={0} max={total} step="any" value={pos}
           onChange={(e) => jump(Number(e.target.value))}
           aria-label="Step through the program"
         />
@@ -230,7 +263,7 @@ const timeBreakdown = (t) => Object.entries({ Cutting: t.parts.cutting, Roughing
   .filter(([, v]) => v >= 0.5).map(([k, v]) => `${k}: ${fmtDuration(v)}`).join("\n");
 
 // ---- the line drawing --------------------------------------------------------
-function PathCanvas({ path, upTo, showRapids, view, onTurn, height }) {
+function PathCanvas({ path, upTo, part = 0, showRapids, view, onTurn, height }) {
   const canvasRef = useRef(null);
   const wrapRef = useRef(null);
   const [size, setSize] = useState({ w: 600, h: height });
@@ -315,6 +348,11 @@ function PathCanvas({ path, upTo, showRapids, view, onTurn, height }) {
       ctx.setLineDash([]); ctx.globalAlpha = 1;
     };
 
+    // everything done so far, and the move in hand only as far as the tool has got
+    const soFar = path.segs.slice(0, upTo);
+    const next = part > 0 ? path.segs[upTo] : null;
+    if (next) soFar.push({ ...next, b: next.a.map((v, i) => v + (next.b[i] - v) * part) });
+
     if (path.kind === "lathe") {
       const b = path.bounds;
       strokeBatch([[[b.min[0], 0, 0], [b.max[0], 0, 0]]], "#3A4450", 1, [6, 5]);
@@ -329,7 +367,7 @@ function PathCanvas({ path, upTo, showRapids, view, onTurn, height }) {
         }
       }
       strokeBatch(ringLines, "#8FA3B8", 1, null, 0.22);
-      const mirror = path.segs.slice(0, upTo).filter((s) => s.type !== "rapid").map((s) => [[s.a[0], 0, -s.a[2]], [s.b[0], 0, -s.b[2]]]);
+      const mirror = soFar.filter((s) => s.type !== "rapid").map((s) => [[s.a[0], 0, -s.a[2]], [s.b[0], 0, -s.b[2]]]);
       strokeBatch(mirror, "#8FA3B8", 1.2, null, 0.45);
     } else {
       const len = Math.max(spanX, spanY) * 0.08;
@@ -338,7 +376,7 @@ function PathCanvas({ path, upTo, showRapids, view, onTurn, height }) {
       strokeBatch([[[0, 0, 0], [0, 0, len]]], "#4DA3FF", 2);
     }
 
-    const shown = path.segs.slice(0, upTo);
+    const shown = soFar;
     if (showRapids) strokeBatch(shown.filter((s) => s.type === "rapid").map((s) => [s.a, s.b]), RAPID, 1, [4, 4], 0.9);
     const byTool = new Map();
     for (const s of shown) {
@@ -357,7 +395,7 @@ function PathCanvas({ path, upTo, showRapids, view, onTurn, height }) {
       ctx.beginPath(); ctx.arc(p[0], p[1], 5, 0, Math.PI * 2); ctx.fillStyle = "#FFFFFF"; ctx.fill();
       ctx.beginPath(); ctx.arc(p[0], p[1], 9, 0, Math.PI * 2); ctx.strokeStyle = "#FFFFFF"; ctx.lineWidth = 1; ctx.globalAlpha = 0.5; ctx.stroke(); ctx.globalAlpha = 1;
     }
-  }, [path, extent, rings, cam, upTo, showRapids, size]);
+  }, [path, extent, rings, cam, upTo, part, showRapids, size]);
 
   // ---- turning, panning, zooming ----
   const drag = useRef(null);

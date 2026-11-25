@@ -2,7 +2,7 @@
 import { describe, it, expect } from "vitest";
 import { toolpath } from "../floor/cncPath.js";
 import { simulateLathe, outlinePoints, simplifyOutline, parseStock, metalFor, partSizes, sizeText, sizeLabel, zText } from "../floor/cncSolid.js";
-import { estimateTime, fmtDuration } from "../floor/cncTime.js";
+import { estimateTime, fmtDuration, playClock } from "../floor/cncTime.js";
 
 // The solid part and the rapid check. Each program here is small enough to
 // work out by hand, so the numbers are the test.
@@ -338,5 +338,51 @@ describe("the sizes of what's been cut", () => {
     expect(sizeText(12.5, "mm")).toBe("12.5");
     expect(zText(0)).toBe("Z0");
     expect(zText(-1.25)).toBe("Z-1.250");
+  });
+});
+
+describe("playing it back smoothly", () => {
+  const path = toolpath(PIN);
+  const sim = simulateLathe(path, { dia: 1.25, len: null });
+
+  it("part way along a cut, the bar is cut only as far as the tool has got", () => {
+    const i = path.segs.findIndex((s) => s.type === "profile" && Math.abs(s.a[2] - 0.3125) < 1e-6 && Math.abs(s.b[0] - s.a[0]) > 0.9);   // the finishing pass along 0.625
+    expect(i).toBeGreaterThan(0);
+    const half = Float64Array.from(sim.outlineAt(i, 0.5));
+    const s = path.segs[i];
+    const mid = (s.a[0] + s.b[0]) / 2;
+    const before = sim.radiusAt(sim.outlineAt(i), mid - 0.1);
+    near(sim.radiusAt(half, mid + 0.1), 0.3125);              // behind the tool: cut
+    near(sim.radiusAt(half, mid - 0.1), before);              // ahead of it: as it was
+    const tool = sim.toolAt(i, 0.5);
+    near(tool.z, mid); near(tool.r, 0.3125);
+    // and looking part way along doesn't disturb the whole-move answers
+    near(sim.radiusAt(sim.outlineAt(i + 1), mid - 0.1), 0.3125);
+    near(sim.radiusAt(sim.outlineAt(i), mid - 0.1), before);
+  });
+
+  it("the clock runs the whole program, start to end, without going backwards", () => {
+    const c = playClock(path);
+    expect(c.seconds).toBeGreaterThanOrEqual(18);
+    expect(c.seconds).toBeLessThanOrEqual(40);
+    expect(c.posAt(0)).toBe(0);
+    expect(c.posAt(c.seconds)).toBe(path.segs.length);
+    let last = -1;
+    for (let t = 0; t <= c.seconds; t += 0.05) { const p = c.posAt(t); expect(p).toBeGreaterThanOrEqual(last); last = p; }
+    for (const p of [0, 0.25, 3.5, path.segs.length - 0.5]) near(c.posAt(c.timeOf(p)), p, 1e-6);   // pause and carry on from the same place
+  });
+
+  it("no one move hogs the time, and none flashes by in a single frame", () => {
+    const c = playClock(path);
+    const each = path.segs.map((_, i) => c.timeOf(i + 1) - c.timeOf(i));
+    expect(Math.min(...each)).toBeGreaterThan(0.02);
+    const rapids = path.segs.map((s, i) => (s.type === "rapid" ? each[i] : 0));
+    expect(Math.max(...rapids)).toBeLessThan(c.seconds * 0.1);
+  });
+
+  it("an empty program doesn't break the clock", () => {
+    const c = playClock({ segs: [] });
+    expect(c.posAt(5)).toBe(0);
+    expect(c.timeOf(0)).toBe(0);
   });
 });

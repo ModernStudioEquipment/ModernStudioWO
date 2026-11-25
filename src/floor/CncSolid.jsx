@@ -373,13 +373,16 @@ export default function CncSolid({ sim, upTo, total, material = "", view = "3d",
 
     // put the bar and the tool where the program has them after n moves
     let lastGeo = null;
-    const step = (n, totalMoves) => {
-      const pts = simplifyOutline(outlinePoints(sim, n));
+    const step = (pos, totalMoves) => {
+      // pos can be part way along a move while the program plays: 3.5 is half way through the fourth
+      const n = Math.min(totalMoves, Math.floor(pos + 1e-9));
+      const along = n < totalMoves ? Math.max(0, pos - n) : 0;
+      const pts = simplifyOutline(outlinePoints(sim, n, along));
       const geo = new THREE.LatheGeometry(pts.map((p) => new THREE.Vector2(Math.max(p[1], 0), p[0])), SEGMENTS);
       part.geometry = geo;
       lastGeo?.dispose();
       lastGeo = geo;
-      const at = sim.toolAt(n);
+      const at = sim.toolAt(n, along);
       const done = n >= totalMoves;
       tool.visible = !!at && !done;
       if (at) {

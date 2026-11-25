@@ -156,18 +156,26 @@ export function simulateLathe(path, stock = null) {
   const threads = segs
     .map((s, index) => ({ s, index }))
     .filter(({ s }) => s.type === "thread")
-    .map(({ s, index }) => ({ index, z0: Math.min(s.a[0], s.b[0]), z1: Math.min(face, Math.max(s.a[0], s.b[0])), minor: s.a[2], pitch: s.pitch || 0 }));
+    .map(({ s, index }) => ({ index, z0: Math.min(s.a[0], s.b[0]), z1: Math.min(face, Math.max(s.a[0], s.b[0])), za: s.a[0], zb: s.b[0], minor: s.a[2], pitch: s.pitch || 0 }));
 
   // The outline after the first n moves. Stepping forward reuses the last
   // answer, so playing the program through is one pass, not n of them.
   let cacheN = 0;
   let cacheEnv = fresh();
-  const outlineAt = (n) => {
+  //
+  // part: how far into the NEXT move the tool has got (0 to 1), for playing the
+  // program smoothly: that move is cut only as far as the tool has travelled.
+  const scratch = new Float64Array(zs.length);
+  const outlineAt = (n, part = 0) => {
     const upTo = Math.max(0, Math.min(segs.length, n));
     if (upTo < cacheN) { cacheN = 0; cacheEnv = fresh(); }
     for (let i = cacheN; i < upTo; i++) if (isCut(segs[i])) cut(cacheEnv, segs[i]);
     cacheN = upTo;
-    return cacheEnv;
+    const next = segs[upTo];
+    if (!(part > 0) || !next || !isCut(next)) return cacheEnv;
+    scratch.set(cacheEnv);
+    cut(scratch, { ...next, b: lerp3(next.a, next.b, Math.min(1, part)) });
+    return scratch;
   };
 
   // When the picture of "one bar, one chuck, one zero" doesn't hold, a rapid
@@ -192,9 +200,17 @@ export function simulateLathe(path, stock = null) {
     outlineAt,
     radiusAt,
     // Where the tool's point is after n moves (null before the first).
-    toolAt: (n) => { const s = segs[Math.min(segs.length, Math.max(1, n)) - 1]; return n > 0 && s ? { z: s.b[0], r: s.b[2], tool: s.tool, type: s.type } : null; },
+    // part > 0: on its way along the next move.
+    toolAt: (n, part = 0) => {
+      const next = segs[n];
+      if (part > 0 && next) { const p = lerp3(next.a, next.b, Math.min(1, part)); return { z: p[0], r: p[2], tool: next.tool, type: next.type }; }
+      const s = segs[Math.min(segs.length, Math.max(1, n)) - 1];
+      return n > 0 && s ? { z: s.b[0], r: s.b[2], tool: s.tool, type: s.type } : null;
+    },
   };
 }
+
+const lerp3 = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 
 // A groove insert's width isn't in the program. 1/8 inch is typical; on a
 // metric program that's about 3 mm. Never wider than a tenth of the part.
@@ -208,10 +224,20 @@ function groovWidth(path, length) {
 // [[z, radius], ...] from the chuck end to the face, closed down to the centre
 // at both ends. Threads cut so far are drawn as teeth between the surface and
 // the thread's root, one per turn of the thread.
-export function outlinePoints(sim, n = Infinity) {
-  const env = sim.outlineAt(n);
+//
+// part: how far along the next move the tool is (see outlineAt). A thread being
+// cut right now shows its teeth only as far as the tool has reached.
+export function outlinePoints(sim, n = Infinity, part = 0) {
+  const env = sim.outlineAt(n, part);
   const pts = [];
   const live = sim.threads.filter((t) => t.index < n && t.z1 - t.z0 > EPS);
+  const now = part > 0 ? sim.threads.find((t) => t.index === n) : null;
+  if (now) {
+    const at = now.za + (now.zb - now.za) * Math.min(1, part);
+    const z0 = Math.max(now.z0, Math.min(now.za, at));
+    const z1 = Math.min(now.z1, Math.max(now.za, at));
+    if (z1 - z0 > EPS) live.push({ ...now, z0, z1 });
+  }
   const inThread = (z) => live.find((t) => z >= t.z0 - EPS && z <= t.z1 + EPS);
   let lastThread = null;
   for (let i = 0; i < sim.zs.length; i++) {
