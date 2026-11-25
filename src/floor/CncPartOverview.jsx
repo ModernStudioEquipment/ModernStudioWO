@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowRight, FileText, ShieldCheck, ShieldAlert, Upload, AlertTriangle, CheckCircle2, Check, ListChecks, Box, ClipboardList, Pencil, Sparkles, Ruler, Download, Code2, Copy } from "lucide-react";
+import { ArrowRight, FileText, ShieldCheck, ShieldAlert, Upload, AlertTriangle, CheckCircle2, Check, ListChecks, Box, ClipboardList, Pencil, Sparkles, Ruler, Download, Code2, Copy, ChevronDown } from "lucide-react";
 import CncPreview from "./CncPreview.jsx";
 import CncProveOut, { proofLine } from "./CncProveOut.jsx";
 import CncRunSheet from "./CncRunSheet.jsx";
@@ -10,7 +10,7 @@ import { downloadProgram } from "./FloorPartProgram.jsx";
 import { PART_STEPS, FACT_FIELDS, neededLeft, programLine, finishedSizes, fileLabel } from "./cncPack.js";
 import { fmtDuration } from "./cncTime.js";
 import { MACHINES } from "./machines.js";
-import { splitMachines } from "./cncParts.js";
+import { splitMachines, joinMachines } from "./cncParts.js";
 
 // A part at a glance. What it looks like, where it stands, and one button for
 // the next thing to do. Everything else is a tap away ("All details"), not on
@@ -23,6 +23,16 @@ export default function CncPartOverview({ part, pp, machineFacts, onAsk, onDetai
   const [writing, setWriting] = useState(false);   // the "write one from sizes" screens are up
   const newest = pp.newest;
   const [showCode, setShowCode] = useState(false);
+  // the machine, changed right here: tap the chip under the name
+  const [picking, setPicking] = useState(false);
+  const [savingMachine, setSavingMachine] = useState(false);
+  const [machineErr, setMachineErr] = useState("");
+  async function setMachine(keys) {
+    setSavingMachine(true); setMachineErr("");
+    try { await onCommit({ machine: joinMachines(keys) }); }
+    catch (e) { setMachineErr(e?.message || "Couldn't change the machine."); }
+    finally { setSavingMachine(false); }
+  }
   const d = pp.newestInfo;
   const step = pp.step;
   const machines = splitMachines(part.machine).map((k) => MACHINES.find((m) => m.key === k)).filter(Boolean);
@@ -87,11 +97,32 @@ export default function CncPartOverview({ part, pp, machineFacts, onAsk, onDetai
           return bits.length ? <div className="ov-nums">{bits.join(" · ")}</div> : null;
         })()}
         <div className="ov-chips">
-          {machines.map((m) => <span key={m.key} className="m" style={{ "--m": m.color }}>{m.label}</span>)}
+          {machines.map((m) => (
+            <button key={m.key} className="m ov-mbtn" style={{ "--m": m.color }} onClick={() => setPicking((v) => !v)} aria-expanded={picking} title="Change the machine">
+              {m.label} <ChevronDown size={13} />
+            </button>
+          ))}
+          {!machines.length && <button className="ov-mbtn ov-mnone" onClick={() => setPicking((v) => !v)} aria-expanded={picking}>Pick the machine <ChevronDown size={13} /></button>}
           {part.sku && <span>SKU {part.sku}</span>}
           {part.material && <span>{part.material}</span>}
           {d?.time && d.time.seconds >= 1 && <span>About {fmtDuration(d.time.seconds)} a part</span>}
         </div>
+        {picking && (
+          <div className="ov-mpick" role="group" aria-label="Which machine this part runs on">
+            <span>Runs on (pick one or more):</span>
+            {MACHINES.map((m) => {
+              const on = machines.some((x) => x.key === m.key);
+              return (
+                <button key={m.key} className={on ? "on" : ""} style={{ "--m": m.color }} aria-pressed={on} disabled={savingMachine}
+                  onClick={() => setMachine(on ? machines.filter((x) => x.key !== m.key).map((x) => x.key) : [...machines.map((x) => x.key), m.key])}>
+                  {on ? <Check size={13} /> : null} {m.label}
+                </button>
+              );
+            })}
+            <button className="ov-mdone" onClick={() => setPicking(false)}>Done</button>
+            {machineErr && <span className="cl-err">{machineErr}</span>}
+          </div>
+        )}
       </div>
 
       {/* ---- where it stands, and what's next ---- */}

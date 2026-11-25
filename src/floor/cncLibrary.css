@@ -774,3 +774,14 @@ button.cp-checkrow > span{flex:1; min-width:0; display:flex; flex-direction:colu
 .cm-missing button.all{border-color:var(--m, var(--accent))}
 .cm-saving{color:#AEB8C4}
 .ai-elapsed{display:block; margin-top:6px; color:#F3F6F8; font-variant-numeric:tabular-nums}
+
+/* ---- changing a part's machine ---- */
+.ov-chips .ov-mbtn{display:inline-flex; align-items:center; gap:4px; font:inherit; font-size:13px; font-weight:600; padding:5px 11px; border-radius:999px; cursor:pointer; border:1px solid var(--m, var(--line2)); color:#F3F6F8; background:color-mix(in srgb,var(--m, #888) 16%,transparent)}
+.ov-chips .ov-mbtn:hover{filter:brightness(1.25)}
+.ov-chips .ov-mnone{border-style:dashed; border-color:var(--line2); background:transparent}
+.ov-mpick{display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:10px; padding:10px 12px; border:1px solid var(--line2); border-radius:12px; background:var(--rail)}
+.ov-mpick > span{font-size:13px; color:#AEB8C4; flex-basis:100%}
+.ov-mpick button{display:inline-flex; align-items:center; gap:5px; font:inherit; font-size:14px; font-weight:700; padding:8px 12px; border-radius:10px; cursor:pointer; background:transparent; border:1px solid var(--line2); color:#E8EEF4}
+.ov-mpick button.on{border-color:var(--m); background:color-mix(in srgb,var(--m) 16%,transparent); color:#F3F6F8}
+.ov-mpick button:disabled{opacity:.6; cursor:default}
+.ov-mpick .ov-mdone{margin-left:auto; border-color:transparent; color:#AEB8C4}

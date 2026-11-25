@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import React from "react";
 import { cleanProgramText } from "../floor/cncGcode.js";
 import { planImport } from "../floor/cncPack.js";
@@ -75,4 +75,18 @@ describe("searching", () => {
     for (const q of ["0241", "24", "stacks", "CNC-0240 tray"]) expect(matchesSearch(q, fields), q).toBe(false);
   });
   it("an empty search finds everything", () => expect(matchesSearch("  ", [])).toBe(true));
+});
+
+describe("changing a part's machine from under its name", () => {
+  it("tapping the machine opens the three, and a tap saves the change", async () => {
+    const { default: CncPartOverview } = await import("../floor/CncPartOverview.jsx");
+    const onCommit = vi.fn(async () => "p1");
+    const pp = { loading: false, programs: [], newest: null, stops: [], machineKind: "lathe", step: { at: "Program", tone: "todo", text: "Add the program.", done: {} } };
+    render(<CncPartOverview part={{ id: "p1", name: "Pin", machine: "st10", facts: {}, steps: [] }} pp={pp} machineFacts={{}} onAsk={() => {}} onDetails={() => {}} onCommit={onCommit} />);
+    fireEvent.click(screen.getByRole("button", { name: /Haas ST-10Y/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Haas DS-30SSY/ }));
+    await waitFor(() => expect(onCommit).toHaveBeenCalledWith({ machine: "st10,ds30ssy" }));
+    fireEvent.click(screen.getAllByRole("button", { name: /Haas ST-10Y/ }).find((b) => b.getAttribute("aria-pressed") === "true"));
+    await waitFor(() => expect(onCommit).toHaveBeenLastCalledWith({ machine: "" }));
+  });
 });
