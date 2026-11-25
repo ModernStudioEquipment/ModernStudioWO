@@ -308,7 +308,7 @@ export const localAdapter = {
   // ---- CNC program files + machine facts ----
   async getCncPrograms(partId) {
     return readLS("mse_cnc_programs_v1", []).filter((x) => x.partId === partId).sort((a, b) => b.createdAt - a.createdAt)
-      .map((x) => ({ ...x, ai: x.info?.ai || null, review: x.info?.review || null }));
+      .map((x) => ({ ...x, ai: x.info?.ai || null, review: x.info?.review || null, proof: x.info?.proof || null }));
   },
   async setCncProgramReview(id, review) {
     const list = readLS("mse_cnc_programs_v1", []);
@@ -330,10 +330,11 @@ export const localAdapter = {
       .sort((a, b) => b.createdAt - a.createdAt);
   },
   async cncProgramsReady() { return true; },
-  async setCncProgramProven(id, proven, by) {
+  async setCncProgramProven(id, proven, by, record = null) {
     const list = readLS("mse_cnc_programs_v1", []);
     const r = list.find((x) => x.id === id);
     if (r) Object.assign(r, proven ? { status: "proven", provenBy: by || "", provenAt: Date.now() } : { status: "unproven", provenBy: "", provenAt: null });
+    if (r) { const info = { ...(r.info || {}) }; if (proven && record) info.proof = record; else if (!proven) delete info.proof; r.info = info; }
     writeLS("mse_cnc_programs_v1", list);
   },
   async deleteCncProgram(id) {

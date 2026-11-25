@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Play, Pause, RotateCcw, ZoomIn, ZoomOut, AlertOctagon, Timer, SkipBack, SkipForward, CheckCircle2 } from "lucide-react";
 import { toolpath, project, VIEWS } from "./cncPath.js";
 import { simulateLathe, parseStock, partSizes, sizeLabel, sizeText, zText } from "./cncSolid.js";
+import { simulateMill } from "./cncMill.js";
 import { estimateTime, fmtDuration, playClock } from "./cncTime.js";
 
 // What a program does, shown two ways that share one slider:
@@ -19,6 +20,7 @@ import { estimateTime, fmtDuration, playClock } from "./cncTime.js";
 // still the check before a first run.
 
 const CncSolid = lazy(() => import("./CncSolid.jsx"));
+const CncMillSolid = lazy(() => import("./CncMillSolid.jsx"));
 
 const SIZES_KEY = "mse_cnc_sizes_v1";
 const TOOL_COLORS = ["#FFB224", "#4DA3FF", "#3DDC97", "#FF8A5C", "#C792EA", "#F5CE3A", "#5CD6D6", "#FF6B9D"];
@@ -33,10 +35,15 @@ export default function CncPreview({ content, kind = "", toolNames = {}, stockTe
   const lineText = useMemo(() => String(content || "").replace(/\r\n?/g, "\n").split("\n"), [content]);
   const stock = useMemo(() => parseStock(stockText), [stockText]);
   const sim = useMemo(() => (path.kind === "lathe" ? simulateLathe(path, stock) : null), [path, stock]);
+  // A mill part: the block, cut down by the tool. The tool sizes come from the
+  // comments on the tool changes, so the names are part of what it depends on.
+  const namesKey = JSON.stringify(toolNames);
+  const mill = useMemo(() => (path.kind === "mill" ? simulateMill(path, { stockText, toolNames }) : null), [path, stockText, namesKey]);
+  const solid = sim || mill;   // either way there's a "Part" view
   const time = useMemo(() => estimateTime(path), [path]);
   const total = path.segs.length;
 
-  const [mode, setMode] = useState(sim ? "part" : "path");
+  const [mode, setMode] = useState(solid ? "part" : "path");
   const [noGl, setNoGl] = useState(false);
   // Where the program has got to: moves done, with a fraction while it plays
   // (3.5 is half way along the fourth move). Everything that talks about "the
@@ -56,19 +63,19 @@ export default function CncPreview({ content, kind = "", toolNames = {}, stockTe
   // right now for the labels on the picture (the same thing at the end).
   const finished = useMemo(() => (showSizes && sim ? partSizes(sim) : null), [showSizes, sim]);
   const onScreen = useMemo(() => (!finished ? null : upTo >= total ? finished : partSizes(sim, upTo)), [finished, sim, upTo, total]);
-  const views = mode === "part" ? VIEWS.lathe : VIEWS[path.kind] || VIEWS.mill;
+  const views = VIEWS[path.kind] || VIEWS.mill;
   const [view, setView] = useState({ key: mode === "part" ? "3d" : views[0].key, nonce: 0 });
 
   // A new program: whole thing, best view for it. Done while rendering, not in
   // an effect, so the very first frame of the new program is already stopped at
   // the end. (As an effect, a playing program got one more tick in after the
   // switch and left the new part parked on some early line.)
-  const [seen, setSeen] = useState({ path, hasSim: !!sim });
-  if (seen.path !== path || seen.hasSim !== !!sim) {
-    setSeen({ path, hasSim: !!sim });
+  const [seen, setSeen] = useState({ path, hasSim: !!solid });
+  if (seen.path !== path || seen.hasSim !== !!solid) {
+    setSeen({ path, hasSim: !!solid });
     setPos(total);
     setPlaying(false);
-    const m = sim && !noGl ? "part" : "path";
+    const m = solid && !noGl ? "part" : "path";
     setMode(m);
     setView({ key: m === "part" ? "3d" : (VIEWS[path.kind] || VIEWS.mill)[0].key, nonce: 0 });
   }
@@ -117,7 +124,7 @@ export default function CncPreview({ content, kind = "", toolNames = {}, stockTe
   return (
     <div className="pv">
       <div className="pv-bar">
-        {sim && !noGl && (
+        {solid && !noGl && (
           <div className="pv-views pv-modes" role="group" aria-label="What to show">
             <button className={mode === "part" ? "on" : ""} onClick={() => pick("part")}>Part</button>
             <button className={mode === "path" ? "on" : ""} onClick={() => pick("path")}>Tool path</button>
@@ -130,14 +137,22 @@ export default function CncPreview({ content, kind = "", toolNames = {}, stockTe
         </div>
         {mode === "part"
           ? <>
-              <label className="pv-check"><input type="checkbox" checked={showStock} onChange={(e) => setShowStock(e.target.checked)} /> Show the bar</label>
-              <label className="pv-check"><input type="checkbox" checked={showSizes} onChange={(e) => pickSizes(e.target.checked)} /> Show sizes</label>
+              <label className="pv-check"><input type="checkbox" checked={showStock} onChange={(e) => setShowStock(e.target.checked)} /> {sim ? "Show the bar" : "Show the block"}</label>
+              {sim && <label className="pv-check"><input type="checkbox" checked={showSizes} onChange={(e) => pickSizes(e.target.checked)} /> Show sizes</label>}
             </>
           : <label className="pv-check"><input type="checkbox" checked={showRapids} onChange={(e) => setShowRapids(e.target.checked)} /> Show rapid moves</label>}
       </div>
 
       <div className="pv-stage" style={{ height }}>
-        {mode === "part" && sim ? (
+        {mode === "part" && mill ? (
+          <Suspense fallback={<div className="pv-loading">Loading the 3D view…</div>}>
+            <CncMillSolid
+              mill={mill} upTo={pos} total={total} material={material}
+              view={view.key} viewNonce={view.nonce} showStock={showStock} playing={playing}
+              height={height} onFail={() => { setNoGl(true); setMode("path"); }}
+            />
+          </Suspense>
+        ) : mode === "part" && sim ? (
           <Suspense fallback={<div className="pv-loading">Loading the 3D view…</div>}>
             <CncSolid
               sim={sim} upTo={pos} total={total} material={material}
@@ -249,7 +264,7 @@ export default function CncPreview({ content, kind = "", toolNames = {}, stockTe
       {!compact && lathe && sim && hits.length === 0 && !sim.guessed && <div className="cp-clean"><CheckCircle2 size={14} /> No rapid move goes through the bar.</div>}
       {!compact && <ul className="pv-notes">
         <li>A picture of what the program cuts. It can't see the jaws, the fixture or tool sizes, so still run it in Graphics first.</li>
-        {(sim ? sim.notes : []).concat(mode === "path" ? path.notes : path.notes.filter((n) => !/roughing/i.test(n))).map((n) => <li key={n}>{n}</li>)}
+        {(sim ? sim.notes : mill && mode === "part" ? mill.notes : []).concat(mode === "path" ? path.notes : path.notes.filter((n) => !/roughing/i.test(n))).map((n) => <li key={n}>{n}</li>)}
         {noGl && <li>This device can't show the 3D part, so the tool path is shown.</li>}
       </ul>}
     </div>

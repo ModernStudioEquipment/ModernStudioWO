@@ -12,7 +12,7 @@ import { MACHINES } from "./machines.js";
 import { splitMachines, splitPrograms } from "./cncParts.js";
 import { programInfo, programLine, looksLikeProgram, checkProgram, checkCounts, diffPrograms, operatorStops } from "./cncGcode.js";
 import { toolpath } from "./cncPath.js";
-import { simulateLathe, parseStock } from "./cncSolid.js";
+import { simulateLathe, parseStock, partSizes } from "./cncSolid.js";
 
 // ---- facts on a part (cnc_parts.facts, one jsonb so a new box never needs a migration)
 // Each box is asked as a question (`ask`), with one line on what it's for
@@ -107,6 +107,28 @@ export function rapidCheck(content, part, machineKind = "") {
       : `A rapid move goes through the bar: ${n(c.depth)}${unit} into the metal at Z${n(c.z)}. Open the 3D preview to see it.`,
     line: c.line,
   }));
+}
+
+// The sizes a lathe program leaves the part at (see partSizes), or null for a
+// mill program or one that can't be followed. For the places that want the
+// numbers without the picture: proving out, the floor.
+export function finishedSizes(content, part, machineKind = "") {
+  const path = toolpath(content, { kind: machineKind });
+  if (path.kind !== "lathe" || !path.segs.length) return null;
+  const sim = simulateLathe(path, parseStock(part?.facts?.stock));
+  return sim ? { ...partSizes(sim), units: path.units === "mm" ? "mm" : "in" } : null;
+}
+
+// A problem with a program, reported from the machine. It's added to the
+// part's "known problems" with the date and who said it, so the next person
+// to open the part, and the AI when it's asked to fix it, both see it.
+export function addProblem(part, text, by, now = new Date()) {
+  const said = String(text || "").trim().replace(/\s+/g, " ");
+  if (!said) return part;
+  const who = String(by || "").trim();
+  const line = `${now.getMonth() + 1}/${now.getDate()}${who ? ` ${who}` : ""}: ${said}`;
+  const old = String(part?.facts?.problems || "").trim();
+  return { ...part, facts: { ...(part?.facts || {}), problems: old ? `${old}\n${line}` : line } };
 }
 
 // ---- is this part ready to hand to a programmer? ----------------------------

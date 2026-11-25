@@ -150,13 +150,9 @@ export default function FloorControl({ orders, workOrders = [], onClose, cncOnly
   // The work order opened read-only from a card, and the catalogue it may point
   // into (a part number on the sheet matches a CNC Catalog SKU).
   const [viewing, setViewing] = useState(null);
-  // The CNC run sheet opened from a work order, and which parts have a program
-  // on file (and whether its newest version is proven), for the badge on it.
+  // The CNC run sheet opened from a work order. (The work order view loads the
+  // part's program itself: FloorPartProgram.)
   const [runSheetPart, setRunSheetPart] = useState(null);
-  const [programIndex, setProgramIndex] = useState([]);
-  useEffect(() => {
-    db.getCncProgramIndex?.().then((x) => setProgramIndex(Array.isArray(x) ? x : [])).catch(() => {});
-  }, [viewing]);
   // The catalogue is edited from inside this screen (the CNC Catalog tab), so
   // the copy held here goes stale: a part given its SKU a minute ago wouldn't
   // match its work order until Floor Control was closed and reopened. Re-read
@@ -165,11 +161,6 @@ export default function FloorControl({ orders, workOrders = [], onClose, cncOnly
     if (active === "book") return;
     db.getCncParts().then((p) => setParts(Array.isArray(p) ? p : [])).catch(() => {});
   }, [active, viewing]);
-  const programStatusOf = (partId) => {
-    const mine = programIndex.filter((x) => x.partId === partId);
-    if (!mine.length) return "";
-    return mine.some((x) => x.status === "proven") ? "proven" : "unproven";
-  };
   const [parts, setParts] = useState([]);
   const dept = DEPTS.find((d) => d.key === active) || DEPTS[1]; // fallback CNC (amber) for the Book tab
   // Where a report was filed from, so it reads "Floor · CNC" or "CNC Catalog"
@@ -443,8 +434,8 @@ export default function FloorControl({ orders, workOrders = [], onClose, cncOnly
             <FloorSheetView
               sheet={viewing}
               part={part}
-              programStatus={part ? programStatusOf(part.id) : ""}
               onRunSheet={part ? () => setRunSheetPart(part) : null}
+              onPartChanged={() => db.getCncParts().then((p) => setParts(Array.isArray(p) ? p : [])).catch(() => {})}
               onClose={() => setViewing(null)}
             />
           );

@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { ArrowRight, FileText, ShieldCheck, ShieldAlert, Upload, AlertTriangle, CheckCircle2, Check, ListChecks, Box, ClipboardList, Pencil, Sparkles, Ruler } from "lucide-react";
+import { ArrowRight, FileText, ShieldCheck, ShieldAlert, Upload, AlertTriangle, CheckCircle2, Check, ListChecks, Box, ClipboardList, Pencil, Sparkles, Ruler, Download } from "lucide-react";
 import CncPreview from "./CncPreview.jsx";
-import CncProveOut from "./CncProveOut.jsx";
+import CncProveOut, { proofLine } from "./CncProveOut.jsx";
 import CncRunSheet from "./CncRunSheet.jsx";
 import CncAi from "./CncAi.jsx";
 import CncNewProgram from "./CncNewProgram.jsx";
-import { PART_STEPS, FACT_FIELDS, neededLeft, programLine } from "./cncPack.js";
+import { downloadProgram } from "./FloorPartProgram.jsx";
+import { PART_STEPS, FACT_FIELDS, neededLeft, programLine, finishedSizes } from "./cncPack.js";
 import { fmtDuration } from "./cncTime.js";
 import { MACHINES } from "./machines.js";
 import { splitMachines } from "./cncParts.js";
@@ -96,7 +97,7 @@ export default function CncPartOverview({ part, pp, machineFacts, onAsk, onDetai
             <button className="ov-go" onClick={action.go}><action.icon size={18} /> {action.label} <ArrowRight size={18} /></button>
           )}
           {proving && newest && (
-            <CncProveOut stops={pp.stops} onStamp={async (by) => { if (await pp.prove(newest.id, true, by)) setProving(false); }} onCancel={() => setProving(false)} />
+            <CncProveOut stops={pp.stops} sizes={finishedSizes(newest.content, part, pp.machineKind)} onStamp={async (by, record) => { if (await pp.prove(newest.id, true, by, record)) setProving(false); }} onCancel={() => setProving(false)} />
           )}
         </div>
       )}
@@ -113,8 +114,10 @@ export default function CncPartOverview({ part, pp, machineFacts, onAsk, onDetai
                 {proven ? <ShieldCheck size={14} /> : <ShieldAlert size={14} />}
                 {proven ? `Proven${newest.provenBy ? ` · ${newest.provenBy}` : ""}` : "Not proven"}
               </span>
+              {proven && proofLine(newest.proof) && <span className="ov-sub">{proofLine(newest.proof)}</span>}
               <div className="ov-btns">
                 <button className="cl-btn" onClick={() => setSheet(true)}><FileText size={14} /> Run sheet</button>
+                <button className="cl-btn" onClick={() => downloadProgram(newest)} title="Save the program file, to put on a USB stick for the machine"><Download size={14} /> Download</button>
                 {!proven && <button className="cl-btn" onClick={() => setProving(true)}><ShieldCheck size={14} /> Mark proven</button>}
               </div>
             </>
@@ -158,11 +161,12 @@ export default function CncPartOverview({ part, pp, machineFacts, onAsk, onDetai
         <div className="ov-ai">
           <b><Sparkles size={15} /> AI</b>
           <span>
-            {newest.ai
+            {newest.ai?.kind === "rewrite"
               ? `This version is an AI draft. ${newest.ai.verdict === "passed" ? "It passed the checks." : "It did not pass the checks."}`
+              : newest.ai?.kind === "written" ? newest.ai.summary || "This version was written by the app from sizes."
               : "Have it read this program, or write a better version."}
           </span>
-          {newest.ai && <button className="cl-btn" onClick={() => setAi({ report: newest.ai })}>How it was written</button>}
+          {newest.ai?.kind === "rewrite" && <button className="cl-btn" onClick={() => setAi({ report: newest.ai })}>How it was written</button>}
           <button className="cl-btn" onClick={() => setAi("review")}>{newest.review ? "See the AI's check" : "Check this program"}</button>
           <button className="cl-btn" onClick={() => setAi("rewrite")}>Rewrite it</button>
         </div>

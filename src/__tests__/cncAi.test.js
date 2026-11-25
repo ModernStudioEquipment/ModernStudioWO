@@ -44,7 +44,10 @@ describe("measuring a program", () => {
   it("reads the sizes, the reach, the speeds and the stops off the program itself", () => {
     const m = measure(PIN, part);
     expect(m.kind).toBe("lathe");
-    expect(m.unitsCode).toBe("G20");
+    expect(m.unitCodes).toEqual(["G20"]);
+    expect(m.perTool[1]).toMatchObject({ surface: 400, clamp: 3000 });
+    expect(m.perTool[1].feeds).toEqual({ "per turn|profile": 0.006, "per turn|rough": 0.012 });
+    expect(m.rough[0]).toMatchObject({ depth: 0.08, allowX: 0.02, allowZ: 0.005, startX: 1.35, finished: true });
     expect(m.sizes.steps.map((s) => Number(s.dia.toFixed(3)))).toEqual([0.625, 1.125]);
     expect(m.speeds).toMatchObject({ surface: 400, clamp: 3000, feedPerRev: 0.012 });
     expect(m.codes.has("G71")).toBe(true);
@@ -144,7 +147,7 @@ describe("a draft measured against the program it replaces", () => {
   it("catches anything made faster", () => {
     expect(levels(check(GOOD.replace("G50 S3000", "G50 S4000")), "stop").join(" ")).toMatch(/speed limit went up from 3000 to 4000/);
     expect(levels(check(GOOD.replace("G96 S400", "G96 S550")), "stop").join(" ")).toMatch(/surface speed went up from 400 to 550/);
-    expect(levels(check(GOOD.replace("F0.010", "F0.02")), "stop").join(" ")).toMatch(/feed per revolution went up/);
+    expect(levels(check(GOOD.replace("F0.010", "F0.02")), "stop").join(" ")).toMatch(/T1's roughing feed went up from 0\.012 to 0\.02/);
     expect(levels(check(GOOD.replace("F0.010", "F0.008")), "stop")).toEqual([]);   // slower is fine
     // asked for, it's allowed, and becomes something to check at the machine
     const quick = GOOD.replace("G96 S400", "G96 S550");
@@ -159,7 +162,7 @@ describe("a draft measured against the program it replaces", () => {
   });
 
   it("a tool that isn't on the list stops it; one that is gets checked by a person", () => {
-    const withTool = (t, note) => GOOD.replace("G00 X2. Z1. M09", `G00 X2. Z1.\nT0${t}0${t} (${note})\nG97 S800 M03\nG00 X1.2 Z-2.\nG00 X2. Z1. M09`);
+    const withTool = (t, note) => GOOD.replace("G00 X2. Z1. M09", `G00 X2. Z1.\nG28 U0. W0.\nT0${t}0${t} (${note})\nG97 S800 M03\nG00 X1.2 Z-2.\nG00 X2. Z1. M09`);
     expect(levels(check(withTool(9, "MYSTERY")), "stop").join(" ")).toMatch(/T9, which the current program doesn't use and which isn't on the machine's tool list/);
     expect(levels(check(withTool(3, "GROOVE")), "stop")).toEqual([]);
     expect(levels(check(withTool(3, "GROOVE")), "look").join(" ")).toMatch(/It uses T3 \(Groove 0\.125\)/);
@@ -202,9 +205,9 @@ describe("a draft measured against the program it replaces", () => {
     const OLD = "%\nO05001 (PLATE)\nG20 G17 G40 G49 G80 G90\nT1 M06 (1/2 ENDMILL)\nG54 G00 X0. Y0. S6000 M03\nG43 H01 Z1. M08\nG01 Z-0.25 F20.\nX3.\nY2.\nG00 Z1.\nM30\n%\n";
     const mf = { vf4: { tools: [{ t: "1", what: "1/2 endmill" }] } };
     expect(levels(draftChecks(OLD, OLD, { part: mill, machineFacts: mf }), "stop")).toEqual([]);
-    expect(measure(OLD, mill).rapidLow).toBe(1);   // lifting out of the cut doesn't count as a low rapid
+    expect(measure(OLD, mill).plungeLow).toBe(1);   // lifting out of the cut doesn't count as a low rapid
     expect(levels(draftChecks(OLD, OLD.replace("Z-0.25", "Z-0.5"), { part: mill, machineFacts: mf }), "stop").join(" ")).toMatch(/cuts deeper than the current program: Z-0\.5 against Z-0\.25/);
-    expect(levels(draftChecks(OLD, OLD.replace("G00 Z1.\nM30", "G00 Z0.05\nG00 X0.\nG00 Z1.\nM30"), { part: mill, machineFacts: mf }), "stop").join(" ")).toMatch(/Rapid moves go lower than they ever did/);
+    expect(levels(draftChecks(OLD, OLD.replace("G00 Z1.\nM30", "G00 Z0.05\nG00 X0.\nG00 Z1.\nM30"), { part: mill, machineFacts: mf }), "stop").join(" ")).toMatch(/A rapid move straight down ends lower than any does now: Z0\.05 against Z1/);
     expect(levels(draftChecks(OLD, OLD.replace("X3.", "X3.5"), { part: mill, machineFacts: mf }), "look").join(" ")).toMatch(/reach further in X/);
   });
 });
@@ -224,10 +227,16 @@ describe("what the AI says about a line", () => {
     expect(d).toMatchObject({ line: null, unplaced: true, level: "stop" });
   });
 
-  it("drops empty findings and never invents a level", () => {
-    const out = placeFindings([{ level: "catastrophe", line: 1, quote: "O1", problem: "x" }, { level: "stop", line: 1, quote: "O1", problem: "  " }], listing);
-    expect(out).toHaveLength(1);
-    expect(out[0].level).toBe("look");
+  it("never loses a stop, and reads an unknown level as one", () => {
+    const out = placeFindings([
+      { level: "catastrophe", line: 1, quote: "O1", problem: "x" },   // a level it made up: read as cautiously as possible
+      { level: "STOP", line: 1, quote: "O1", problem: "  " },          // a stop with nothing written is still a stop
+      { level: "Look", line: 1, quote: "O1", problem: "y" },
+      { level: "note", line: 1, quote: "O1", problem: " " },           // an empty note is nothing
+      null, "junk",
+    ], listing);
+    expect(out.map((f) => f.level)).toEqual(["stop", "stop", "look"]);
+    expect(out[1].text).toMatch(/gave no explanation/);
   });
 
   it("writes findings out for sending back", () => {
@@ -392,16 +401,18 @@ describe("the review", () => {
   const reviewed = (findings) => ({ result: { summary: "Turns a stepped pin.", walkthrough: [{ lines: "5-8", what: "Loads the turning tool." }], findings, handWork: [{ job: "Deburr both ends", canTheMachineDoIt: "yes", how: "Add a chamfer." }], questions: [] }, usage, notes: [] });
   const F = (line, quote, problem, level = "stop") => ({ level, line, quote, problem, fix: "f" });
 
-  it("every finding gets a second look: confirmed stays, rejected goes, unsure can't stop the program", async () => {
+  it("every finding gets a second look: confirmed stays, a disputed stop goes to a person, unsure can't stop the program", async () => {
     const s = script(
       { expect: "review", reply: reviewed([F(6, "G96 S400 M03", "A"), F(4, "G50 S3000", "B"), F(7, "G54 G00 X1.35 Z0.1 M08", "C")]) },
       { expect: "challenge", reply: { result: { results: [{ index: 1, verdict: "confirmed", reason: "Yes." }, { index: 2, verdict: "rejected", reason: "The limit is set on line 4." }, { index: 3, verdict: "unsure", reason: "Depends on the jaws." }] }, usage, notes: [] } },
     );
     const r = await runReview({ ask: s.ask, part, programs, machineFacts: tools });
-    expect(r.findings.map((f) => [f.text, f.level])).toEqual([["A", "stop"], ["C", "look"]]);
+    // B was a "stop" the second pass rejected: two readers disagreeing isn't settled by the second, so a person looks
+    expect(r.findings.map((f) => [f.text, f.level])).toEqual([["A", "stop"], ["B", "look"], ["C", "look"]]);
     expect(r.findings[0].confirmed).toBe(true);
-    expect(r.findings[1].unsure).toMatch(/jaws/);
-    expect(r.rejected.map((f) => [f.text, f.why])).toEqual([["B", "The limit is set on line 4."]]);
+    expect(r.findings[1].unsure).toMatch(/second pass disagreed: The limit is set on line 4/);
+    expect(r.findings[2].unsure).toMatch(/jaws/);
+    expect(r.rejected).toEqual([]);
     expect(r.checked).toBe(true);
     expect(r.handWork[0].job).toBe("Deburr both ends");
     expect(s.calls[1].input.findings).toMatch(/1\. \[stop\] line 6: A/);

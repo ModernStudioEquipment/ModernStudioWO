@@ -1,14 +1,17 @@
 import { useEffect } from "react";
-import { X, Flame, FileText, ShieldCheck, ShieldAlert } from "lucide-react";
+import { X, Flame } from "lucide-react";
+import FloorPartProgram from "./FloorPartProgram.jsx";
 
 // A work order, opened from a Floor Control card. Read-only by design: the
 // floor asked to SEE the sheet, and was explicit that it must not be able to
-// change it. Nothing here is an input. What it shows is decided in
-// floorSheet.js, an allow-list, so customer details never reach this screen.
+// change it. Nothing about the work order is an input. What it shows is
+// decided in floorSheet.js, an allow-list, so customer details never reach
+// this screen. (The one box, under the program, is for reporting a problem
+// with the CNC program; it writes to the catalogue part, not the work order.)
 //
 // When the part number matches a CNC Catalog part, the catalogue's own steps
 // and blueprint come along — that's the "how to make it" the sheet points at.
-export default function FloorSheetView({ sheet, part, programStatus = "", onRunSheet = null, onClose }) {
+export default function FloorSheetView({ sheet, part, onRunSheet = null, onPartChanged = null, onClose }) {
   useEffect(() => {
     const onKey = (e) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
@@ -49,15 +52,7 @@ export default function FloorSheetView({ sheet, part, programStatus = "", onRunS
 
           {/* The CNC program for this part: is it proven, and the page that says
               how to set the job up. Only when the part is in the catalogue. */}
-          {part && onRunSheet && (
-            <div className={`fcs-prog${programStatus === "proven" ? " ok" : programStatus ? "" : " none"}`}>
-              <span className="fcs-progstat">
-                {programStatus === "proven" ? <ShieldCheck size={15} /> : <ShieldAlert size={15} />}
-                {programStatus === "proven" ? "Program proven" : programStatus === "unproven" ? "Program not proven. Get a lead before running." : "No program on file for this part"}
-              </span>
-              <button className="fcs-runbtn" onClick={onRunSheet}><FileText size={14} /> Run sheet</button>
-            </div>
-          )}
+          {part && onRunSheet && <FloorPartProgram part={part} onRunSheet={onRunSheet} onPartChanged={onPartChanged} />}
 
           {rows.length > 0 && (
             <dl className="fcs-facts">

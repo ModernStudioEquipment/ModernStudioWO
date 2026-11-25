@@ -191,17 +191,60 @@ describe("the run sheet", () => {
 
 describe("a CNC work order opened on the floor", () => {
   const sheet = { orderNo: "100001", dept: "CNC", product: "3in Baby Pin", qty: "20", partNo: "BP-3", steps: [], lines: [], rush: false };
-  it("shows whether the part's program is proven and offers the run sheet", () => {
+  it("shows whether the part's program is proven and offers the run sheet", async () => {
     const onRunSheet = vi.fn();
-    const { rerender } = render(<FloorSheetView sheet={sheet} part={part} programStatus="unproven" onRunSheet={onRunSheet} onClose={() => {}} />);
-    expect(screen.getByText(/Program not proven. Get a lead before running/)).toBeTruthy();
+    // nothing on file yet
+    const first = render(<FloorSheetView sheet={sheet} part={part} onRunSheet={onRunSheet} onClose={() => {}} />);
+    expect(await screen.findByText(/No program on file/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Download/ })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Run sheet/ }));
     expect(onRunSheet).toHaveBeenCalled();
-    rerender(<FloorSheetView sheet={sheet} part={part} programStatus="proven" onRunSheet={onRunSheet} onClose={() => {}} />);
-    expect(screen.getByText("Program proven")).toBeTruthy();
-    rerender(<FloorSheetView sheet={sheet} part={part} programStatus="" onRunSheet={onRunSheet} onClose={() => {}} />);
-    expect(screen.getByText(/No program on file/)).toBeTruthy();
+    first.unmount();
+    // a program, not proven
+    const id = await db.addCncProgram({ partId: "p1", name: "O00017.nc", content: PROGRAM });
+    const second = render(<FloorSheetView sheet={sheet} part={part} onRunSheet={onRunSheet} onClose={() => {}} />);
+    expect(await screen.findByText(/Program not proven. Get a lead before running/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Download/ })).toBeTruthy();
+    second.unmount();
+    // proven
+    await db.setCncProgramProven(id, true, "Jesse");
+    render(<FloorSheetView sheet={sheet} part={part} onRunSheet={onRunSheet} onClose={() => {}} />);
+    expect(await screen.findByText("Program proven by Jesse")).toBeTruthy();
   });
+
+  it("shows the proven version even when a newer, unproven one is on file", async () => {
+    const old = await db.addCncProgram({ partId: "p1", name: "good.nc", content: PROGRAM });
+    await db.setCncProgramProven(old, true, "Jesse");
+    await new Promise((r) => setTimeout(r, 5));
+    await db.addCncProgram({ partId: "p1", name: "new-try.nc", content: PROGRAM.replace("X1.3", "X1.4") });
+    const made = [];
+    vi.spyOn(URL, "createObjectURL").mockImplementation((blob) => { made.push(blob); return "blob:x"; });
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function () { made.push(this.download); });
+    render(<FloorSheetView sheet={sheet} part={part} onRunSheet={() => {}} onClose={() => {}} />);
+    expect(await screen.findByText("Program proven by Jesse")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Download/ }));
+    expect(click).toHaveBeenCalled();
+    expect(made).toContain("good.nc");            // the file that goes to the machine is the proven one
+  });
+
+  it("a problem reported from the machine lands on the part, dated and named, without touching the work order", async () => {
+    localStorage.setItem("mse_cnc_parts_v1", JSON.stringify([{ ...part, facts: { problems: "Thread comes out tight" } }]));
+    await db.addCncProgram({ partId: "p1", name: "O00017.nc", content: PROGRAM });
+    const changed = vi.fn();
+    render(<FloorSheetView sheet={sheet} part={part} onRunSheet={() => {}} onPartChanged={changed} onClose={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: /Something wrong with this program/ }));
+    expect(screen.getByRole("button", { name: /Put it on the part/ }).disabled).toBe(true);     // nothing typed yet
+    fireEvent.change(screen.getByLabelText("What's wrong with the program"), { target: { value: "Chatter on the long turn" } });
+    fireEvent.change(screen.getByLabelText("Your name"), { target: { value: "Moe" } });
+    fireEvent.click(screen.getByRole("button", { name: /Put it on the part/ }));
+    expect(await screen.findByText(/Noted on the part/)).toBeTruthy();
+    const saved = (await db.getCncParts()).find((p) => p.id === "p1");
+    expect(saved.facts.problems).toMatch(/^Thread comes out tight\n\d+\/\d+ Moe: Chatter on the long turn$/);
+    expect(changed).toHaveBeenCalled();
+    expect(screen.getByText(/View only. Changes to this work order are made in the office/)).toBeTruthy();
+  });
+
   it("shows nothing about programs for a job that isn't in the catalogue", () => {
     render(<FloorSheetView sheet={sheet} part={null} onClose={() => {}} />);
     expect(screen.queryByText(/Run sheet/)).toBeNull();

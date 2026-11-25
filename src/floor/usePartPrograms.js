@@ -109,9 +109,9 @@ export function usePartPrograms(part, machineFacts = NO_FACTS, { onChanged } = {
   async function keepReview(id, review) {
     try { await db.setCncProgramReview?.(id, review); await reload(); } catch { /* shown, just not kept */ }
   }
-  async function prove(id, proven, by) {
+  async function prove(id, proven, by, record = null) {
     setErr("");
-    try { await db.setCncProgramProven(id, proven, by); await changed(); return true; }
+    try { await db.setCncProgramProven(id, proven, by, record); await changed(); return true; }
     catch (e) { say(e, "Couldn't save that"); return false; }
   }
   async function remove(id) {

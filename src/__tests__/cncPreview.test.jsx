@@ -22,9 +22,14 @@ beforeEach(() => {
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(() => fake);
 });
 
+// A program opens on the solid part when there is one. These tests are about
+// the line drawing, so they switch to it first.
+const toPath = () => fireEvent.click(screen.getByRole("button", { name: "Tool path" }));
+
 describe("the tool path drawing", () => {
   it("draws a mill program and says how far the cuts reach", () => {
     render(<CncPreview content={MILL} toolNames={{ 1: "1/2 ENDMILL", 2: "DRILL" }} />);
+    toPath();
     expect(ctx.lines).toBeGreaterThan(5);
     expect(screen.getByText(/^Cuts X/).textContent).toMatch(/X 0 to 3/);
     expect(screen.getByText(/deepest/).textContent).toMatch(/Z-0\.5/);
@@ -43,6 +48,7 @@ describe("the tool path drawing", () => {
 
   it("stepping back with the slider shows the line the tool is on, and draws less", () => {
     render(<CncPreview content={MILL} />);
+    toPath();
     const all = ctx.lines;
     ctx.lines = 0;
     fireEvent.change(screen.getByLabelText("Step through the program"), { target: { value: "2" } });
@@ -54,6 +60,7 @@ describe("the tool path drawing", () => {
 
   it("hiding rapids draws fewer lines and drops them from the legend", () => {
     render(<CncPreview content={MILL} />);
+    toPath();
     expect(screen.getByText(/Rapid \(not cutting\)/)).toBeTruthy();
     ctx.lines = 0;
     fireEvent.click(screen.getByLabelText(/Show rapid moves/));
@@ -67,6 +74,7 @@ describe("the tool path drawing", () => {
 
   it("a view button redraws, and zoom buttons don't throw", () => {
     render(<CncPreview content={MILL} />);
+    toPath();
     ctx.strokes = 0;
     fireEvent.click(screen.getByRole("button", { name: "Top" }));
     expect(ctx.strokes).toBeGreaterThan(0);
@@ -75,6 +83,16 @@ describe("the tool path drawing", () => {
     fireEvent.click(screen.getByLabelText("Fit to the window"));
     fireEvent.click(screen.getByLabelText("Play the program"));
     expect(screen.getByLabelText("Pause")).toBeTruthy();
+  });
+
+  it("a mill program opens on the solid block, with its own controls and its own caveats", () => {
+    render(<CncPreview content={MILL} toolNames={{ 1: "1/2 ENDMILL", 2: "DRILL" }} />);
+    expect(screen.getByRole("button", { name: "Part" }).className).toMatch(/on/);
+    expect(screen.getByLabelText(/Show the block/)).toBeTruthy();
+    expect(screen.queryByLabelText(/Show sizes/)).toBeNull();          // sizes are a lathe thing
+    for (const v of ["3D", "Top", "Front", "Side"]) expect(screen.getByRole("button", { name: v })).toBeTruthy();
+    expect(screen.getByText(/block's size is a guess/)).toBeTruthy();
+    expect(screen.getByText(/No size in the comment for T2/)).toBeTruthy();   // "DRILL" has no diameter in it
   });
 
   it("says so plainly when there's nothing to draw", () => {

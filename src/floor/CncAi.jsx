@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Sparkles, Check, X, Loader2, ShieldCheck, ShieldAlert, AlertTriangle, CheckCircle2, HelpCircle, Save, RotateCcw, Square } from "lucide-react";
 import CncPreview from "./CncPreview.jsx";
-import { runRewrite, runReview, reportToKeep, fmtCost, rewriteNeeds } from "./cncAi.js";
+import { runRewrite, runReview, reportToKeep, fmtCost, rewriteNeeds, baselineOf } from "./cncAi.js";
 import { askAi, aiStatus } from "./cncAiClient.js";
 
 // The AI, for one part. Two jobs:
@@ -41,6 +41,9 @@ export default function CncAi({ part, pp, machineFacts, open, onClose, onFill })
   useEffect(() => { let on = true; aiStatus().then((s) => { if (on) setStatus(s); }); return () => { on = false; }; }, []);
 
   const current = pp.newest;
+  // A rewrite works from the proven program (or the newest a person put
+  // there), not from an unproven AI draft sitting on top of it.
+  const from = baselineOf(pp.programs);
   const facts = part?.facts || {};
   const needs = mode === "rewrite" ? rewriteNeeds(part, pp.programs, machineFacts) : [];
   const ask = (task, input) => askAi(task, input, { signal: stopper.current?.signal, onTick: (t) => { if (alive.current) setChars(t.chars || 0); } });
@@ -55,7 +58,7 @@ export default function CncAi({ part, pp, machineFacts, open, onClose, onFill })
         ? await runReview({ ask, part, programs: pp.programs, machineFacts, onStep })
         : await runRewrite({ ask, part, programs: pp.programs, machineFacts, instruction, sizesMayChange, speedsMayRise, onStep });
       if (!alive.current) return;
-      setRun(out);
+      setRun({ ...out, partId: part?.id || null });
       setPhase("result");
       // a review is kept with the version it read, so opening it again is free
       if (kind === "review" && current?.id) pp.keepReview(current.id, { ...out, usage: undefined });
@@ -74,13 +77,15 @@ export default function CncAi({ part, pp, machineFacts, open, onClose, onFill })
   }, [status, current, pp.loading]);
 
   async function save() {
-    if (!run || run.kind !== "rewrite") return;
+    if (!run || run.kind !== "rewrite" || saving) return;
+    // Only onto the part it was written for: the answer is about that part's program and no other.
+    if (run.partId !== (part?.id || null) || !pp.programs.some((p) => p.id === run.basedOn.id)) { setErr("This draft was written for a different part or program. Ask again from this one."); return; }
     setSaving(true);
-    const ok = await pp.addDraft({ name: draftName(current?.name), content: run.program, ai: reportToKeep(run) });
+    const ok = await pp.addDraft({ name: draftName(run.basedOn.name), content: run.program, ai: reportToKeep(run) });
     if (!alive.current) return;
     setSaving(false);
     if (ok) onClose({ saved: true });
-    else setErr(pp.err || "Couldn't save it.");
+    else setErr("Couldn't save it. Check the connection and try again.");
   }
 
   const shown = mode === "report" ? open.report : mode === "reviewed" ? open.review : run;
@@ -125,7 +130,7 @@ export default function CncAi({ part, pp, machineFacts, open, onClose, onFill })
       {status?.ready && current && phase === "ask" && needs.length === 0 && (
         <form className="wz-card" onSubmit={(e) => { e.preventDefault(); if (instruction.trim()) go("rewrite"); }}>
           <h2 className="wz-ask">What should change?</h2>
-          <p className="wz-why">Say it the way you'd tell a programmer. It rewrites <b>{current.name}</b> and keeps every finished size the same unless you say otherwise.</p>
+          <p className="wz-why">Say it the way you'd tell a programmer. It rewrites <b>{from.name}</b>{from !== current ? (from.status === "proven" ? " (the proven version, not the unproven draft on top of it)" : " (the last version a person put here, not the AI draft on top of it)") : ""} and keeps every finished size the same unless you say otherwise.</p>
           <textarea className="wz-input" rows={3} value={instruction} onChange={(e) => setInstruction(e.target.value)} placeholder="e.g. Break the sharp edges in the machine so nobody has to deburr by hand" aria-label="What should change" autoFocus />
           <div className="wz-picks">
             {picks(facts).map((p) => <button type="button" key={p.label} onClick={() => setInstruction(p.text)}>{p.label}</button>)}
@@ -181,10 +186,10 @@ export default function CncAi({ part, pp, machineFacts, open, onClose, onFill })
           <div className={`ai-verdict ${shown.verdict}`}>
             {shown.verdict === "passed" ? <ShieldCheck size={26} /> : <ShieldAlert size={26} />}
             <div>
-              <b>{shown.verdict === "passed" ? "It passed every check" : "It did not pass"}</b>
+              <b>{shown.verdict === "passed" ? (shown.demo ? "Demo: it passed the checks on a canned answer" : "It passed every check that could be made") : "It did not pass"}</b>
               <span>
                 {shown.verdict === "passed"
-                  ? "Measured against the current program and read by a second pass. It is still NOT PROVEN: prove it out at the machine like any new program."
+                  ? `Measured against ${shown.basedOn?.name || "the current program"} and read by a second pass. What was and wasn't measured is listed below. It is still NOT PROVEN: prove it out at the machine like any new program.`
                   : shown.reasons.join(" ")}
               </span>
             </div>
@@ -201,7 +206,9 @@ export default function CncAi({ part, pp, machineFacts, open, onClose, onFill })
           <Block title="Questions for you before proving it out" tone="ask" icon={HelpCircle} items={shown.questions} render={(q) => <span>{q}</span>} />
           <Block title="What it took for granted" items={shown.assumptions} render={(q) => <span>{q}</span>} />
 
-          <Findings title="Measured against the current program" list={(shown.measured || []).filter((f) => f.level !== "note" && !f.was)} clean="Same sizes, same reach, no faster, same tools, and no rapid move through the bar." />
+          <Findings title="Measured against the current program" list={(shown.measured || []).filter((f) => f.level !== "note" && !f.was)} clean="Nothing to fix and nothing to check." />
+          {shown.coverage?.measured?.length > 0 && <Plain title="What was measured" items={shown.coverage.measured} />}
+          {shown.coverage?.notMeasured?.length > 0 && <Plain title="What was not, and can't be" items={shown.coverage.notMeasured} tone="warn" />}
           {(shown.measured || []).some((f) => f.was && f.level !== "note") && (
             <Findings title="Already true of the current program" list={shown.measured.filter((f) => f.was && f.level !== "note")} />
           )}

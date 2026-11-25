@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import Anthropic from "@anthropic-ai/sdk";
 import { GET, POST } from "../../api/cnc-ai.js";
-import { buildRequest, checkInput, runJob, explain, shapeProblem, drawingBlock, numbered, AiProblem, TASKS, SHOP, MAX_PROGRAM_CHARS } from "../../lib/cncAi.js";
+import { buildRequest, checkInput, runJob, explain, shapeProblem, drawingBlock, numbered, usageOf, AiProblem, TASKS, SHOP, MAX_PROGRAM_CHARS } from "../../lib/cncAi.js";
 
 // The server half of the AI. No request here reaches Anthropic: a stand-in
 // client plays the SDK's part, so what's tested is what this code sends, what
@@ -108,6 +108,12 @@ describe("what's refused before anything is spent", () => {
     expect(checkInput("review", input())).toBe("");
   });
 
+  it("an instruction or a list of findings far too long to be real is turned away", () => {
+    expect(checkInput("write", input({ instruction: "x".repeat(5000) }))).toMatch(/instruction is too long/);
+    expect(checkInput("fix", input({ instruction: "x", draft: PROGRAM, problems: "p".repeat(70000) }))).toMatch(/too much to send/);
+    expect(checkInput("write", input({ instruction: "x".repeat(3000) }))).toBe("");
+  });
+
   it("a program too long to read whole is turned away, never cut short", () => {
     const long = "G01 X1. Y1.\n".repeat(Math.ceil(MAX_PROGRAM_CHARS / 12) + 10);
     expect(checkInput("review", input({ program: long }))).toMatch(/too long/);
@@ -168,6 +174,32 @@ describe("asking", () => {
     process.env.CNC_AI_EFFORT = "ludicrous";
     expect(buildRequest("review", input()).output_config.effort).toBe("high");
     delete process.env.CNC_AI_MODEL; delete process.env.CNC_AI_EFFORT;
+  });
+
+  it("anything but a finished answer is refused: paused, cut off, or out of room", async () => {
+    for (const [reason, kind] of [["pause_turn", "garbled"], ["tool_use", "garbled"], ["model_context_window_exceeded", "too_long"]]) {
+      const c = fakeClient(() => streamOf(reply(DRAFT_ANSWER, { stop_reason: reason })));
+      await expect(runJob(c, "write", input({ instruction: "x" })), reason).rejects.toMatchObject({ kind });
+    }
+  });
+
+  it("adds up the cost across models when a fallback stepped in", () => {
+    expect(usageOf({ input_tokens: 10, output_tokens: 5 })).toEqual({ input: 10, output: 5, cacheRead: 0, cacheWrite: 0 });
+    expect(usageOf({ input_tokens: 10, output_tokens: 5, iterations: [{ type: "message", input_tokens: 100, output_tokens: 2 }, { type: "fallback_message", input_tokens: 100, output_tokens: 50, cache_read_input_tokens: 7 }] }))
+      .toEqual({ input: 200, output: 52, cacheRead: 7, cacheWrite: 0 });
+    expect(usageOf(undefined)).toEqual({ input: 0, output: 0, cacheRead: 0, cacheWrite: 0 });
+  });
+
+  it("doesn't start another try once nobody is left to read the answer", async () => {
+    let gone = false;
+    const c = fakeClient(() => ({ on() { return this; }, async finalMessage() { gone = true; throw bad400(); } }));
+    await expect(runJob(c, "review", input(), { gone: () => gone })).rejects.toMatchObject({ kind: "stopped" });
+    expect(c.calls).toHaveLength(1);
+  });
+
+  it("a model name that doesn't exist says so, instead of 'try again later'", () => {
+    const e = new Anthropic.NotFoundError(404, { type: "error", error: { type: "not_found_error", message: "model: x" } }, "m", new Headers());
+    expect(explain(e).error).toMatch(/CNC_AI_MODEL/);
   });
 
   it("says when a different model answered", async () => {

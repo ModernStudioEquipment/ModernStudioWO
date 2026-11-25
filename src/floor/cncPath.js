@@ -80,6 +80,26 @@ export function toolpath(content, { kind: machineKind = "" } = {}) {
   // Lathe cycles the control expands itself: kept whole for the solid view and
   // the time estimate, which need more than the one line that's drawn.
   const cycles = [];
+  // What a comparison of two programs needs and a drawing doesn't:
+  //   opaque     lines this can't follow (macros, live tools, sub-programs),
+  //              kept as written so two versions can be compared word for word
+  //   offsets    which offset numbers each tool is called with (T0103 = tool 1, offset 3)
+  //   unhomed    tool changes made without sending the turret or spindle home first
+  //   taps       feed divided by speed on each tapping cycle: the thread's lead
+  //   shifts     lines that move the coordinate system (G50 with an axis, G52, G92, G10)
+  //   arrivals   where the tool lands on the first move after going home. How
+  //              it gets there isn't known, so it isn't a move that's drawn;
+  //              `index` is how many drawn moves come before it.
+  const arrivals = [];
+  const opaque = [];
+  const offsets = {};
+  //   homeVia    going home by way of a named point ("G28 X0. Z0."), as written
+  const taps = [];
+  const shifts = [];
+  const homeVia = [];
+  let unhomed = 0;
+  let awayFromHome = false;   // has the tool moved since it was last sent home (or the program began)?
+  let ended = false;          // M30 or M02 has been read: nothing after it runs
   const push = (a, b, type, tool, n, extra) => {
     if (segs.length >= MAX_SEGS) { full = true; return; }
     if (a[0] === b[0] && a[1] === b[1] && a[2] === b[2]) return;
@@ -103,7 +123,7 @@ export function toolpath(content, { kind: machineKind = "" } = {}) {
   if (kind === "lathe") walkLathe(); else walkMill();
 
   if (full) notes.add(`Only the first ${MAX_SEGS.toLocaleString()} moves are drawn.`);
-  return { kind, segs, notes: [...notes], tools: toolsUsed, units, events, cycles, bounds: boundsOf(segs), stats: statsOf(kind, segs) };
+  return { kind, segs, notes: [...notes], tools: toolsUsed, units, events, cycles, arrivals, opaque, offsets, taps, shifts, homeVia, unhomed, bounds: boundsOf(segs), stats: statsOf(kind, segs) };
 
   // -- mill -------------------------------------------------------------------
   function walkMill() {
@@ -118,13 +138,17 @@ export function toolpath(content, { kind: machineKind = "" } = {}) {
     let pendingT = 0;
 
     for (const line of lines) {
-      if (line.macro) { if (line.code) notes.add("Macro lines (variables, loops) are skipped."); continue; }
+      if (ended) break;
+      if (line.macro) { if (line.code) { notes.add("Macro lines (variables, loops) are skipped."); opaque.push(line.code.replace(/\s+/g, "")); } continue; }
       const G = gList(line);
       const M = mList(line);
       const n = line.n;
       let home = false;
       let startedCycle = false;
       readModal(line, G, M);
+      if (M.includes(30) || M.includes(2)) ended = true;
+      if (M.some((m) => m === 97 || m === 98) || G.some((g) => g === 65 || g === 66)) { opaque.push(line.code.replace(/\s+/g, "")); notes.add("Sub-programs aren't followed."); }
+      if (G.some((g) => g === 52 || g === 92 || g === 10 || g === 51 || g === 68)) shifts.push(line.code.replace(/\s+/g, ""));
       if (G.includes(94)) modal.perRev = false;
       if (G.includes(95)) modal.perRev = true;
       if (G.includes(4)) continue; // a dwell's X is seconds, not a place
@@ -139,17 +163,35 @@ export function toolpath(content, { kind: machineKind = "" } = {}) {
         else if (g === 99) retractToR = true;
         else if (g === 80) cycle = null;
         else if (g === 0 || g === 1 || g === 2 || g === 3) { motion = g; cycle = null; }
-        else if (DRILL_CYCLES.includes(g)) { cycle = { z: null, r: null }; initZ = pos[2]; startedCycle = true; }
-        else if (g === 28 || g === 30 || g === 53) home = true;
+        else if (DRILL_CYCLES.includes(g)) {
+          cycle = { z: null, r: null }; initZ = pos[2]; startedCycle = true;
+          // tapping: the feed has to be the speed times the thread's lead, so their ratio is what matters
+          if ((g === 84 || g === 74) && modal.s > 0) taps.push({ line: n, tool: tool || pendingT, lead: modal.f / modal.s });
+        }
+        else if (g === 28 || g === 30 || g === 53) home = g === 53 ? "machine" : "via";
       }
       const t = val(line, "T");
       if (t != null) pendingT = t;
-      if (M.includes(6) && pendingT) { if (tool !== pendingT) events.toolChanges += 1; tool = pendingT; useTool(tool); }
+      if (M.includes(6) && pendingT) {
+        if (tool !== pendingT) events.toolChanges += 1;
+        tool = pendingT; useTool(tool);
+        // a mill's tool change takes the spindle up by itself, so only Z matters, and the control does that
+      }
+      const h = val(line, "H");
+      if (h != null && (tool || pendingT)) (offsets[tool || pendingT] ||= []).includes(h) || offsets[tool || pendingT].push(h);
 
       const w = [val(line, "X"), val(line, "Y"), val(line, "Z")];
       if (home) {
-        // The listed axes go to the machine's home, which isn't a place in the
-        // part's coordinates: lift the pen rather than draw a line to nowhere.
+        // G28 goes home BY WAY OF the point on the line. In absolute mode
+        // "G28 Z0." rapids to Z0 of the part first, which is the classic way to
+        // drive a tool into the work; in incremental mode ("G91 G28 Z0.") the
+        // point is where it already is. G53 goes straight there.
+        if (home === "via" && abs && w.some((v) => v != null)) {
+          homeVia.push(line.code.replace(/\s+/g, ""));
+          if (pos.every((v) => v != null)) push(pos.slice(), [w[0] ?? pos[0], w[1] ?? pos[1], w[2] ?? pos[2]], "rapid", tool || pendingT, n);
+        }
+        // Then the listed axes are at the machine's home, which isn't a place in
+        // the part's coordinates: lift the pen rather than draw a line to nowhere.
         w.forEach((v, i) => { if (v != null) pos[i] = null; });
         if (w.every((v) => v == null)) pos.fill(null);
         continue;
@@ -185,6 +227,10 @@ export function toolpath(content, { kind: machineKind = "" } = {}) {
       if (w.every((v) => v == null) && !circle) continue;
       const to = [at(0), at(1), at(2)];
       const known = pos.every((v) => v != null) && to.every((v) => v != null);
+      // Coming from home (or the start of the program) the way there isn't
+      // known, but where it ARRIVES is, and arriving inside the part is the
+      // crash. So the arrival is kept (apart from the moves that are drawn).
+      if (!known && to.every((v) => v != null)) arrivals.push({ at: to.slice(), type: motion === 0 ? "rapid" : "feed", tool: tool || pendingT, line: n, index: segs.length });
       if (known) {
         const who = tool || pendingT;
         if (motion !== 0) useTool(who);
@@ -231,11 +277,14 @@ export function toolpath(content, { kind: machineKind = "" } = {}) {
     const P = (zz, xx) => [zz, 0, xx / 2];
 
     for (const line of lines) {
-      if (line.macro) { if (line.code) notes.add("Macro lines (variables, loops) are skipped."); continue; }
+      if (ended) break;
+      if (line.macro) { if (line.code) { notes.add("Macro lines (variables, loops) are skipped."); opaque.push(line.code.replace(/\s+/g, "")); } continue; }
       const G = gList(line);
       const M = mList(line);
       const n = line.n;
       const N = val(line, "N");
+      if (M.includes(30) || M.includes(2)) ended = true;
+      if (M.some((m) => m === 97 || m === 98) || G.some((g) => g === 65 || g === 66)) { opaque.push(line.code.replace(/\s+/g, "")); notes.add("Sub-programs aren't followed."); }
 
       if (G.includes(20)) units = "in";
       if (G.includes(21)) units = "mm";
@@ -249,15 +298,42 @@ export function toolpath(content, { kind: machineKind = "" } = {}) {
       if (t) {
         const digits = t.raw.replace(/\D/g, "");
         const num = digits.length >= 3 ? Math.floor(t.v / 100) : t.v;
-        if (num) { if (tool !== num) events.toolChanges += 1; tool = num; }
+        if (num) {
+          if (tool !== num) {
+            events.toolChanges += 1;
+            // The turret swings every tool round when it indexes. Doing that
+            // with the last tool still beside the part is how tools get broken.
+            if (awayFromHome) unhomed += 1;
+          }
+          tool = num;
+          if (digits.length >= 3) (offsets[num] ||= []).includes(t.v % 100) || offsets[num].push(t.v % 100);
+        }
       }
       if (G.includes(4)) continue; // a dwell's X or U is seconds, not a place
       if (val(line, "Y") != null || val(line, "C") != null || M.some((m) => [19, 133, 134, 143, 144, 154].includes(m)) || G.some((g) => g === 14 || g === 15 || g === 112)) {
         notes.add("Live tooling, C/Y axis and sub-spindle moves aren't drawn.");
+        opaque.push(line.code.replace(/\s+/g, ""));
       }
+      if (G.some((g) => g === 52 || g === 10)) shifts.push(line.code.replace(/\s+/g, ""));
 
-      if (G.some((g) => g === 28 || g === 30 || g === 53)) { x = null; z = null; continue; }
-      if (G.includes(50)) continue; // speed limit (or an old-style shift): not a move
+      if (G.some((g) => g === 28 || g === 30 || g === 53)) {
+        // G28 goes home BY WAY OF the point on the line: "G28 U0. W0." goes
+        // straight there, but "G28 X0. Z0." rapids to the centre of the face
+        // first. (G53 has no such point.)
+        if (!G.includes(53) && (val(line, "X") != null || val(line, "Z") != null || (val(line, "U") ?? 0) !== 0 || (val(line, "W") ?? 0) !== 0)) homeVia.push(line.code.replace(/\s+/g, ""));
+        if (!G.includes(53) && x != null && z != null) {
+          const vx = val(line, "X") ?? (val(line, "U") != null ? x + val(line, "U") : x);
+          const vz = val(line, "Z") ?? (val(line, "W") != null ? z + val(line, "W") : z);
+          if (vx !== x || vz !== z) push(P(z, x), P(vz, vx), "rapid", tool, n);
+        }
+        x = null; z = null; awayFromHome = false;
+        continue;
+      }
+      if (G.includes(50)) {
+        // With an axis word G50 isn't a speed limit, it moves the coordinate system.
+        if (["X", "Z", "U", "W"].some((l) => val(line, l) != null)) shifts.push(line.code.replace(/\s+/g, ""));
+        continue;
+      }
 
       const X = val(line, "X");
       const Z = val(line, "Z");
@@ -272,7 +348,7 @@ export function toolpath(content, { kind: machineKind = "" } = {}) {
           notes.add("Roughing passes aren't drawn, only the shape they cut down to.");
           // Depth of each pass: D on the one-line form, U on the first line of
           // the two-line form (remembered from the line before).
-          cycles.push({ kind: "rough", line: n, face: G.includes(72), x, z, depth: val(line, "D") ?? roughDepth ?? 0, p, q, f: modal.f, perRev: modal.perRev, s: modal.s, css: modal.css, clamp: modal.clamp, tool, from: segs.length });
+          cycles.push({ kind: "rough", line: n, face: G.includes(72), x, z, depth: val(line, "D") ?? roughDepth ?? 0, allowX: val(line, "U") ?? 0, allowZ: val(line, "W") ?? 0, p, q, f: modal.f, perRev: modal.perRev, s: modal.s, css: modal.css, clamp: modal.clamp, tool, from: segs.length });
         } else {
           roughDepth = val(line, "U"); // "G71 U0.08 R0.02": the pass depth for the line that follows
         }
@@ -320,6 +396,14 @@ export function toolpath(content, { kind: machineKind = "" } = {}) {
       const approach = !!profile && !profile.on && N === profile.p;
       if (approach) profile.on = true;
       const type = approach ? "rapid" : profile?.on ? "profile" : motion === 0 ? "rapid" : motion === 32 ? "thread" : "feed";
+      // a single threading pass (G32): the feed is the lead, as on the cycles
+      const more = type === "thread" ? { pitch: modal.f, fromDia: x ?? tx } : undefined;
+
+      // Coming from home (or the start of the program) the way there isn't
+      // known, but where it ARRIVES is, and arriving inside the bar is the
+      // crash. So the arrival is kept (apart from the moves that are drawn).
+      if ((x == null || z == null) && tx != null && tz != null) arrivals.push({ at: P(tz, tx), type, tool, line: n, index: segs.length });
+      if (tx != null && tz != null) awayFromHome = true;
 
       if (x != null && z != null && tx != null && tz != null) {
         if (type !== "rapid") useTool(tool);
@@ -330,7 +414,7 @@ export function toolpath(content, { kind: machineKind = "" } = {}) {
           const k = val(line, "K");
           const r = val(line, "R");
           const c = i != null || k != null ? [z + (k ?? 0), x / 2 + (i ?? 0)] : arcCenterFromR(s, e, r, motion === 2);
-          if (!c) push(P(z, x), P(tz, tx), type, tool, n);
+          if (!c) push(P(z, x), P(tz, tx), type, tool, n, more);
           else {
             let prev = [z, 0, x / 2];
             for (const p of arcPoints(s, e, c, motion === 2)) {
@@ -340,7 +424,7 @@ export function toolpath(content, { kind: machineKind = "" } = {}) {
             }
           }
         } else {
-          push(P(z, x), P(tz, tx), type, tool, n);
+          push(P(z, x), P(tz, tx), type, tool, n, more);
         }
       }
       x = tx; z = tz;

@@ -209,7 +209,7 @@ describe("the overview's one next step", () => {
     screen.getAllByRole("checkbox").filter((c) => c.closest(".cp-provebox")).forEach((c) => fireEvent.click(c));
     fireEvent.change(screen.getByLabelText("Who proved it out"), { target: { value: "Jesse" } });
     fireEvent.click(stamp);
-    await waitFor(() => expect(pp.prove).toHaveBeenCalledWith("g1", true, "Jesse"));
+    await waitFor(() => expect(pp.prove).toHaveBeenCalledWith("g1", true, "Jesse", null));   // (null: no first-part measurements were typed)
   });
 
   it("proven: print the run sheet", () => {

@@ -83,6 +83,7 @@ export async function readLines(res, onLine) {
 
 // ---- the stand-in, for the demo -------------------------------------------------
 const wait = (ms, signal) => new Promise((res, rej) => {
+  if (signal?.aborted) { rej(new AiError("Stopped.", "stopped")); return; }
   const id = setTimeout(res, ms);
   signal?.addEventListener?.("abort", () => { clearTimeout(id); rej(new AiError("Stopped.", "stopped")); }, { once: true });
 });

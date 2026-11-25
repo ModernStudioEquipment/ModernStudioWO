@@ -55,6 +55,7 @@ export async function POST(request, { client = null } = {}) {
         const out = await runJob(client || makeClient(), task, input, {
           onStream: (s) => { live = s; },
           onProgress: (p) => { chars = p.chars; },
+          gone: () => !open,
         });
         say({ t: "done", ...out });
       } catch (e) {

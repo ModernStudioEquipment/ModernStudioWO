@@ -788,7 +788,7 @@ export const supabaseAdapter = {
       provenAt: r.proven_at ? new Date(r.proven_at).getTime() : null,
       note: r.note || "", createdAt: new Date(r.created_at).getTime(),
       // how an AI draft came about, and the last AI review of this version
-      ai: r.info?.ai || null, review: r.info?.review || null,
+      ai: r.info?.ai || null, review: r.info?.review || null, proof: r.info?.proof || null,
     }));
   },
   // `ai`: for a draft the AI wrote, the record of how (what was asked, what the
@@ -825,10 +825,18 @@ export const supabaseAdapter = {
     const { error } = await supabase.from("cnc_programs").select("id").limit(1);
     return !error;
   },
-  async setCncProgramProven(id, proven, by) {
+  // `record`: what the first part measured, kept with the stamp (inside `info`).
+  async setCncProgramProven(id, proven, by, record = null) {
     const patch = proven
       ? { status: "proven", proven_by: by || null, proven_at: new Date().toISOString() }
       : { status: "unproven", proven_by: null, proven_at: null };
+    if (record || !proven) {
+      const { data, error: e1 } = await supabase.from("cnc_programs").select("info").eq("id", id).single();
+      fail(e1);
+      const info = { ...(data?.info || {}) };
+      if (proven) info.proof = record; else delete info.proof;
+      patch.info = info;
+    }
     const { error } = await supabase.from("cnc_programs").update(patch).eq("id", id);
     fail(error);
   },

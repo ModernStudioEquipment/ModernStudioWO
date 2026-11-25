@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Upload, Trash2, Check, CheckCircle2, Circle, Copy, Download, Eye, EyeOff, ShieldCheck, ShieldAlert, AlertTriangle, GitCompare, FileText, Box, ArrowRight } from "lucide-react";
-import { FACT_FIELDS, programLine, buildPack } from "./cncPack.js";
+import { FACT_FIELDS, programLine, buildPack, finishedSizes } from "./cncPack.js";
 import CncRunSheet from "./CncRunSheet.jsx";
-import CncProveOut from "./CncProveOut.jsx";
+import CncProveOut, { proofLine } from "./CncProveOut.jsx";
 import CncPreview from "./CncPreview.jsx";
 import { fmtDuration } from "./cncTime.js";
 import { usePartPrograms, readText } from "./usePartPrograms.js";
@@ -136,6 +136,7 @@ export function ProgramsView({ part, onFact, machineFacts = NO_FACTS, onStep, on
                 {proven ? `Proven${p.provenBy ? ` · ${p.provenBy}` : ""}${p.provenAt ? ` · ${new Date(p.provenAt).toLocaleDateString()}` : ""}` : "Not proven"}
               </span>
             </div>
+            {proven && proofLine(p.proof) && <div className="cp-tools">{proofLine(p.proof)}</div>}
             {info.tools.some((t) => t.note) && (
               <div className="cp-tools">{info.tools.filter((t) => t.note).map((t) => `T${t.t} ${t.note}`).join(" · ")}</div>
             )}
@@ -195,7 +196,7 @@ export function ProgramsView({ part, onFact, machineFacts = NO_FACTS, onStep, on
 
             {/* proving out: the three steps, then a name */}
             {proving?.id === p.id && (
-              <CncProveOut stops={n.stop} onStamp={(by) => prove(p.id, true, by)} onCancel={() => setProving(null)} />
+              <CncProveOut stops={n.stop} sizes={finishedSizes(p.content, part, machineKind)} onStamp={(by, record) => prove(p.id, true, by, record)} onCancel={() => setProving(null)} />
             )}
 
             {previewOpen === p.id && (

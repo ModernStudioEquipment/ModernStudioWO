@@ -366,6 +366,7 @@ export default function CncLibrary({ onClose, embedded = false, onMakeWorkOrder 
             )}
             {!wizard && draft.id && tab === "overview" && (
               <CncPartOverview
+                key={draft.id}
                 part={draft} pp={pp} machineFacts={machineFacts}
                 onAsk={ask}
                 onDetails={() => setTab("details")}

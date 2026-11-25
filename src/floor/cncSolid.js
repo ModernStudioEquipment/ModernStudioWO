@@ -113,6 +113,8 @@ export function simulateLathe(path, stock = null) {
 
   let bore = false;
   let onPlunge = null;
+  let onKind = null;
+  let onBite = null;
   const tol = Math.max(stockR * 0.004, 1e-4);
   // A groove or a part-off is very often cut with plain moves rather than a
   // grooving cycle: straight in, straight back out. That is a plunge too. What
@@ -127,24 +129,42 @@ export function simulateLathe(path, stock = null) {
     if (!(Math.abs(next.a[0] - next.b[0]) < EPS && next.b[2] > next.a[2] + EPS)) return false; // doesn't come straight back out
     return radiusAt(env, za + grooveW / 2 + tight * 4) > Math.max(rb, 0) + tol;           // metal beside it: it's cutting a slot
   };
+  // A pass along the part made INSIDE a hole (a boring bar's) is not the
+  // outside being turned down, and mustn't be drawn as if it were. What gives
+  // it away is where the tool goes next: at the end of a pass an outside tool
+  // backs away from the centre, a boring bar backs toward it, and only a tool
+  // that's in a hole can do that while it's still inside the part.
+  const insidePass = (s, i) => {
+    if (!bore || Math.abs(s.a[0] - s.b[0]) < EPS) return false;
+    const next = segs[i + 1];
+    if (!next || Math.abs(next.a[0] - next.b[0]) > EPS) return false;        // the next move isn't straight in or out
+    return next.a[0] < face - tight * 2 && Math.abs(next.b[2]) < Math.abs(next.a[2]) - EPS && next.type === "rapid";
+  };
   // Lower the outline wherever this move passes beneath it. `i` is the move's
   // place in the program (for the look ahead above).
   const cut = (env, s, i = -1) => {
     const za = s.a[0], ra = s.a[2], zb = s.b[0], rb = s.b[2];
     if (ra < 1e-6 && rb < 1e-6 && Math.abs(za - zb) > EPS) { bore = true; return; } // drilling on centre: a hole, not the outside
+    if (insidePass(s, i)) { if (onKind) onKind(s.tool, "bore"); return; }
     if (s.type === "groove" || plungeAt(env, s, i)) { // a plunge: the insert has width the program doesn't state
       const bottom = Math.max(0, Math.min(ra, rb));
       if (s.type !== "groove" && onPlunge) onPlunge(i, za, bottom);
+      if (onKind) onKind(s.tool, "groove");
       for (let k = lo(za - grooveW / 2); k < zs.length && zs[k] <= za + grooveW / 2 + EPS; k++) if (bottom < env[k]) env[k] = bottom;
       return;
     }
     const z0 = Math.min(za, zb), z1 = Math.max(za, zb);
-    if (z1 - z0 < EPS) return; // straight in or out: a shoulder or a face, which the moves beside it already define
-    for (let i = lo(z0 - EPS); i < zs.length && zs[i] <= z1 + EPS; i++) {
-      const t = (zs[i] - za) / (zb - za);
+    if (z1 - z0 < EPS) { if (onKind) onKind(s.tool, "face"); return; } // straight in or out: a shoulder or a face, which the moves beside it already define
+    if (onKind) onKind(s.tool, "turn");
+    let bite = 0;
+    for (let k = lo(z0 - EPS); k < zs.length && zs[k] <= z1 + EPS; k++) {
+      const t = (zs[k] - za) / (zb - za);
       const r = Math.max(0, ra + (rb - ra) * Math.min(1, Math.max(0, t)));
-      if (r < env[i]) env[i] = r;
+      if (r < env[k]) { if (env[k] - r > bite) bite = env[k] - r; env[k] = r; }
     }
+    // How much metal this one pass took off, per side. Only for a plain cut:
+    // the passes of a roughing cycle are the control's, sized by the cycle.
+    if (onBite && s.type === "feed" && bite > 0) onBite(i, s, bite);
   };
 
   // Walk the whole program once: cut on cutting moves, and on every rapid ask
@@ -153,8 +173,34 @@ export function simulateLathe(path, stock = null) {
   const env = fresh();
   const plunged = [];     // grooves cut with plain moves, found on this first walk only
   onPlunge = (index, z, r) => plunged.push({ index, z, r });
+  const toolKinds = {};   // tool -> the kinds of cut it makes: turn, face, groove, thread, drill
+  onKind = (tool, kind) => { (toolKinds[tool] ||= []).includes(kind) || toolKinds[tool].push(kind); };
+  let deepest = null;     // the heaviest single turning pass: { line, depth }
+  onBite = (index, s, depth) => { if (!deepest || depth > deepest.depth) deepest = { line: s.line, depth, z: Math.min(s.a[0], s.b[0]) }; };
+  // Threads cut so far: a threading tool pulls back out through its own
+  // thread, which isn't a move through uncut metal.
+  const threaded = [];
+  // Where the tool lands on the first move after going home, taken in turn
+  // with the drawn moves (see cncPath.js `arrivals`).
+  const arrivals = (path.arrivals || []).slice();
+  let nextArrival = 0;
+  const landing = (index) => {
+    for (; nextArrival < arrivals.length && arrivals[nextArrival].index <= index; nextArrival++) {
+      const a = arrivals[nextArrival];
+      const z = a.at[0], r = Math.abs(a.at[2]);
+      if (z >= face - tight * 2) continue;                 // in front of the part: clear
+      const depth = surfaceAt(env, z) - r;
+      if (depth > tol && (!hits.has(a.line) || depth > hits.get(a.line).depth)) hits.set(a.line, { line: a.line, index, z, r, depth, from: [z, r], to: [z, r], arriving: true });
+    }
+  };
   segs.forEach((s, index) => {
-    if (isCut(s)) { cut(env, s, index); return; }
+    landing(index);
+    if (s.type === "thread") { threaded.push({ z0: Math.min(s.a[0], s.b[0]), z1: Math.max(s.a[0], s.b[0]), minor: Math.min(Math.abs(s.a[2]), Math.abs(s.b[2])) }); onKind(s.tool, "thread"); return; }
+    if (isCut(s)) {
+      if (s.a[2] < 1e-6 && s.b[2] < 1e-6 && Math.abs(s.a[0] - s.b[0]) > EPS) onKind(s.tool, "drill");
+      cut(env, s, index);
+      return;
+    }
     if (s.type !== "rapid") return;
     const za = s.a[0], ra = s.a[2], zb = s.b[0], rb = s.b[2];
     const z0 = Math.min(za, zb), z1 = Math.max(za, zb);
@@ -163,6 +209,8 @@ export function simulateLathe(path, stock = null) {
       // The face itself isn't metal: a move down or up the front of the part,
       // at Z0, is beside the bar and not in it.
       if (z >= face - tight * 2) return;
+      // In a thread that's been cut, down to its root, is where the tool has already been.
+      if (threaded.some((t) => z >= t.z0 - tight * 4 && z <= t.z1 + tight * 4 && Math.abs(r) >= t.minor - tol)) return;
       // (X below zero is the far side of centre: how far from the centre line is what counts)
       const depth = surfaceAt(env, z) - Math.abs(r);
       if (depth > tol && (!worst || depth > worst.depth)) worst = { z, r, depth };
@@ -176,14 +224,15 @@ export function simulateLathe(path, stock = null) {
     // from/to: the whole move, so the view can draw the line it took through the bar
     if (worst && (!hits.has(s.line) || worst.depth > hits.get(s.line).depth)) hits.set(s.line, { line: s.line, index, ...worst, from: [za, ra], to: [zb, rb] });
   });
-  onPlunge = null; // later walks (stepping through the program) only redraw; the list is made
+  landing(segs.length);
+  onPlunge = null; onKind = null; onBite = null; // later walks (stepping through the program) only redraw; the lists are made
   if (bore) notes.push("Holes and bores aren't shown or checked, only the outside.");
   if (plunged.length || segs.some((s) => s.type === "groove")) notes.push("Groove width is a guess. The program doesn't give the insert's width.");
 
   const threads = segs
     .map((s, index) => ({ s, index }))
     .filter(({ s }) => s.type === "thread")
-    .map(({ s, index }) => ({ index, z0: Math.min(s.a[0], s.b[0]), z1: Math.min(face, Math.max(s.a[0], s.b[0])), za: s.a[0], zb: s.b[0], minor: s.a[2], pitch: s.pitch || 0 }));
+    .map(({ s, index }) => ({ index, z0: Math.min(s.a[0], s.b[0]), z1: Math.min(face, Math.max(s.a[0], s.b[0])), za: s.a[0], zb: s.b[0], minor: s.a[2], pitch: s.pitch || 0, height: s.height || 0, firstCut: s.firstCut || 0, fromDia: s.fromDia ?? null, line: s.line }));
 
   // The outline after the first n moves. Stepping forward reuses the last
   // answer, so playing the program through is one pass, not n of them.
@@ -224,6 +273,7 @@ export function simulateLathe(path, stock = null) {
 
   return {
     zs, face, back, stockR, length, guessed, bore, unsure, notes, threads, grooves, grooveW, corners, tight,
+    toolKinds, deepest,
     collisions: [...hits.values()].sort((a, b) => a.line - b.line),
     final: Float64Array.from(env),
     outlineAt,
