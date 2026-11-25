@@ -99,7 +99,7 @@ export default function CncChat({ part = null, pp = null, machineFacts = {}, par
       let streamed = "";
       const out = await askAi("ask", input, { signal: stopper.current.signal, onText: (t) => { streamed += t; if (alive.current) setLive(streamed); } });
       if (!alive.current) return;
-      const answer = await save({ role: "assistant", body: out.result.answer, meta: { notes: out.notes || [], cost: costOf(out.usage), model: out.model || "" } });
+      const answer = await save({ role: "assistant", body: out.result.answer, meta: { notes: out.notes || [], cost: costOf(out.usage) + (out.searches || 0) * 0.01, model: out.model || "", sources: out.sources || [], searches: out.searches || 0 } });
       if (!alive.current) return;
       setMessages((m) => [...(m || []), answer]);
     } catch (e) {
@@ -230,7 +230,19 @@ function Answer({ m, canRewrite, onRewrite, onKeep, remembered, onPhoto }) {
   return (
     <div className="ch-a">
       <div className="ch-who"><Sparkles size={12} /> Assistant · {new Date(m.at).toLocaleString([], { month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" })}</div>
+      {a.sure && (
+        <div className={`ch-sure ${a.sure.level}`}>
+          {a.sure.level === "high" ? "Confident" : a.sure.level === "medium" ? "Fairly sure: check before relying on it" : "Not sure: check this before acting on it"}
+          {a.sure.why ? <span>{a.sure.why}</span> : null}
+        </div>
+      )}
       <div className="ch-bubble">{a.body}</div>
+      {m.meta?.sources?.length > 0 && (
+        <div className="ch-sources">
+          <span>Looked up{m.meta.searches ? ` (${m.meta.searches} search${m.meta.searches === 1 ? "" : "es"})` : ""}:</span>
+          {m.meta.sources.map((src) => <a key={src.url} href={src.url} target="_blank" rel="noreferrer noopener">{src.title}</a>)}
+        </div>
+      )}
       {(a.photo || a.rewrite || a.remember.length > 0) && (
         <div className="ch-acts">
           {a.photo && <button className="ch-act" onClick={onPhoto}><ImagePlus size={14} /> Add a photo of {a.photo.replace(/^(a |an |the )/i, "the ").replace(/\.$/, "")}</button>}

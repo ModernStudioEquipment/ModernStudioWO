@@ -147,3 +147,21 @@ describe("the conversation on screen", () => {
     expect(screen.queryByText("About the pin")).toBeNull();
   });
 });
+
+describe("how sure it is", () => {
+  it("is read off the last line and never shown as text", () => {
+    expect(parseAnswer("6000 rpm.\nSURE: medium - your options may differ")).toMatchObject({ body: "6000 rpm.", sure: { level: "medium", why: "your options may differ" } });
+    expect(parseAnswer("x\nSURE: HIGH — Haas manual").sure).toEqual({ level: "high", why: "Haas manual" });
+    expect(parseAnswer("x\nSURE: probably").sure).toEqual({ level: "medium", why: "probably" });
+    expect(parseAnswer("x").sure).toBeNull();
+    expect(liveText("6000 rpm.\nSUR")).toBe("6000 rpm.");
+  });
+  it("is shown above the answer, with the pages it looked up below", async () => {
+    await db.addCncChat({ partId: null, role: "assistant", body: "It tops out at 6000 rpm.\nSURE: low - couldn't confirm your options", meta: { sources: [{ url: "https://www.haascnc.com/st10y", title: "ST-10Y | Haas" }], searches: 2 } });
+    render(<CncChat part={null} machineFacts={{}} parts={[]} onClose={() => {}} />);
+    expect(await screen.findByText(/Not sure: check this before acting on it/)).toBeTruthy();
+    expect(screen.getByText("couldn't confirm your options")).toBeTruthy();
+    expect(screen.getByText(/Looked up \(2 searches\)/)).toBeTruthy();
+    expect(screen.getByRole("link", { name: "ST-10Y | Haas" }).getAttribute("href")).toBe("https://www.haascnc.com/st10y");
+  });
+});

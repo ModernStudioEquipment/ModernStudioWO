@@ -114,12 +114,14 @@ export const programFor = (programs = []) => baselineOf(programs);
 //   REMEMBER: <fact>          "Remember this"
 //   REWRITE: <instruction>    "Rewrite with this"
 //   PHOTO: <what to take>     "Add a photo"
-const TRAILER = /^\s*(REMEMBER|REWRITE|PHOTO)\s*:\s*(.*)$/i;
+//   SURE: high|medium|low - why   how sure it is, shown at the top of the answer
+const TRAILER = /^\s*(REMEMBER|REWRITE|PHOTO|SURE)\s*:\s*(.*)$/i;
 
 export function parseAnswer(text) {
   const remember = [];
   let rewrite = "";
   let photo = "";
+  let sure = null;
   const body = [];
   for (const line of String(text || "").replace(/\r\n?/g, "\n").split("\n")) {
     const m = TRAILER.exec(line);
@@ -130,8 +132,12 @@ export function parseAnswer(text) {
     if (kind === "REMEMBER" && remember.length < 3 && !remember.includes(what)) remember.push(what);
     else if (kind === "REWRITE" && !rewrite) rewrite = what;
     else if (kind === "PHOTO" && !photo) photo = what;
+    else if (kind === "SURE" && !sure) {
+      const m2 = /^(high|medium|low)\b[\s\-–—:,.]*(.*)$/i.exec(what);
+      sure = m2 ? { level: m2[1].toLowerCase(), why: m2[2].trim() } : { level: "medium", why: what };
+    }
   }
-  return { body: tidy(body.join("\n")), remember, rewrite, photo };
+  return { body: tidy(body.join("\n")), remember, rewrite, photo, sure };
 }
 
 // While an answer is still arriving: the text so far, without a trailer line
@@ -139,7 +145,7 @@ export function parseAnswer(text) {
 export function liveText(text) {
   const lines = String(text || "").replace(/\r\n?/g, "\n").split("\n");
   const last = lines[lines.length - 1];
-  if (/^\s*[A-Z]{1,9}$/.test(last) && "REMEMBER REWRITE PHOTO".split(" ").some((w) => w.startsWith(last.trim()))) lines.pop();
+  if (/^\s*[A-Z]{1,9}$/.test(last) && "REMEMBER REWRITE PHOTO SURE".split(" ").some((w) => w.startsWith(last.trim()))) lines.pop();
   return tidy(lines.filter((l) => !TRAILER.test(l)).join("\n"));
 }
 

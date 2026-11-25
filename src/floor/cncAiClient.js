@@ -63,7 +63,7 @@ export async function askAi(task, input, { signal, onTick, onText } = {}) {
     throw new AiError("The connection dropped before the answer arrived. Nothing was changed.", "network");
   }
   if (!done) throw new AiError("The connection dropped before the answer arrived. Nothing was changed.", "network");
-  return { result: done.result, usage: done.usage, notes: done.notes || [], model: done.model };
+  return { result: done.result, usage: done.usage, notes: done.notes || [], model: done.model, sources: done.sources || [], searches: done.searches || 0 };
 }
 
 // One JSON object per line, however the chunks happen to fall.
@@ -102,6 +102,7 @@ async function demoAnswer(task, input, signal, onText) {
       before ? `That's question ${before + 1} here, and the ${before} before it were sent along with it, so the real assistant would answer with all of them in mind.` : "This is the first question here.",
       steps.length ? `From the app's own measurements, the program does this:\n${steps.map((s, i) => `${i + 1}. ${s.tool}: ${s.what}`).join("\n")}` : "The real assistant answers from every machine's tool list and notes, and what the shop has asked it to remember.",
       "PHOTO: the part as it sits in the chuck",
+      "SURE: medium - this is the demo, so nothing was looked up",
       "REMEMBER: This is what a remembered fact looks like. Press the button to keep it.",
     ].join("\n\n");
     for (const word of answer.split(/(?<= )/)) { await wait(18, signal); onText?.(word); }

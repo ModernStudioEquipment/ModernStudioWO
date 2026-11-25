@@ -25,7 +25,7 @@ describe("asking the AI", () => {
     answer(streamRes(['{"t":"start"}\n', '{"t":"tick","chars":10}\n{"t":"done","result":{"program":"O1"},"usage":{"input":5},"notes":["n"],"model":"m"}\n']));
     const ticks = [];
     const out = await askAi("write", { pack: "p" }, { onTick: (t) => ticks.push(t.chars) });
-    expect(out).toEqual({ result: { program: "O1" }, usage: { input: 5 }, notes: ["n"], model: "m" });
+    expect(out).toEqual({ result: { program: "O1" }, usage: { input: 5 }, notes: ["n"], model: "m", sources: [], searches: 0 });
     expect(ticks).toEqual([10]);
     const [url, opts] = server.calls[0];
     expect(url).toBe("/api/cnc-ai");

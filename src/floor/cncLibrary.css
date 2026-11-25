@@ -729,3 +729,10 @@ button.cp-checkrow > span{flex:1; min-width:0; display:flex; flex-direction:colu
   .ch-q, .ch-a{max-width:96%}
   .ch-list{max-height:none}
 }
+.ch-sure{display:flex; flex-direction:column; gap:1px; align-self:flex-start; font-size:12.5px; font-weight:800; padding:5px 10px; border-radius:9px; border:1px solid}
+.ch-sure span{font-weight:500; color:#C3CCD6}
+.ch-sure.high{color:#3DDC97; border-color:rgba(61,220,151,.5); background:rgba(61,220,151,.07)}
+.ch-sure.medium{color:var(--accent); border-color:rgba(255,178,36,.5); background:rgba(255,178,36,.07)}
+.ch-sure.low{color:#FF8A8A; border-color:rgba(255,92,92,.55); background:rgba(255,92,92,.08)}
+.ch-sources{display:flex; flex-direction:column; gap:3px; font-size:12.5px; color:#AEB8C4}
+.ch-sources a{color:#9CC4FF; overflow-wrap:anywhere; text-decoration:underline; text-underline-offset:2px}

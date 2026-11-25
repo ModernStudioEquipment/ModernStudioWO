@@ -320,3 +320,53 @@ describe("questions to the assistant", () => {
     expect(out.notes.join(" ")).toMatch(/photos couldn't be read/);
   });
 });
+
+describe("an answer it has to look up", () => {
+  beforeEach(() => { process.env.VITE_SUPABASE_URL = "https://db.example.co"; });
+  afterEach(() => { delete process.env.VITE_SUPABASE_URL; });
+  const q = { pack: "SHOP", program: "", question: "What's the max rpm on an ST-10Y?", history: "" };
+
+  it("is told to search, never to stop at 'I don't know', and to say how sure it is", () => {
+    const t = buildRequest("ask", q).messages[0].content.at(-1).text;
+    expect(t).toMatch(/search the web for it: Haas's own manuals/);
+    expect(t).toMatch(/Never stop at "I don't know"/);
+    expect(t).toMatch(/SURE: high, SURE: medium or SURE: low/);
+    expect(t).toMatch(/never better than medium until someone has checked it at the machine/);
+  });
+
+  it("can search the web on a question, and only on a question", async () => {
+    const c = fakeClient(() => streamOf({ ...reply({}), content: [{ type: "text", text: "ok\nSURE: high - Haas spec" }] }));
+    await runJob(c, "ask", q);
+    expect(c.calls[0].body.tools).toEqual([{ type: "web_search_20260209", name: "web_search", max_uses: 5 }]);
+    const w = fakeClient(() => streamOf(reply({ program: PROGRAM, summary: "s", changes: [], assumptions: [], questions: [] })));
+    await runJob(w, "write", input({ instruction: "x" }));
+    expect(w.calls[0].body.tools).toBeUndefined();
+  });
+
+  it("a long search that pauses is carried on, and every page it quoted is listed once", async () => {
+    const first = { ...reply({}), stop_reason: "pause_turn", content: [
+      { type: "server_tool_use", id: "s1", name: "web_search", input: { query: "ST-10Y max rpm" } },
+      { type: "text", text: "The ST-10Y spindle tops out at ", citations: [{ url: "https://www.haascnc.com/st10y", title: "ST-10Y | Haas" }] },
+    ] };
+    const second = { ...reply({}), content: [
+      { type: "server_tool_use", id: "s2", name: "web_search", input: { query: "more" } },
+      { type: "text", text: "6000 rpm.", citations: [{ url: "https://www.haascnc.com/st10y", title: "ST-10Y | Haas" }, { url: "https://example.org/b", title: "B" }] },
+      { type: "text", text: "\nSURE: medium - your options may differ" },
+    ] };
+    const c = fakeClient((n) => streamOf(n === 1 ? first : second));
+    const out = await runJob(c, "ask", q);
+    expect(c.calls).toHaveLength(2);
+    expect(c.calls[1].body.messages.at(-1)).toEqual({ role: "assistant", content: first.content });   // sent back as it was
+    expect(out.result.answer).toBe("The ST-10Y spindle tops out at 6000 rpm.\nSURE: medium - your options may differ");
+    expect(out.sources).toEqual([{ url: "https://www.haascnc.com/st10y", title: "ST-10Y | Haas" }, { url: "https://example.org/b", title: "B" }]);
+    expect(out.searches).toBe(2);
+    expect(out.usage.input).toBe(2000);                     // both legs counted
+  });
+
+  it("when the account can't search, it's asked again without, and says so", async () => {
+    const c = fakeClient((n, path, body) => (body.tools ? { on() { return this; }, async finalMessage() { throw bad400(); } } : streamOf({ ...reply({}), content: [{ type: "text", text: "answer" }] })));
+    const out = await runJob(c, "ask", q);
+    expect(out.result.answer).toBe("answer");
+    expect(out.notes.join(" ")).toMatch(/Web search isn't switched on/);
+  });
+});
