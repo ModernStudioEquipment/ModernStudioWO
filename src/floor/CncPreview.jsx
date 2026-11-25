@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Play, Pause, RotateCcw, ZoomIn, ZoomOut, AlertOctagon, Timer, SkipBack, SkipForward, CheckCircle2 } from "lucide-react";
 import { toolpath, project, VIEWS } from "./cncPath.js";
-import { simulateLathe, parseStock } from "./cncSolid.js";
+import { simulateLathe, parseStock, partSizes, sizeLabel, sizeText, zText } from "./cncSolid.js";
 import { estimateTime, fmtDuration } from "./cncTime.js";
 
 // What a program does, shown two ways that share one slider:
@@ -20,6 +20,7 @@ import { estimateTime, fmtDuration } from "./cncTime.js";
 
 const CncSolid = lazy(() => import("./CncSolid.jsx"));
 
+const SIZES_KEY = "mse_cnc_sizes_v1";
 const TOOL_COLORS = ["#FFB224", "#4DA3FF", "#3DDC97", "#FF8A5C", "#C792EA", "#F5CE3A", "#5CD6D6", "#FF6B9D"];
 const RAPID = "#6B7785";
 const fmt = (n) => (Math.abs(n) < 0.00005 ? "0" : Number(n.toFixed(4)).toString());
@@ -41,6 +42,12 @@ export default function CncPreview({ content, kind = "", toolNames = {}, stockTe
   const [playing, setPlaying] = useState(false);
   const [showRapids, setShowRapids] = useState(true);
   const [showStock, setShowStock] = useState(true);
+  const [showSizes, setShowSizes] = useState(() => { try { return localStorage.getItem(SIZES_KEY) === "1"; } catch { return false; } });
+  const pickSizes = (on) => { setShowSizes(on); try { localStorage.setItem(SIZES_KEY, on ? "1" : "0"); } catch { /* it still works, it just isn't remembered */ } };
+  // The finished part's sizes for the list, and the sizes of what's on screen
+  // right now for the labels on the picture (the same thing at the end).
+  const finished = useMemo(() => (showSizes && sim ? partSizes(sim) : null), [showSizes, sim]);
+  const onScreen = useMemo(() => (!finished ? null : upTo >= total ? finished : partSizes(sim, upTo)), [finished, sim, upTo, total]);
   const views = mode === "part" ? VIEWS.lathe : VIEWS[path.kind] || VIEWS.mill;
   const [view, setView] = useState({ key: mode === "part" ? "3d" : views[0].key, nonce: 0 });
 
@@ -69,6 +76,7 @@ export default function CncPreview({ content, kind = "", toolNames = {}, stockTe
   const st = path.stats;
   const u = path.units === "mm" ? " mm" : path.units === "in" ? "″" : "";
   const lathe = path.kind === "lathe";
+  const su = path.units === "mm" ? "mm" : "in";
   const hits = sim?.collisions || [];
   const pick = (m) => { setMode(m); setView({ key: m === "part" ? "3d" : (VIEWS[path.kind] || VIEWS.mill)[0].key, nonce: 0 }); };
   const jump = (n) => { setPlaying(false); setUpTo(Math.max(0, Math.min(total, n))); };
@@ -88,7 +96,10 @@ export default function CncPreview({ content, kind = "", toolNames = {}, stockTe
           ))}
         </div>
         {mode === "part"
-          ? <label className="pv-check"><input type="checkbox" checked={showStock} onChange={(e) => setShowStock(e.target.checked)} /> Show the bar</label>
+          ? <>
+              <label className="pv-check"><input type="checkbox" checked={showStock} onChange={(e) => setShowStock(e.target.checked)} /> Show the bar</label>
+              <label className="pv-check"><input type="checkbox" checked={showSizes} onChange={(e) => pickSizes(e.target.checked)} /> Show sizes</label>
+            </>
           : <label className="pv-check"><input type="checkbox" checked={showRapids} onChange={(e) => setShowRapids(e.target.checked)} /> Show rapid moves</label>}
       </div>
 
@@ -98,6 +109,7 @@ export default function CncPreview({ content, kind = "", toolNames = {}, stockTe
             <CncSolid
               sim={sim} upTo={upTo} total={total} material={material}
               view={view.key} viewNonce={view.nonce} showStock={showStock} playing={playing}
+              sizes={playing ? null : onScreen} units={path.units === "mm" ? "mm" : "in"}
               height={height} onFail={() => { setNoGl(true); setMode("path"); }}
             />
           </Suspense>
@@ -135,6 +147,26 @@ export default function CncPreview({ content, kind = "", toolNames = {}, stockTe
       </div>
       {!compact && cur && upTo < total && (
         <div className="pv-line"><b>Line {cur.line}</b><code>{(lineText[cur.line - 1] || "").trim()}</code></div>
+      )}
+
+      {/* the same sizes in words: complete, where the picture only has room for some */}
+      {mode === "part" && finished && (
+        <div className="pv-sizes">
+          <div className="pv-sizeshead">Sizes of the finished part <span>({path.units === "mm" ? "mm" : "inches"})</span></div>
+          {finished.steps.length === 0 && <div className="pv-more">No straight diameter to measure in this program.</div>}
+          {finished.steps.map((s, i) => {
+            const t = sizeLabel(s, su);
+            return (
+              <div className="pv-size" key={i}>
+                <b>{t.main}</b>
+                <span>{t.sub}</span>
+                <em>{s.groove ? `at ${zText(s.mid, su)}` : `${zText(s.z1, su)} to ${zText(s.z0, su)}`}</em>
+              </div>
+            );
+          })}
+          <div className="pv-size"><b>{sizeText(finished.length, su)}</b><span>cut length</span><em>{zText(finished.face, su)} to {zText(finished.from, su)}</em></div>
+          <div className="pv-more">From the program, not the drawing. Measure the first part against the drawing.{sim.guessed ? " Bar size is a guess." : ""}</div>
+        </div>
       )}
 
       {/* a rapid through the bar: the reason this view exists */}

@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect } from "vitest";
 import { toolpath } from "../floor/cncPath.js";
-import { simulateLathe, outlinePoints, simplifyOutline, parseStock, metalFor } from "../floor/cncSolid.js";
+import { simulateLathe, outlinePoints, simplifyOutline, parseStock, metalFor, partSizes, sizeText, sizeLabel, zText } from "../floor/cncSolid.js";
 import { estimateTime, fmtDuration } from "../floor/cncTime.js";
 
 // The solid part and the rapid check. Each program here is small enough to
@@ -249,5 +249,94 @@ describe("about how long it runs", () => {
     expect(fmtDuration(120)).toBe("2 min");
     expect(fmtDuration(3900)).toBe("1 h 5 min");
     expect(estimateTime(toolpath(""))).toBeNull();
+  });
+});
+
+describe("the sizes of what's been cut", () => {
+  const sim = simulateLathe(toolpath(PIN), { dia: 1.25, len: null });
+
+  it("gives each diameter, where it runs and how long, from the face back", () => {
+    const s = partSizes(sim);
+    near(s.length, 3);
+    expect(s.steps.length).toBe(2);
+    near(s.steps[0].dia, 0.625); near(s.steps[0].z1, 0); near(s.steps[0].z0, -1); near(s.steps[0].len, 1);
+    near(s.steps[1].dia, 1.125); near(s.steps[1].z1, -1); near(s.steps[1].z0, -3); near(s.steps[1].len, 2);
+    expect(s.steps.every((x) => !x.uncut && !x.groove && !x.thread)).toBe(true);
+  });
+
+  it("follows the program: before anything is cut the only size is the bar's", () => {
+    const s = partSizes(sim, 0);
+    expect(s.steps.length).toBe(1);
+    near(s.steps[0].dia, 1.25);
+    expect(s.steps[0].uncut).toBe(true);
+  });
+
+  it("doesn't read the bar in the chuck as part of the part", () => {
+    for (const x of partSizes(sim).steps) expect(x.z0).toBeGreaterThan(-3.001);
+  });
+
+  it("gives no diameter for a taper or a chamfer", () => {
+    const TAPER = "O3\nT0101\nG97 S800 M03\nG00 X1.1 Z0.1\nG01 X0.4 Z0. F0.006\nX0.5 Z-0.05\nZ-1.\nX1. Z-2.\nZ-2.5\nG00 X2. Z1.\nM30\n";
+    const s = partSizes(simulateLathe(toolpath(TAPER, { kind: "lathe" }), { dia: 1, len: null }));
+    expect(s.steps.map((x) => Number(x.dia.toFixed(3)))).toEqual([0.5, 1]);
+    near(s.steps[0].len, 0.95);   // from the end of the chamfer to the start of the taper
+    near(s.steps[1].len, 0.5);
+  });
+
+  it("a groove gives its diameter but no width", () => {
+    const g = "O1\nT0101\nG97 S1000 M03\nG00 X1.125 Z0.1\nG01 Z-2. F0.006\nG00 X1.3\nT0303\nG00 X1.2 Z-1.\nG75 X0.8 I0.05 F0.003\nM30\n";
+    const s = partSizes(simulateLathe(toolpath(g), { dia: 1.25 }));
+    const groove = s.steps.filter((x) => x.groove);
+    expect(groove).toHaveLength(1);
+    near(groove[0].dia, 0.8);
+    expect(groove[0].len).toBeNull();
+    // the diameter it's cut into is still ONE diameter, the full two inches, not two short ones
+    const turned = s.steps.filter((x) => !x.groove);
+    expect(turned).toHaveLength(1);
+    near(turned[0].dia, 1.125);
+    near(turned[0].len, 2, 1e-9);
+    expect(turned[0].approx).toBe(false);
+  });
+
+  it("sizes come from the corners themselves, exact to the program", () => {
+    const p = "O5\nT0101\nG97 S800 M03\nG00 X1.1 Z0.1\nG01 X0.625 F0.006\nZ-0.775\nX0.9\nZ-2.8\nG00 X2. Z1.\nM30\n";
+    const s = partSizes(simulateLathe(toolpath(p, { kind: "lathe" }), { dia: 1, len: null }));
+    expect(s.steps.map((x) => sizeText(x.len))).toEqual(["0.775", "2.025"]);
+    expect(s.steps.map((x) => zText(x.z0))).toEqual(["Z-0.775", "Z-2.800"]);
+    expect(zText(s.from)).toBe("Z-2.800");
+  });
+
+  it("doesn't call a cut diameter 'bar' when the bar size is only a guess", () => {
+    const p = "O5\nT0101\nG97 S800 M03\nG00 X1.1 Z0.1\nG01 X0.75 F0.006\nZ-1.\nX0.9\nZ-2.8\nG00 X2. Z1.\nM30\n";
+    const path = toolpath(p, { kind: "lathe" });
+    expect(partSizes(simulateLathe(path, null)).steps.some((x) => x.uncut)).toBe(false);
+    const known = partSizes(simulateLathe(path, { dia: 0.9, len: null }));   // told the bar is 0.9: that length is untouched bar
+    expect(known.steps.find((x) => Math.abs(x.dia - 0.9) < 1e-6).uncut).toBe(true);
+  });
+
+  it("a length that ends at the side of a groove is marked as about", () => {
+    const g = "O1\nT0101\nG97 S1000 M03\nG00 X1.3 Z0.1\nG01 X0.75 F0.006\nZ-1.\nX1.125\nZ-2.\nG00 X1.3\nT0303\nG00 X1.2 Z-1.0625\nG75 X0.6 I0.05 F0.003\nM30\n";
+    const s = partSizes(simulateLathe(toolpath(g), { dia: 1.25 }));
+    const big = s.steps.find((x) => Math.abs(x.dia - 1.125) < 1e-6);
+    expect(big.approx).toBe(true);
+    expect(sizeLabel(big).sub).toMatch(/^about /);
+  });
+
+  it("a threaded length is named as a thread, at its outside diameter", () => {
+    const t = "O1\nT0101\nG97 S1000 M03\nG00 X0.625 Z0.1\nG01 Z-1.2 F0.006\nG00 X1.3\nT0505\nG00 X0.7 Z0.2\nG76 X0.555 Z-0.8 K0.035 D0.012 F0.0625\nM30\n";
+    const s = partSizes(simulateLathe(toolpath(t), { dia: 1.25 }));
+    expect(s.steps).toHaveLength(1);
+    near(s.steps[0].dia, 0.625);
+    near(s.steps[0].thread.pitch, 0.0625);
+  });
+
+  it("writes sizes the way a drawing does", () => {
+    expect(sizeText(0.75)).toBe("0.750");
+    expect(sizeText(1.2505)).toBe("1.2505");
+    expect(sizeText(3)).toBe("3.000");
+    expect(sizeText(32, "mm")).toBe("32");
+    expect(sizeText(12.5, "mm")).toBe("12.5");
+    expect(zText(0)).toBe("Z0");
+    expect(zText(-1.25)).toBe("Z-1.250");
   });
 });

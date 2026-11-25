@@ -78,7 +78,8 @@ export function simulateLathe(path, stock = null) {
   const marks = new Set();
   const N = 900;
   for (let i = 0; i <= N; i++) marks.add(back + ((face - back) * i) / N);
-  const corner = (z) => { if (z > back + tight && z < face - tight) { marks.add(z - tight); marks.add(z + tight); } };
+  const corners = []; // where the program really turns a corner (the samples sit a hair either side)
+  const corner = (z) => { corners.push(z); if (z > back + tight && z < face - tight) { marks.add(z - tight); marks.add(z + tight); } };
   for (const s of cuts) {
     corner(s.a[0]); corner(s.b[0]);
     if (s.type === "groove") { corner(s.a[0] - grooveW / 2); corner(s.a[0] + grooveW / 2); }
@@ -177,8 +178,15 @@ export function simulateLathe(path, stock = null) {
     : (path.notes || []).some((n) => /sub-spindle/i.test(n)) ? "the program uses live tools or the sub-spindle, which this can't follow"
     : "";
 
+  // Where a grooving tool plunged. Its width is a guess, so a size worked out
+  // across one is marked as a groove and given no length.
+  const grooves = segs
+    .map((g, index) => ({ g, index }))
+    .filter(({ g }) => g.type === "groove")
+    .map(({ g, index }) => ({ index, z: g.a[0], r: Math.min(g.a[2], g.b[2]) }));
+
   return {
-    zs, face, back, stockR, length, guessed, bore, unsure, notes, threads,
+    zs, face, back, stockR, length, guessed, bore, unsure, notes, threads, grooves, grooveW, corners, tight,
     collisions: [...hits.values()].sort((a, b) => a.line - b.line),
     final: Float64Array.from(env),
     outlineAt,
@@ -222,6 +230,117 @@ export function outlinePoints(sim, n = Infinity) {
     }
   }
   return [[sim.back, 0], ...pts, [sim.face, 0]];
+}
+
+// ---- the sizes of what's been cut ---------------------------------------------
+//
+// Every straight length of the part with one diameter along it, read off the
+// outline after the first n moves: the diameter, where it starts and ends, and
+// how long it is. These are the numbers someone checks with calipers.
+//
+// They are what the PROGRAM cuts. Whether that's what the drawing asks for is
+// exactly the question the person reading them is there to answer.
+//
+// Left out on purpose: tapers and radii (no single diameter to give), anything
+// too short to measure, and the bar gripped in the chuck. A groove gives its
+// diameter but no width, because the program doesn't say how wide the insert is.
+export function partSizes(sim, n = Infinity) {
+  if (!sim) return null;
+  const env = Number.isFinite(n) ? sim.outlineAt(n) : sim.final; // the finished part doesn't disturb the stepping
+  const from = sim.face - sim.length;
+  const tol = Math.max(sim.stockR * 2e-5, 2e-6);       // "the same diameter"
+  const short = Math.max(sim.length * 0.004, tol * 40); // too short to be worth a number
+
+  const pts = [];
+  for (let i = 0; i < sim.zs.length; i++) if (sim.zs[i] >= from - EPS) pts.push([sim.zs[i], env[i]]);
+  const line = simplifyOutline(pts);
+
+  // The samples sit a hair either side of each corner so shoulders stay square.
+  // A size has to come from the corner itself, or 0.775 reads as 0.7749.
+  const snap = (z) => {
+    let best = z;
+    let d = sim.tight * 1.6;
+    for (const c of sim.corners) { const e = Math.abs(c - z); if (e < d) { d = e; best = c; } }
+    return best;
+  };
+
+  const raw = [];
+  for (let i = 1; i < line.length; i++) {
+    const a = line[i - 1];
+    const b = line[i];
+    if (Math.abs(a[1] - b[1]) > tol || a[1] < tol) continue; // a taper, a wall, or nothing left
+    const last = raw[raw.length - 1];
+    if (last && Math.abs(last.r - a[1]) <= tol && Math.abs(last.z1 - a[0]) <= short * 0.5) { last.z1 = b[0]; continue; }
+    raw.push({ z0: a[0], z1: b[0], r: a[1] });
+  }
+  const cutGrooves = sim.grooves.filter((g) => g.index < n);
+  for (const s of raw) {
+    s.z0 = snap(s.z0); s.z1 = snap(s.z1);
+    s.groove = s.z1 - s.z0 <= sim.grooveW * 1.02 && cutGrooves.some((g) => g.z >= s.z0 - EPS && g.z <= s.z1 + EPS && Math.abs(g.r - s.r) <= tol * 4);
+  }
+  // A groove cut into a diameter doesn't make it two diameters. Join the
+  // lengths either side of it back into one, the way a drawing shows it.
+  const near = (p, q) => Math.abs(p - q) <= sim.tight * 4;
+  const grooved = raw.filter((s) => s.groove);
+  const merged = [];
+  for (const s of raw) {
+    if (s.groove) continue;
+    const last = merged[merged.length - 1];
+    if (last && Math.abs(last.r - s.r) <= tol && grooved.some((g) => near(g.z0, last.z1) && near(g.z1, s.z0))) { last.z1 = s.z1; continue; }
+    merged.push({ ...s });
+  }
+  const edges = cutGrooves.flatMap((g) => [g.z - sim.grooveW / 2, g.z + sim.grooveW / 2]);
+  const atEdge = (z) => edges.some((e) => near(e, z));
+
+  const live = sim.threads.filter((t) => t.index < n && t.z1 - t.z0 > EPS);
+  const out = [];
+  for (const s of [...merged, ...grooved]) {
+    const len = s.z1 - s.z0;
+    if (len < short) continue;
+    const th = s.groove ? null : live.find((t) => Math.min(t.z1, s.z1) - Math.max(t.z0, s.z0) > len * 0.5);
+    out.push({
+      z0: s.z0, z1: s.z1, mid: (s.z0 + s.z1) / 2, r: s.r, dia: s.r * 2, len: s.groove ? null : len,
+      // an end that's the side of a groove is only as good as the guess at the insert's width
+      approx: !s.groove && (atEdge(s.z0) || atEdge(s.z1)),
+      // still the bar: nothing has cut here (only knowable when the bar's real size is)
+      uncut: !sim.guessed && Math.abs(s.r - sim.stockR) <= tol,
+      groove: !!s.groove,
+      thread: th ? { pitch: th.pitch } : null,
+    });
+  }
+  out.sort((a, b) => b.mid - a.mid); // from the face back toward the chuck, the way the program is written
+  return { face: sim.face, from: snap(from), length: sim.length, steps: out, guessed: sim.guessed };
+}
+
+// A size the way it's written on a drawing: inches to three places (four when
+// the program really is that fine), millimetres without padding.
+export function sizeText(v, units = "in") {
+  if (!Number.isFinite(v)) return "";
+  if (units === "mm") return Number(v.toFixed(3)).toString();
+  const four = v.toFixed(4);
+  return four.endsWith("0") ? v.toFixed(3) : four;
+}
+
+// What to write beside one size: the diameter, and under it the length or what
+// kind of feature it is. No unit marks: the heading says the units once.
+export function sizeLabel(step, units = "in") {
+  const main = `\u00D8${sizeText(step.dia, units)}`;
+  const bits = [];
+  if (step.groove) bits.push("groove");
+  else if (step.len != null) bits.push(`${step.approx ? "about " : ""}${sizeText(step.len, units)} long`);
+  if (step.thread) {
+    const p = step.thread.pitch;
+    const tpi = p > 0 ? 1 / p : 0;
+    bits.push(units === "mm" ? (p > 0 ? `thread, ${Number(p.toFixed(3))} pitch` : "thread")
+      : tpi && Math.abs(tpi - Math.round(tpi)) < 0.02 ? `thread, ${Math.round(tpi)} TPI` : "thread");
+  }
+  if (step.uncut) bits.push("bar, not cut");
+  return { main, sub: bits.join(" \u00B7 ") };
+}
+
+// A Z position: Z0, Z-1.250.
+export function zText(z, units = "in") {
+  return Math.abs(z) < 5e-5 ? "Z0" : `Z${sizeText(z, units)}`;
 }
 
 // ---- what the picture is made of --------------------------------------------

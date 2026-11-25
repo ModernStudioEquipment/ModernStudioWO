@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
-import { outlinePoints, simplifyOutline, metalFor } from "./cncSolid.js";
+import { outlinePoints, simplifyOutline, metalFor, sizeLabel, sizeText } from "./cncSolid.js";
 
 // The turned part as a real solid: the bar held in a chuck, cut down as the
 // program plays, with the tool where the program has it. All the working-out
@@ -16,10 +16,13 @@ import { outlinePoints, simplifyOutline, metalFor } from "./cncSolid.js";
 
 const SEGMENTS = 88;
 
-export default function CncSolid({ sim, upTo, total, material = "", view = "3d", viewNonce = 0, showStock = true, playing = false, onFail, height = 420 }) {
+export default function CncSolid({ sim, upTo, total, material = "", view = "3d", viewNonce = 0, showStock = true, playing = false, sizes = null, units = "in", onFail, height = 420 }) {
   const wrapRef = useRef(null);
   const canvasRef = useRef(null);
   const api = useRef(null);
+  const dimsRef = useRef(null);   // the size labels, laid over the picture
+  const sizesRef = useRef(sizes); // what they say, for the drawing loop to read
+  sizesRef.current = sizes;
   const [glReady, setGlReady] = useState(0); // bumps when the renderer exists, so the scene builds after it
 
   const gl = useRef(null); // the renderer and its reflections: made once per canvas
@@ -282,8 +285,76 @@ export default function CncSolid({ sim, upTo, total, material = "", view = "3d",
       controls.update();
     };
 
+    // ---- the size labels ----
+    //
+    // Plain page elements over the picture, moved to follow the part each time
+    // it's drawn. One row above the part, each with a line down to the surface
+    // it measures. Where two would sit on top of each other the shorter length
+    // moves up a row, and past three rows it's left to the list underneath.
+    const v3 = new THREE.Vector3();
+    const placeSizes = () => {
+      const box = dimsRef.current;
+      const sz = sizesRef.current;
+      if (!box || !sz) return;
+      const w = wrap.clientWidth;
+      const h = wrap.clientHeight;
+      const P = (x, y) => { v3.set(x, y, 0).project(camera); return { x: (v3.x * 0.5 + 0.5) * w, y: (-v3.y * 0.5 + 0.5) * h, ok: v3.z > -1 && v3.z < 1 }; };
+      const els = [...box.querySelectorAll(".pv-dim[data-i]")];
+      const leads = box.querySelectorAll("line[data-i]");
+      const dots = box.querySelectorAll("circle[data-i]");
+      // measure everything first, then move everything: no layout in between
+      const items = els.map((el, i) => ({ el, i, w: el.offsetWidth, h: el.offsetHeight, s: sz.steps[i], a: sz.steps[i] ? P(sz.steps[i].mid, sz.steps[i].r) : null }));
+      const lenEl = box.querySelector(".pv-dim.len");
+      const lenW = lenEl ? lenEl.offsetWidth : 0;
+      const rowY = Math.min(...items.filter((it) => it.a?.ok).map((it) => it.a.y), h) - 18;
+      const placed = [];
+      const hits = (r) => placed.some((q) => r.x < q.x + q.w + 4 && q.x < r.x + r.w + 4 && r.y < q.y + q.h + 3 && q.y < r.y + r.h + 3);
+      for (const it of items.slice().sort((p, q) => (q.s?.len ?? 0) - (p.s?.len ?? 0))) {
+        let spot = null;
+        if (it.a?.ok && it.a.x > 4 && it.a.x < w - 4 && it.a.y > 0 && it.a.y < h) {
+          for (let tier = 0; tier < 3 && !spot; tier++) {
+            const r = { x: Math.min(w - it.w - 6, Math.max(6, it.a.x - it.w / 2)), y: rowY - it.h - tier * (it.h + 7), w: it.w, h: it.h };
+            if (r.y >= 6 && !hits(r)) spot = r;
+          }
+        }
+        const lead = leads[it.i];
+        const dot = dots[it.i];
+        if (!spot) { it.el.style.visibility = "hidden"; lead?.setAttribute("visibility", "hidden"); dot?.setAttribute("visibility", "hidden"); continue; }
+        placed.push(spot);
+        it.el.style.transform = `translate(${spot.x.toFixed(1)}px, ${spot.y.toFixed(1)}px)`;
+        it.el.style.visibility = "visible";
+        if (lead) { lead.setAttribute("x1", it.a.x); lead.setAttribute("y1", it.a.y); lead.setAttribute("x2", Math.min(spot.x + spot.w - 8, Math.max(spot.x + 8, it.a.x))); lead.setAttribute("y2", spot.y + spot.h); lead.setAttribute("visibility", "visible"); }
+        if (dot) { dot.setAttribute("cx", it.a.x); dot.setAttribute("cy", it.a.y); dot.setAttribute("visibility", "visible"); }
+      }
+      // the cut length: a line under the part from the face to where cutting stops
+      const under = Math.max(...sz.steps.map((s) => s.r), R * 0.4);
+      const set = (key, a, b, show) => {
+        const ln = box.querySelector(`line[data-o="${key}"]`);
+        if (!ln) return;
+        ln.setAttribute("visibility", show ? "visible" : "hidden");
+        if (show) { ln.setAttribute("x1", a.x); ln.setAttribute("y1", a.y); ln.setAttribute("x2", b.x); ln.setAttribute("y2", b.y); }
+      };
+      const A = P(sz.face, -(under + R * 0.34));
+      const B = P(sz.from, -(under + R * 0.34));
+      // Looking along the bar, its length is a line going away from you: no place for a length.
+      const c0 = P((sz.face + sz.from) / 2, 0);
+      const c1 = P((sz.face + sz.from) / 2, R);
+      const across = Math.hypot(c0.x - c1.x, c0.y - c1.y) / R;                       // px per unit, across the bar
+      const along = Math.hypot(A.x - B.x, A.y - B.y) / Math.max(sz.length, 1e-9);   // px per unit, along it
+      const showLen = A.ok && B.ok && Math.hypot(A.x - B.x, A.y - B.y) > 46 && along > across * 0.35;
+      set("m", A, B, showLen);
+      set("a", P(sz.face, -(under + R * 0.14)), P(sz.face, -(under + R * 0.46)), showLen);
+      set("b", P(sz.from, -(under + R * 0.14)), P(sz.from, -(under + R * 0.46)), showLen);
+      if (lenEl) {
+        const x = Math.min(w - lenW - 6, Math.max(6, (A.x + B.x) / 2 - lenW / 2));
+        const y = Math.min(h - lenEl.offsetHeight - 22, Math.max(A.y, B.y) + 7);
+        lenEl.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
+        lenEl.style.visibility = showLen ? "visible" : "hidden";
+      }
+    };
+
     let frame = 0;
-    const render = () => { frame = 0; renderer.render(scene, camera); };
+    const render = () => { frame = 0; renderer.render(scene, camera); placeSizes(); };
     const queue = () => { if (!frame) frame = requestAnimationFrame(render); };
     controls.addEventListener("change", queue);
 
@@ -344,6 +415,8 @@ export default function CncSolid({ sim, upTo, total, material = "", view = "3d",
   useEffect(() => { api.current?.step(upTo, total); }, [upTo, total, sim, material, glReady]);
   useEffect(() => { api.current?.setView(view); }, [view, viewNonce, sim, material, glReady]);
   useEffect(() => { api.current?.setStock(showStock); }, [showStock, sim, material, glReady]);
+  // new sizes on the page: draw once more so they're put in place
+  useEffect(() => { api.current?.queue(); }, [sizes, units, sim, material, glReady]);
 
   // The chuck turns while the program is playing, like the real thing.
   useEffect(() => {
@@ -362,8 +435,23 @@ export default function CncSolid({ sim, upTo, total, material = "", view = "3d",
   }, [playing, sim, material, glReady]);
 
   return (
-    <div ref={wrapRef} style={{ height, width: "100%" }}>
+    <div ref={wrapRef} style={{ height, width: "100%", position: "relative" }}>
       <canvas ref={canvasRef} style={{ width: "100%", height: "100%", display: "block", touchAction: "none", cursor: "grab" }} role="img" aria-label="The part as a solid, cut from the bar" />
+      {/* Sizes on the part. For the eye only: the list under the picture says the same in words. */}
+      {sizes && (
+        <div className="pv-dims" ref={dimsRef} aria-hidden="true">
+          <svg>
+            {sizes.steps.map((s, i) => <line key={`l${i}`} data-i={i} visibility="hidden" />)}
+            {sizes.steps.map((s, i) => <circle key={`c${i}`} data-i={i} r="2.6" visibility="hidden" />)}
+            <line data-o="m" visibility="hidden" /><line data-o="a" visibility="hidden" /><line data-o="b" visibility="hidden" />
+          </svg>
+          {sizes.steps.map((s, i) => {
+            const t = sizeLabel(s, units);
+            return <div className={`pv-dim${s.uncut ? " bar" : ""}`} data-i={i} key={i}><b>{t.main}</b>{t.sub && <span>{t.sub}</span>}</div>;
+          })}
+          <div className="pv-dim len"><b>{sizeText(sizes.length, units)}</b><span>cut length</span></div>
+        </div>
+      )}
     </div>
   );
 }
