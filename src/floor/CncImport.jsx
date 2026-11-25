@@ -69,30 +69,37 @@ export default function CncImport({ parts, onDone, onClose }) {
       let added = 0;
       let dupes = 0;
       let newParts = 0;
+      const failed = [];          // files that couldn't be saved: the rest still go in
       for (let i = 0; i < chosen.length; i++) {
         const r = chosen[i];
         setBusy(`Importing ${i + 1} of ${chosen.length}…`);
-        let partId = r.partId;
-        if (r.action === "new") {
-          if (!created.has(r.newKey)) {
-            const id = await db.saveCncPart({
-              id: null, name: r.newName, sku: "", steps: [], material: "", notes: "", blueprintUrl: null,
-              // The machine picked for the batch, or the only machine it could be:
-              // a mill program can only be the VF-4.
-              photos: [], productNo: "", programNo: r.info.number || "", machine: machine || machineForKind(r.info.kind), facts: {},
-            });
-            created.set(r.newKey, id);
-            newParts += 1;
+        try {
+          let partId = r.partId;
+          if (r.action === "new") {
+            if (!created.has(r.newKey)) {
+              const id = await db.saveCncPart({
+                id: null, name: r.newName, sku: "", steps: [], material: "", notes: "", blueprintUrl: null,
+                // The machine picked for the batch, or the only machine it could be:
+                // a mill program can only be the VF-4.
+                photos: [], productNo: "", programNo: r.info.number || "", machine: machine || machineForKind(r.info.kind), facts: {},
+              });
+              created.set(r.newKey, id);
+              newParts += 1;
+            }
+            partId = created.get(r.newKey);
           }
-          partId = created.get(r.newKey);
+          if (!have.has(partId)) have.set(partId, new Set((await db.getCncPrograms(partId)).map((p) => p.content)));
+          if (have.get(partId).has(r.text)) { dupes += 1; continue; }
+          await db.addCncProgram({ partId, name: r.file, content: r.text });
+          have.get(partId).add(r.text);
+          added += 1;
+        } catch (e) {
+          // a lost connection stops the lot (nothing after it would save either); anything else is just this file
+          if (/fetch|network|Failed to|Load failed/i.test(e?.message || "")) throw e;
+          failed.push({ file: r.file, why: e?.message || "couldn't be saved" });
         }
-        if (!have.has(partId)) have.set(partId, new Set((await db.getCncPrograms(partId)).map((p) => p.content)));
-        if (have.get(partId).has(r.text)) { dupes += 1; continue; }
-        await db.addCncProgram({ partId, name: r.file, content: r.text });
-        have.get(partId).add(r.text);
-        added += 1;
       }
-      setResult({ added, dupes, newParts });
+      setResult({ added, dupes, newParts, failed });
       setRows(null);
       onDone?.();
     } catch (e) {
@@ -129,6 +136,11 @@ export default function CncImport({ parts, onDone, onClose }) {
           <Check size={14} /> Imported {result.added} program{result.added === 1 ? "" : "s"}
           {result.newParts ? `, made ${result.newParts} new part${result.newParts === 1 ? "" : "s"}` : ""}
           {result.dupes ? `, skipped ${result.dupes} already in the catalogue` : ""}.
+        </div>
+      )}
+      {result?.failed?.length > 0 && (
+        <div className="cl-err">
+          {result.failed.length} file{result.failed.length === 1 ? "" : "s"} couldn't be saved and {result.failed.length === 1 ? "was" : "were"} left out: {result.failed.slice(0, 5).map((f) => `${f.file} (${f.why})`).join("; ")}{result.failed.length > 5 ? `, and ${result.failed.length - 5} more` : ""}.
         </div>
       )}
 

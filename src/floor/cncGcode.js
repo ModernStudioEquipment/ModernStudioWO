@@ -111,6 +111,20 @@ export function programLine(info) {
   ].filter(Boolean).join(" · ");
 }
 
+// Invisible characters a program can pick up on its way off a machine or a USB
+// stick: null bytes (some controls pad files with them), other control codes,
+// and the byte-order mark some editors add. They mean nothing to the Haas, and
+// the database won't store text with a null in it, so they're taken out.
+// Tabs and line ends stay. A file that's mostly nulls isn't a program at all
+// (that's a binary file), and is left alone for looksLikeProgram to refuse.
+export function cleanProgramText(text) {
+  const t = String(text ?? "");
+  const nulls = (t.match(/\u0000/g) || []).length;
+  if (nulls > Math.max(16, t.length * 0.01)) return { text: t, removed: 0, binary: true };
+  const out = t.replace(/^\uFEFF/, "").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "");
+  return { text: out, removed: t.length - out.length, binary: false };
+}
+
 // Is this text a program at all? A binary file (the Mastercam file, a photo)
 // has NUL bytes or decodes to junk; a PDF or a note has no lines that start
 // like G-code. Lenient on short files: three real lines is a program.

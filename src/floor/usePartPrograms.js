@@ -5,6 +5,7 @@ import {
   looksLikeProgram, MAX_PROGRAM_BYTES, nextStep,
 } from "./cncPack.js";
 import { toolpath } from "./cncPath.js";
+import { cleanProgramText } from "./cncGcode.js";
 import { estimateTime } from "./cncTime.js";
 import { MACHINES } from "./machines.js";
 import { splitMachines } from "./cncParts.js";
@@ -68,7 +69,7 @@ export function usePartPrograms(part, machineFacts = NO_FACTS, { onChanged } = {
       const have = new Set(programs.map((p) => p.content));
       for (const f of files) {
         if (f.size > MAX_PROGRAM_BYTES) { setErr(`${f.name} is too big to be a program file (over 2 MB).`); continue; }
-        const text = await readText(f);
+        const text = cleanProgramText(await readText(f)).text;
         if (!looksLikeProgram(text)) { setErr(`${f.name} isn't a program file. Upload the .nc file the Haas runs, not the Mastercam file.`); continue; }
         if (have.has(text)) { setErr(`${f.name} is already here: it's identical to a version that's been uploaded.`); continue; }
         await db.addCncProgram({ partId, name: f.name, content: text });

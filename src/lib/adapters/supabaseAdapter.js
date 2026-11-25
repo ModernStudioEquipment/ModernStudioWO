@@ -6,6 +6,7 @@
 import { supabase } from "../supabase.js";
 import { cleanPhotos, shouldWritePhotos, shouldWriteMachine, splitMachines, joinMachines } from "../../floor/cncParts.js";
 import { cleanFacts, shouldWriteFacts, cleanMachineFacts, programInfo } from "../../floor/cncPack.js";
+import { cleanProgramText } from "../../floor/cncGcode.js";
 import { noteStamp, noteAuthorName, addAmounts, amountShort } from "../../theme.js";
 
 // Who is writing. Read from the session rather than passed down through the
@@ -797,7 +798,8 @@ export const supabaseAdapter = {
   },
   // `ai`: for a draft the AI wrote, the record of how (what was asked, what the
   // checks found). Kept inside `info`, so it needs no column of its own.
-  async addCncProgram({ partId, name, content, note, ai }) {
+  async addCncProgram({ partId, name, content: raw, note, ai }) {
+    const content = cleanProgramText(raw).text;   // (a null character can't be stored)
     const { data, error } = await supabase
       .from("cnc_programs")
       .insert({ part_id: partId, name: name || "", content: content || "", note: note || null, info: { ...programInfo(content), ...(ai ? { ai } : null) } })

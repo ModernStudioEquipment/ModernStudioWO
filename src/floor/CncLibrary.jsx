@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useMemo } from "react";
 import { ArrowLeft, Plus, Trash2, Upload, ImageOff, Check, Copy, GripVertical, ChevronLeft, ChevronRight, ClipboardList, FolderInput, Box, Sparkles } from "lucide-react";
 import Sortable from "sortablejs";
 import { db } from "../lib/db.js";
@@ -83,8 +83,16 @@ export default function CncLibrary({ onClose, embedded = false, onMakeWorkOrder 
   }, []);
   useEffect(() => { remember("mse_cl_part", draft.id || ""); }, [draft.id]);
 
-  // Search by anything someone at the machine would know it by.
-  const filtered = parts.filter((p) => !q || [p.name, p.sku, p.productNo, p.programNo].map((v) => v || "").join(" ").toLowerCase().includes(q.trim().toLowerCase()));
+  // Search by anything someone at the machine would know it by: the name, SKU
+  // and product number, the program numbers, and the names of its program
+  // files (where the shop's CNC numbers live, like "CNC-0240 - STACK 6.nc").
+  // A number matches however it's written: 240, 0240 and CNC-0240 all find it.
+  const filesOf = useMemo(() => {
+    const m = new Map();
+    for (const x of programIndex) { const l = m.get(x.partId) || []; l.push(x.name, x.info?.number, x.info?.title); m.set(x.partId, l); }
+    return m;
+  }, [programIndex]);
+  const filtered = parts.filter((p) => matchesSearch(q, [p.name, p.sku, p.productNo, p.programNo, ...(filesOf.get(p.id) || [])]));
   // What the open part needs next (reported up by its Program & setup section).
   const [partStep, setPartStep] = useState(null);
   const setupRef = useRef(null);
@@ -315,7 +323,7 @@ export default function CncLibrary({ onClose, embedded = false, onMakeWorkOrder 
         )}
         <div className={`cl-body${draft.id || wizard || draft.copiedFrom ? " has-part" : ""}`} style={view === "parts" ? undefined : { display: "none" }}>
           <aside className="cl-list">
-            <input className="cl-search" placeholder="Search name, SKU or program #…" value={q} onChange={(e) => setQ(e.target.value)} />
+            <input className="cl-search" placeholder="Search name, SKU, CNC or program #…" value={q} onChange={(e) => setQ(e.target.value)} />
             <button className="cl-new" onClick={newPart}>
               <Plus size={16} /> New part
             </button>
@@ -575,4 +583,23 @@ export default function CncLibrary({ onClose, embedded = false, onMakeWorkOrder 
       </div>
     </div>
   );
+}
+
+// Every word typed has to be found. A number matches a whole number on the
+// part however it's written, with or without leading zeros or letters in front
+// (240 finds CNC-0240 and O00240, 24 doesn't); anything else is looked for as
+// written.
+export function matchesSearch(q, fields) {
+  const words = String(q || "").trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) return true;
+  const text = fields.map((v) => String(v || "")).join(" ").toLowerCase();
+  const numbers = new Set((text.match(/\d+/g) || []).map((n) => n.replace(/^0+(?=\d)/, "")));
+  const isNumber = (n) => numbers.has(n.replace(/^0+(?=\d)/, ""));
+  return words.every((w) => {
+    // a bare number has to be a whole number on the part: 24 doesn't find CNC-0240
+    if (/^\d+$/.test(w)) return isNumber(w);
+    if (text.includes(w)) return true;
+    const nums = w.match(/\d+/g);
+    return !!nums && nums.every(isNumber);
+  });
 }

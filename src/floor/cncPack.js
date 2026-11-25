@@ -10,7 +10,7 @@
 
 import { MACHINES } from "./machines.js";
 import { splitMachines, splitPrograms } from "./cncParts.js";
-import { programInfo, programLine, looksLikeProgram, checkProgram, checkCounts, diffPrograms, operatorStops } from "./cncGcode.js";
+import { programInfo, programLine, looksLikeProgram, checkProgram, checkCounts, diffPrograms, operatorStops, cleanProgramText } from "./cncGcode.js";
 import { toolpath } from "./cncPath.js";
 import { simulateLathe, parseStock, partSizes } from "./cncSolid.js";
 
@@ -453,9 +453,14 @@ const same = (a, b) => String(a || "").trim().toLowerCase() === String(b || "").
 
 export function planImport(files, parts = []) {
   return (files || []).map((f) => {
-    const base = { file: f.name, text: f.text };
+    const clean = cleanProgramText(f.text);
+    const base = { file: f.name, text: clean.text, cleaned: clean.removed };
     if ((f.size ?? f.text?.length ?? 0) > MAX_PROGRAM_BYTES) return { ...base, action: "skip", why: "Too big to be a program (over 2 MB)." };
-    if (!looksLikeProgram(f.text)) return { ...base, action: "skip", why: "Not a program file." };
+    // The probe's own software (Renishaw's macros, and the 9000-series
+    // programs a Haas keeps for itself) runs the machine, not a part.
+    if (/renishaw/i.test(`${f.name} ${clean.text.slice(0, 2000)}`)) return { ...base, action: "skip", why: "Renishaw probe macro: part of the machine's probing software, not a part program." };
+    if (!clean.binary && /^O0?9\d{3}$/.test(programInfo(clean.text).number) && (clean.text.match(/[#\[]/g) || []).length > 20) return { ...base, action: "skip", why: "A 9000-series macro: part of the machine's own software, not a part program." };
+    if (clean.binary || !looksLikeProgram(clean.text)) return { ...base, action: "skip", why: "Not a program file." };
     const info = programInfo(f.text);
     const key = programKey(info.number);
     const byNo = key ? parts.find((p) => splitPrograms(p.programNo).some((x) => programKey(x) === key)) : null;

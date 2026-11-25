@@ -6,6 +6,7 @@
 import { buildSeed } from "../seed.js";
 import { cleanPhotos } from "../../floor/cncParts.js";
 import { cleanFacts, cleanMachineFacts, programInfo } from "../../floor/cncPack.js";
+import { cleanProgramText } from "../../floor/cncGcode.js";
 import { noteStamp, addAmounts, amountShort } from "../../theme.js";
 
 const KEY = "mse_orders_v1";
@@ -316,7 +317,8 @@ export const localAdapter = {
     if (r) r.info = { ...(r.info || {}), review };
     writeLS("mse_cnc_programs_v1", list);
   },
-  async addCncProgram({ partId, name, content, note, ai }) {
+  async addCncProgram({ partId, name, content: raw, note, ai }) {
+    const content = cleanProgramText(raw).text;   // (a null character can't be stored)
     const list = readLS("mse_cnc_programs_v1", []);
     const id = uid();
     // +index so two files added in the same millisecond still sort in upload order
