@@ -35,8 +35,8 @@ const BY_STATUS = {
   504: "The AI took too long to answer. Nothing was changed. Try again, or with a narrower instruction.",
 };
 
-export async function askAi(task, input, { signal, onTick } = {}) {
-  if (DEMO) return demoAnswer(task, input, signal);
+export async function askAi(task, input, { signal, onTick, onText } = {}) {
+  if (DEMO) return demoAnswer(task, input, signal, onText);
   let res;
   try {
     res = await apiFetch("/api/cnc-ai", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ task, input }), signal });
@@ -52,6 +52,7 @@ export async function askAi(task, input, { signal, onTick } = {}) {
   try {
     await readLines(res, (line) => {
       if (line.t === "tick") onTick?.(line);
+      else if (line.t === "text") onText?.(line.text || "");
       else if (line.t === "error") throw new AiError(line.error || "The AI couldn't answer. Nothing was changed.", line.kind || "error");
       else if (line.t === "done") done = line;
     });
@@ -90,7 +91,15 @@ const wait = (ms, signal) => new Promise((res, rej) => {
 const DEMO_NOTE = "Demo: this answer is canned. No AI was asked and nothing was sent anywhere.";
 const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
 
-async function demoAnswer(task, input, signal) {
+async function demoAnswer(task, input, signal, onText) {
+  if (task === "ask") {
+    // a canned answer that shows the conversation is carried: it says how many questions came before
+    const before = (String(input.history || "").match(/^Q: /gm) || []).length;
+    const tools = (String(input.program || "").match(/^\s*(?:N\d+\s*)?T\d+[^\n]*/gm) || []).length;
+    const answer = `Demo answer, not from the AI. You asked: "${String(input.question).trim().slice(0, 120)}". ${before ? `That's question ${before + 1} about this part, and the ${before} before it were sent along with it. ` : "This is the first question about this part. "}The program calls ${tools} tool${tools === 1 ? "" : "s"}. The real AI answers from the part's details and its program.`;
+    for (const word of answer.split(/(?<= )/)) { await wait(18, signal); onText?.(word); }
+    return { result: { answer }, usage, notes: [DEMO_NOTE] };
+  }
   await wait(task === "write" ? 1400 : 900, signal);
   const lines = String(input.program || "").replace(/\r\n?/g, "\n").split("\n");
   if (task === "write" || task === "fix") {

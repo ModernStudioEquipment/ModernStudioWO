@@ -222,10 +222,10 @@ M30
   });
 });
 
-describe("mill programs", () => {
-  const millPart = { id: "m", name: "Plate", machine: "vf4", material: "6061", facts: { stock: "5 x 4 x 0.75 plate", holding: "vise" } };
-  const mf = { vf4: { tools: [{ t: "1", what: "1/2 endmill" }, { t: "2", what: "1/4 drill" }, { t: "3", what: "1/4-20 tap" }] } };
-  const MILL = `%
+
+const millPart = { id: "m", name: "Plate", machine: "vf4", material: "6061", facts: { stock: "5 x 4 x 0.75 plate", holding: "vise" } };
+const mf = { vf4: { tools: [{ t: "1", what: "1/2 endmill" }, { t: "2", what: "1/4 drill" }, { t: "3", what: "1/4-20 tap" }] } };
+const MILL = `%
 O05001 (MOUNT PLATE)
 G20 G17 G40 G49 G80 G90
 T1 M06 (1/2 FLAT ENDMILL)
@@ -259,9 +259,11 @@ G90
 M30
 %
 `;
-  const mstops = (draft) => draftChecks(MILL, draft, { part: millPart, machineFacts: mf }).filter((f) => f.level === "stop").map((f) => f.text).join(" | ");
-  const mcaught = (from, to, why) => expect(mstops(swap(from, to, MILL)), `${from} -> ${to}`).toMatch(why);
+const mstops = (draft) => draftChecks(MILL, draft, { part: millPart, machineFacts: mf }).filter((f) => f.level === "stop").map((f) => f.text).join(" | ");
+const mcaught = (from, to, why) => expect(mstops(swap(from, to, MILL)), `${from} -> ${to}`).toMatch(why);
 
+
+describe("mill programs", () => {
   it("compared with itself is clean, and owns up to what a mill comparison can't see", () => {
     const found = draftChecks(MILL, MILL, { part: millPart, machineFacts: mf });
     expect(found.filter((f) => f.level === "stop")).toEqual([]);
@@ -281,7 +283,7 @@ M30
   it("a tool brought down too far after a tool change", () => mcaught("G43 H02 Z1. M08", "G43 H02 Z-0.09 M08", /rapid move straight down ends lower than any does now: Z-0\.09/));
   it("the wrong length offset", () => mcaught("G43 H02 Z1. M08", "G43 H03 Z1. M08", /T2 is called with offset 3, where the current program uses 2/));
   it("a drill's feed and speed", () => {
-    mcaught("G98 G81 Z-0.4 R0.1 F5.", "G98 G81 Z-0.4 R0.1 F20.", /T2's cutting feed went up from 5 to 20/);
+    mcaught("G98 G81 Z-0.4 R0.1 F5.", "G98 G81 Z-0.4 R0.1 F20.", /T2's plunging feed went up from 5 to 20/);
     mcaught("X1. Y2.5 S2000 M03", "X1. Y2.5 S4000 M03", /T2's top spindle speed went up from 2000 to 4000/);
   });
   it("a tap whose speed no longer matches its feed", () => mcaught("X1. Y2.5 S500 M03", "X1. Y2.5 S400 M03", /tapping cycle's feed and speed no longer match/));
@@ -395,5 +397,157 @@ describe("a sweep: every number that matters, nudged", () => {
         expect(stops(BASE, draftWith(i, text)), `${line} -> ${text}`).toEqual([]);
       }
     });
+  });
+});
+
+// ---- a second review, told what the first had found, went looking for more ----
+describe("found by the second review", () => {
+  const found = (old, draft, opts = {}) => draftChecks(old, draft, { part, machineFacts: tools, ...opts });
+  const add = (after, text, src = BASE) => swap(after, `${after}\n${text}`, src);
+
+  it("a rapid down toward the chuck, past everything the program cuts", () => caught("G00 X1.4 Z0.1\nG28", "G00 X1.4 Z0.1\nG00 X1.4 Z-6.\nG00 X1.4 Z0.1\nG28", /closer to the chuck than anything in the current program \(to Z-6\.000\)/));
+  it("a plunge that leaves by going home instead of backing out", () => {
+    const draft = swap("G00 X1.4 Z0.1\nG28 U0. W0.\nT0303", "G00 X1.4 Z-2.\nG01 X0.2 F0.006\nG28 U0. W0.\nT0303");
+    const got = stops(BASE, draft).join(" | ");
+    expect(got).toMatch(/sends the tool home from down inside the part/);
+    expect(got).toMatch(/It cuts The groove Ø0\.200 at Z-2\.000|plunge goes through/);
+  });
+  it("homing from down a drilled hole", () => {
+    const BORED = "%\nO21 (SPACER)\nG20 G40 G80 G99\nG50 S2500\nT0707 (DRILL 1/2)\nG97 S900 M03\nG54 G00 X0. Z0.2 M08\nG01 Z-1.2 F0.006\nG00 Z0.2\nG28 U0. W0.\nM30\n%\n";
+    expect(stops(BORED, BORED.replace("G01 Z-1.2 F0.006\nG00 Z0.2\n", "G01 Z-1.2 F0.006\n")).join(" | ")).toMatch(/home from down inside the part/);
+  });
+  it("the thread cut before the outside is turned", () => {
+    const thread = "T0505 (THREAD 60 DEG)\nG97 S700 M03\nG00 X0.7 Z0.2\nG76 X0.555 Z-0.8 K0.035 D0.012 F0.0625\nG00 X1.4 Z0.5 M09\nG28 U0. W0.\n";
+    const draft = swap(thread, "").replace("T0101 (CNMG ROUGH)", `${thread}T0101 (CNMG ROUGH)`);
+    expect(stops(BASE, draft).join(" | ")).toMatch(/thread is cut where the outside hasn't been turned down to it yet/);
+  });
+  it("the groove cut before the outside is turned", () => {
+    const groove = "T0303 (GROOVE 0.125)\nG97 S800 M03\nG00 X1.4 Z-0.9\nG01 X0.5 F0.003\nG00 X1.4\nG00 Z0.2\nG28 U0. W0.\n";
+    const old = swap("G00 X0.7 Z-0.9", "G00 X1.4 Z-0.9");
+    const draft = swap(groove, "", old).replace("T0101 (CNMG ROUGH)", `${groove}T0101 (CNMG ROUGH)`);
+    expect(stops(old, draft).join(" | ")).toMatch(/A plunge goes through 0\.375 of metal .* deepest in the current program is 0\.0625/);
+  });
+  it("a sub-program after the end of the program, changed", () => {
+    const old = `${BASE.replace("M30\n%\n", "M97 P1000\nM30\nN1000 G01 X0.5 F0.003\nM99\n%\n")}`;
+    const got = found(old, old.replace("N1000 G01 X0.5 F0.003", "N1000 G01 X0.1 F0.02"));
+    expect(got.filter((f) => f.level === "stop").map((f) => f.text).join(" ")).toMatch(/lines after the end of the program \(where sub-programs go\) are different/);
+  });
+  it("the finishing pass given its own, faster speed, or run by the wrong tool", () => {
+    caught("G70 P10 Q20", "G96 S900\nG70 P10 Q20", /T1's surface speed went up from 400 to 900/);
+    const moved = swap("G70 P10 Q20\n", "").replace("G00 X0.7 Z-0.9\n", "G00 X1.35 Z0.1\nG70 P10 Q20\nG00 X0.7 Z-0.9\n");
+    expect(stops(BASE, moved).join(" | ")).toMatch(/finishing pass is run with T3, where the current program finishes with T1/);
+  });
+  it("a finishing pass pointed at lines no roughing cycle uses", () => caught("G70 P10 Q20", "G70 P10 Q21", /finishing pass \(G70\) points at lines N10 to N21/));
+  it("a rapid written inside the roughing profile", () => caught("G01 X1.125\nZ-3.", "G01 X1.125\nG00 Z-3.", /rapid move inside a roughing cycle's profile/));
+  it("words the follower doesn't use: a thread taper, a different roughing cycle", () => {
+    caught("K0.035 D0.012 F0.0625", "K0.035 D0.012 I-0.05 F0.0625", /Words the app can't follow are different.* New or changed: T5 G76 I-0\.05/);
+    caught("G71 P10 Q20", "G72 P10 Q20", /roughing cycle was changed for a different one \(G72, was G71\)/);
+  });
+  it("a block-delete line, a % part way down, a bracket never closed, a line of prose", () => {
+    caught("G70 P10 Q20", "/G70 P10 Q20", /starts with "\/"/);
+    caught("T0505 (THREAD 60 DEG)", "%\nT0505 (THREAD 60 DEG)", /% in the middle of the program/);
+    caught("G28 U0. W0.\nT0303", "(G28 U0. W0.\nT0303", /isn't G-code|bracket is opened and never closed/);
+    caught("G20 G40 G80 G99", "Here is the improved program:\nG20 G40 G80 G99", /A line isn't G-code: "Here is the improved program:"/);
+  });
+  it("units set where they weren't, dropped where they were, or a size written with no decimal point", () => {
+    const bare = BASE.replace("G20 G40 G80 G99", "G40 G80 G99");
+    expect(stops(bare, bare.replace("G40 G80 G99", "G21 G40 G80 G99")).join(" | ")).toMatch(/sets the units \(G21\), which the current program never does/);
+    caught("G20 G40 G80 G99", "G40 G80 G99", /sets its units \(G20\) and this one doesn't/);
+    caught("G01 X1.125\nZ-3.", "G01 X1.125\nZ-3", /no decimal point/);
+  });
+  it("an operator stop taken out", () => {
+    const old = add("G70 P10 Q20", "M00 (FLIP PART)");
+    expect(stops(old, BASE).join(" | ")).toMatch(/operator stop is gone \(FLIP PART\)/);
+    expect(stops(old, old.replace("M00 (FLIP PART)", "M01 (FLIP PART)")).join(" | ")).toMatch(/operator stop is gone/);
+  });
+  it("a long part is measured as tightly as a short one", () => {
+    const long = BASE.replace("G01 X1.125\nZ-3.", "G01 X1.125\nZ-20.");
+    expect(stops(long, long.replace("X0.625 Z-0.0625", "X0.6255 Z-0.0625")).join(" | ")).toMatch(/Ø0\.625 .* is Ø0\.6255/);
+  });
+  it("the spindle stopped, reversed, or a tool under a different zero", () => {
+    caught("G97 S800 M03\nG00 X0.7 Z-0.9", "G97 S800 M03\nM05\nG00 X0.7 Z-0.9", /T3 cuts with the spindle stopped|spindle not turning/);
+    const two = BASE.replace("T0303 (GROOVE 0.125)\nG97 S800 M03", "T0303 (GROOVE 0.125)\nG55\nG97 S800 M03");
+    const swapped = two.replace("G54 G00 X1.35", "G55 G00 X1.35").replace("T0303 (GROOVE 0.125)\nG55", "T0303 (GROOVE 0.125)\nG54");
+    expect(stops(two, swapped).join(" | ")).toMatch(/T1 cuts under work offset G55, where the current program has it under G54/);
+  });
+
+  it("mill: offsets and compensation, machine moves, a tap's second hole", () => {
+    const m = (draft, old = MILL) => draftChecks(old, draft, { part: millPart, machineFacts: mf }).filter((f) => f.level === "stop").map((f) => f.text).join(" | ");
+    expect(m(swap("G43 H01 Z1. M08", "G43 H01 Z1. M08\nG49", MILL))).toMatch(/Words the app can't follow are different.* T1 G49/);
+    const comp = swap("G01 Z-0.1 F20.\nX3.5", "G01 Z-0.1 F20.\nG41 D01 X3.5", MILL);
+    expect(m(comp.replace("G41 D01", "G41 D11"), comp)).toMatch(/Words the app can't follow.*D11/);
+    expect(m(swap("G41 D01 X3.5", "X3.5", comp), comp)).toMatch(/Words the app can't follow.* Gone: T1 G41/);
+    const mach = swap("G00 Z1.\nG91 G28 Z0.\nG90\nT2", "G00 Z1.\nG53 Z0.\nT2", MILL);
+    expect(m(mach.replace("G53 Z0.", "G53 Z-18."), mach)).toMatch(/moves in machine coordinates \(G53\) are different: Z-18/);
+    expect(m(swap("G98 G84 Z-0.35 R0.2 F25.\nX3.", "G98 G84 Z-0.35 R0.2 F25.\nX3. F12.5", MILL))).toMatch(/tapping cycle's feed and speed no longer match/);
+    expect(m(swap("G98 G81 Z-0.4 R0.1 F5.", "G98 G83 Z-0.4 R0.1 Q0.5 F5.", MILL))).toMatch(/Words the app can't follow|different/);
+  });
+  it("mill: a harder cut that leaves the same shape", () => {
+    const m = (draft, old = MILL) => draftChecks(old, draft, { part: millPart, machineFacts: mf }).filter((f) => f.level === "stop").map((f) => f.text).join(" | ");
+    // the current program plunges slowly and then speeds up to travel; the draft plunges at the travelling feed
+    const slow = swap("G01 Z-0.1 F20.\nX3.5\nG01 Z-0.2\nX0.5", "G01 Z-0.1 F4.\nG01 X3.5 F20.\nG01 Z-0.2 F4.\nG01 X0.5 F20.", MILL);
+    expect(m(MILL, slow)).toMatch(/T1's plunging feed went up from 4 to 20/);
+    // a rapid across the plate at cutting depth, where metal still stands
+    expect(m(swap("G43 H01 Z1. M08\nG01 Z-0.1 F20.", "G43 H01 Z1. M08\nG00 Z-0.1\nG00 X0.5 Y2.5\nG00 Y1.\nG01 Z-0.1 F20.", MILL))).toMatch(/rapid move crosses metal that hasn't been cut away yet|Rapid moves travel across the part lower/);
+  });
+
+  describe("and what it wrongly refused", () => {
+    it("roughing the inside of a bore with a negative allowance, compared with itself", () => {
+      const ID = BASE.replace("U0.02 W0.005", "U-0.02 W0.005");
+      expect(stops(ID, ID)).toEqual([]);
+    });
+    it("a thread given as distances from the start, or over two lines", () => {
+      const inc = swap("G76 X0.555 Z-0.8 K0.035 D0.012 F0.0625", "G76 U-0.145 W-1. K0.035 D0.012 F0.0625");
+      expect(stops(inc, inc)).toEqual([]);
+      const two = swap("G76 X0.555 Z-0.8 K0.035 D0.012 F0.0625", "G76 P010060 Q50 R20\nG76 X0.555 Z-0.8 P350 Q120 F0.0625");
+      expect(stops(two, two)).toEqual([]);
+    });
+    it("cancelling a tool's offset on the way home", () => {
+      expect(stops(BASE, swap("G28 U0. W0.\nT0303", "G28 U0. W0.\nT0100\nT0303")).filter((t) => /offset/.test(t))).toEqual([]);
+    });
+    it("a mill tool's comment reworded without its size", () => {
+      const got = draftChecks(MILL, MILL.replace("(1/2 FLAT ENDMILL)", "(ROUGHING ENDMILL)"), { part: millPart, machineFacts: mf }).filter((f) => f.level === "stop").map((f) => f.text);
+      expect(got).toEqual([]);
+    });
+    it("a fault the current program already has doesn't fail a draft that only adds comments", () => {
+      const old = BASE.replace("G50 S3000\n", "");
+      const got = found(old, old.replace("T0101 (CNMG ROUGH)", "(TURN THE OUTSIDE)\nT0101 (CNMG ROUGH)"));
+      expect(got.filter((f) => f.level === "stop")).toEqual([]);
+      expect(got.find((f) => /no top speed set first/.test(f.text))).toMatchObject({ level: "look" });
+      expect(got.sameMachine).toBe(true);
+    });
+    it("the same program written differently: G0 for G00, no spaces, small letters, a comment moved", () => {
+      const other = BASE.replace(/G00/g, "G0").replace(/G01/g, "g1").replace("G54 g0 X1.35 Z0.1 M08", "G54G0X1.35Z0.1M08").replace("G54 G0 X1.35 Z0.1 M08", "G54G0X1.35Z0.1M08").replace("(CNMG ROUGH)", "(ROUGH TURNING TOOL)");
+      const got = found(BASE, other);
+      expect(got.filter((f) => f.level === "stop")).toEqual([]);
+      expect(got.sameMachine).toBe(true);
+    });
+  });
+});
+
+describe("only one outcome is a pass", () => {
+  const usage = { input: 1, output: 1, cacheRead: 0, cacheWrite: 0 };
+  const wrote = (program) => ({ result: { program, summary: "s", changes: [], assumptions: [], questions: [] }, usage, notes: [] });
+  const ok = { result: { verdict: "ok_to_prove_out", findings: [], checked: [], couldNotCheck: [] }, usage, notes: [] };
+  const go = (old, draft) => {
+    const answers = [wrote(draft), ok];
+    return runRewrite({ ask: async () => answers.shift(), part, programs: [{ id: "v", name: "O1.nc", content: old, status: "unproven" }], machineFacts: tools, instruction: "x", now: new Date(2026, 10, 25) });
+  };
+  it("comments only, or something slower: passed", async () => {
+    expect((await go(BASE, BASE.replace("T0101 (CNMG ROUGH)", "(TURN THE OUTSIDE)\nT0101 (CNMG ROUGH)"))).verdict).toBe("passed");
+    expect((await go(BASE, BASE.replace("G97 S800 M03", "G97 S700 M03").replace("G01 X0.5 F0.003", "G01 X0.5 F0.002"))).verdict).toBe("passed");
+  });
+  it("any change to what the machine does, with nothing found wrong: changed, never passed", async () => {
+    const r = await go(BASE, BASE.replace("D0.08 F0.012", "D0.06 F0.012"));   // shallower roughing passes
+    expect(r.verdict).toBe("changed");
+    expect(r.changedLines).toBe(1);
+  });
+  it("a program the app can't follow, with its code changed: unmeasured, and it says why", async () => {
+    const macro = BASE.replace("G54 G00 X1.35 Z0.1 M08", "#101=2.\nG54 G00 X1.35 Z0.1 M08");
+    const r = await go(macro, macro.replace("D0.08 F0.012", "D0.06 F0.012"));
+    expect(r.verdict).toBe("unmeasured");
+    expect(r.unmeasured).toMatch(/macros, live tools, the sub-spindle or sub-programs.* could not measure this rewrite: 1 line of code changed/);
+    // but with only comments changed it is the same program, and passes
+    expect((await go(macro, macro.replace("T0101 (CNMG ROUGH)", "(NOTE)\nT0101 (CNMG ROUGH)"))).verdict).toBe("passed");
   });
 });

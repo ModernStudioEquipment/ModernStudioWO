@@ -23,7 +23,8 @@ import { parseLines, programInfo, looksLikeProgram, operatorStops } from "./cncG
 import { checkForPart, cleanTools } from "./cncPack.js";
 import { toolpath } from "./cncPath.js";
 import { simulateLathe, parseStock, partSizes, sizeText, zText, simplifyOutline } from "./cncSolid.js";
-import { simulateMill } from "./cncMill.js";
+import { simulateMill, toolDia } from "./cncMill.js";
+import { scan, sameMachine } from "./cncScan.js";
 import { estimateTime, fmtDuration } from "./cncTime.js";
 
 const ORDER = { stop: 0, look: 1, note: 2 };
@@ -111,8 +112,37 @@ export function measure(content, part, { millBox = null, toolNames = null } = {}
   const down = rapids.filter((s) => s.a[0] === s.b[0] && s.a[1] === s.b[1]);
   const landings = (path.arrivals || []).filter((a) => a.type === "rapid");
 
+  // a mill tool plunging straight down is a different cut from the same tool travelling: its feed is kept apart
+  if (path.kind === "mill") {
+    for (const T of Object.values(perTool)) T.feeds = {};
+    for (const s of cuts) {
+      const down = s.a[0] === s.b[0] && s.a[1] === s.b[1];
+      const key = feedKey(s.perRev, down ? "plunge" : "feed");
+      perTool[s.tool].feeds[key] = Math.max(perTool[s.tool].feeds[key] || 0, s.f || 0);
+    }
+  }
+  // the finishing pass has its own speed and its own tool, which may not be the roughing one's
+  for (const c of finish) {
+    const T = tool(c.tool);
+    T.cuts += 1;
+    const r = rough.find((x) => x.p === c.p && x.q === c.q);
+    const prof = r ? path.segs.slice(r.from, r.to ?? r.from).filter((x) => x.type === "profile") : [];
+    const smallest = prof.length ? 2 * Math.min(...prof.map((x) => Math.min(Math.abs(x.a[2]), Math.abs(x.b[2])))) : 0;
+    if (c.css) { const free = smallest > 1e-6 ? (c.s * K) / smallest : Infinity; const top = Math.min(free, c.clamp > 0 ? c.clamp : Infinity); T.rpm = Math.max(T.rpm, Number.isFinite(top) ? top : 99999); T.surface = Math.max(T.surface, c.s || 0); }
+    else T.rpm = Math.max(T.rpm, c.s || 0);
+  }
+  const text = scan(content, path.kind);
+  // going home from down inside the part drags the tool out sideways
+  const inside = (h) => {
+    if (!h.at) return false;
+    if (path.kind === "lathe") return !!sim && h.at[0] < sim.face - sim.tight * 2 && Math.abs(h.at[2]) < sim.stockR - 1e-4;
+    return !!mill && h.at[2] < mill.top - 1e-4;
+  };
+
   return {
-    info, path, sim, mill, units, codes, unitCodes: [...unitCodes].sort(), nonAscii, longLine, coolant, perTool,
+    info, path, sim, mill, units, codes, unitCodes: [...unitCodes].sort(), nonAscii, longLine, coolant, perTool, text,
+    homesInside: (path.homes || []).filter(inside).length,
+    finishTools: finish.map((c) => c.tool),
     kind: path.kind,
     sizes: sim ? partSizes(sim) : null,
     stops: operatorStops(content),
@@ -144,14 +174,24 @@ export function measure(content, part, { millBox = null, toolNames = null } = {}
 export function draftChecks(oldContent, newContent, { part = null, machineFacts = {}, sizesMayChange = false, speedsMayRise = false } = {}) {
   const out = [];
   const add = (level, text, line = null) => out.push({ level, text, line, from: "measured" });
-  const finish = (coverage) => { const list = byLevel(out); list.coverage = coverage; return list; };
+  // `same`: the machine does exactly what it did (only comments, or something slower).
+  // `unmeasured`: the program has things the follower can't follow AND its code
+  // changed, so none of the measuring below can be relied on for it.
+  let sameAsBefore = false;
+  let unmeasured = "";
+  const finish = (coverage) => { const list = byLevel(out); list.coverage = coverage; list.sameMachine = sameAsBefore; list.unmeasured = unmeasured; return list; };
 
   if (!looksLikeProgram(newContent)) {
     add("stop", "What came back isn't a program.");
     return finish({ measured: [], notMeasured: ["Nothing: it isn't a program."] });
   }
   let a = measure(oldContent, part);
-  let b = measure(newContent, part);
+  // A mill cutter's size is read from its comment. If the draft's comment for
+  // a tool no longer has a size in it, the tool hasn't changed: keep the size
+  // the current program gives. (A comment with a DIFFERENT size is a real change.)
+  const namesWas = Object.fromEntries(a.info.tools.map((t) => [t.t, t.note]));
+  const namesNow = Object.fromEntries(programInfo(newContent).tools.map((t) => [t.t, toolDia(t.note, a.units) ? t.note : namesWas[t.t] || t.note]));
+  let b = measure(newContent, part, { toolNames: namesNow });
   // Two mill programs are cut again on one grid big enough for both, so the
   // blocks can be compared square for square and nothing falls off the edge.
   if (a.mill && b.mill) {
@@ -162,8 +202,9 @@ export function draftChecks(oldContent, newContent, { part = null, machineFacts 
       top: Math.max(a.mill.top, b.mill.top), bottom: Math.min(a.mill.bottom, b.mill.bottom),
     };
     a = measure(oldContent, part, { millBox });
-    b = measure(newContent, part, { millBox });
+    b = measure(newContent, part, { millBox, toolNames: namesNow });
   }
+  const kept = sameMachine(a.text, b.text);
   const u = a.units;                                   // sizes are judged in the CURRENT program's units
   const slack = (sim) => (sim ? sim.tight * 3 : 0);
   const tol = Math.max(u === "mm" ? 0.005 : 0.0002, slack(a.sim), slack(b.sim));
@@ -171,13 +212,54 @@ export function draftChecks(oldContent, newContent, { part = null, machineFacts 
   const changed = sizesMayChange ? "look" : "stop";
   const measured = [];
   const notMeasured = ["The jaws, the vise, the fixture and the clamps: the program doesn't describe them.", "The real tool in each pocket: its shape, its length, and whether it's sharp."];
+  sameAsBefore = kept.same;
+
+  // -- will the Haas read it the way this app did?
+  if (b.text.junk.length) add("stop", `A line isn't G-code: "${b.text.junk[0].text}". The control would alarm or, worse, read part of it.`, b.text.junk[0].line);
+  if (b.text.unbalanced && !b.text.junk.some((j) => j.line === b.text.unbalanced)) add("stop", "A comment bracket is opened and never closed. The control treats the rest of the line differently from this app.", b.text.unbalanced);
+  if (b.text.midPercent && b.text.midPercent !== a.text.midPercent) add("stop", "There is a % in the middle of the program. The Haas stops loading the file there.", b.text.midPercent);
+  const newSlash = b.text.slashed.filter((l) => !a.text.slashed.includes(l));
+  if (newSlash.length) add("stop", `A line starts with "/" (${newSlash[0]}). Whether it runs depends on the Block Delete switch, so it can't be checked.`);
+  if (!kept.tailSame) add("stop", "The lines after the end of the program (where sub-programs go) are different, and the app doesn't follow those.");
+
+  // -- words the follower doesn't use have to be the very same words
+  const lost = a.text.unread.filter((w) => !b.text.unread.includes(w));
+  const gained = b.text.unread.filter((w) => !a.text.unread.includes(w));
+  const reordered = !lost.length && !gained.length && a.text.unread.join("|") !== b.text.unread.join("|");
+  if (lost.length || gained.length || reordered) {
+    add("stop", `Words the app can't follow are different, so what they do wasn't checked.${gained.length ? ` New or changed: ${gained.slice(0, 4).join("; ")}${gained.length > 4 ? ", and more" : ""}.` : ""}${lost.length ? ` Gone: ${lost.slice(0, 4).join("; ")}${lost.length > 4 ? ", and more" : ""}.` : ""}${reordered ? " They are the same words in a different order or under different tools." : ""}`);
+  } else if (a.text.unread.length) {
+    notMeasured.push(`${a.text.unread.length} word${a.text.unread.length === 1 ? "" : "s"} the app doesn't follow (${a.text.unread.slice(0, 3).join("; ")}${a.text.unread.length > 3 ? ", …" : ""}). They are the same in both programs.`);
+  }
+
+  // -- what each tool runs with: its zero and which way the spindle turns
+  for (const t of Object.keys(b.text.perTool)) {
+    const was = a.text.perTool[t];
+    const now = b.text.perTool[t];
+    if (!was) continue;
+    const eq = (x, y) => x.slice().sort().join(",") === y.slice().sort().join(",");
+    if (!eq(was.wcs, now.wcs)) add("stop", `T${t} cuts under work offset ${now.wcs.join(" and ")}, where the current program has it under ${was.wcs.join(" and ")}. It would cut from a different zero.`);
+    if (!eq(was.spin, now.spin)) add("stop", `T${t} cuts with the spindle ${now.spin.join(" and ")}, where the current program has it ${was.spin.join(" and ")}.`);
+  }
+  if (b.text.stoppedCuts > a.text.stoppedCuts) add("stop", "A cutting move is made with the spindle not turning.");
+  if (a.text.g53.join("|") !== b.text.g53.join("|")) add("stop", `The moves in machine coordinates (G53) are different: ${b.text.g53.join("; ") || "none now"}, where the current program has ${a.text.g53.join("; ") || "none"}. Those go to a fixed place on the machine whatever is in the way.`);
+  if (a.text.roughKinds.join(",") !== b.text.roughKinds.join(",") && a.text.roughKinds.length === b.text.roughKinds.length) add("stop", `A roughing cycle was changed for a different one (${b.text.roughKinds.join(", ")}, was ${a.text.roughKinds.join(", ")}). They cut in different directions.`);
+  for (const ref of b.text.finishRefs) if (!b.text.roughRefs.includes(ref)) add("stop", `A finishing pass (G70) points at lines N${ref.replace("-", " to N")}, which no roughing cycle in the program uses.`);
+  if (a.finishTools.join(",") !== b.finishTools.join(",") && b.finishTools.some((t) => !a.finishTools.includes(t))) add("stop", `The finishing pass is run with T${b.finishTools.filter((t) => !a.finishTools.includes(t)).join(", T")}, where the current program finishes with T${a.finishTools.join(", T") || "nothing"}. A different tool follows the same path to a different shape.`);
+  if (b.path.profileRapids > a.path.profileRapids) add("stop", "There is a rapid move inside a roughing cycle's profile. The finishing pass runs it as a rapid, through the metal left for finishing.");
+  if (b.homesInside > a.homesInside) add("stop", "It sends the tool home from down inside the part, which drags it out sideways. The current program always backs out first.");
+  const goneStops = a.text.stops.filter((why) => !b.text.stops.includes(why));
+  if (b.text.stops.length < a.text.stops.length) add("stop", `An operator stop is gone (${goneStops.join("; ") || "one of them"}). If the operator had something to do there, the machine now carries straight on.`);
+  const lostNotes = a.text.numbered.filter((c) => !b.text.numbered.includes(c));
+  if (lostNotes.length) add("look", `A comment with a number in it was changed or removed: ${lostNotes.slice(0, 2).map((c) => `(${c})`).join(", ")}. Operators set up from those.`);
 
   // -- it is the same program for the same setup
   if (a.info.number && b.info.number !== a.info.number) add("stop", `The program number changed from ${a.info.number} to ${b.info.number || "nothing"}. It would be filed as a different program on the machine.`);
   if (a.kind !== b.kind) add("stop", `The current program is a ${a.kind} program and this reads as a ${b.kind} program.`);
   if (b.unitCodes.length > 1) add("stop", "It switches between inches and millimetres (G20 and G21 are both in it). Every size after the switch would be wrong.");
   else if (a.unitCodes.length === 1 && b.unitCodes.length === 1 && a.unitCodes[0] !== b.unitCodes[0]) add("stop", `The units changed (${a.unitCodes[0]} to ${b.unitCodes[0]}). Every size would be wrong.`);
-  else if (a.unitCodes.length && !b.unitCodes.length) add("look", `The current program sets its units (${a.unitCodes.join(", ")}) and this one doesn't.`);
+  else if (a.unitCodes.length && !b.unitCodes.length) add("stop", `The current program sets its units (${a.unitCodes.join(", ")}) and this one doesn't, so it would run in whatever the machine was left in.`);
+  else if (!a.unitCodes.length && b.unitCodes.length) add("stop", `It sets the units (${b.unitCodes.join(", ")}), which the current program never does. If the machine is normally in the other one, every size changes.`);
   const offA = a.info.offsets.slice().sort().join(", ");
   const offB = b.info.offsets.slice().sort().join(", ");
   if (offA !== offB) add("stop", `The work offset changed: the current program uses ${offA || "none"} and this uses ${offB || "none"}. The tool would start from a different zero.`);
@@ -248,7 +330,7 @@ export function draftChecks(oldContent, newContent, { part = null, machineFacts 
       if (modeWas.size && !modeWas.has(mode)) { add("stop", `T${t}'s feed changed from ${[...modeWas].join(" and ")} to ${mode} (G98 and G99). The same F number means a completely different speed.`); break; }
       // against the same kind of move, or, for a kind this tool didn't make before, its fastest of any kind
       const base = was.feeds[key] ?? max(Object.entries(was.feeds).filter(([k]) => k.startsWith(mode)).map(([, v]) => v));
-      const word = { rough: "roughing feed", profile: "finishing feed", feed: "cutting feed", groove: "grooving feed" }[kind] || "feed";
+      const word = { rough: "roughing feed", profile: "finishing feed", feed: "cutting feed", groove: "grooving feed", plunge: "plunging feed" }[kind] || "feed";
       if (base > 0) faster(`T${t}'s ${word}`, base, f, `F, ${mode}`);
       else if (f > 0) add("look", `T${t} cuts at F${n4(f)} ${mode} on a kind of move it doesn't make in the current program, so there's nothing to compare that feed with.`);
     }
@@ -264,7 +346,9 @@ export function draftChecks(oldContent, newContent, { part = null, machineFacts 
   if (b.rough.length !== a.rough.length) add("look", `It has ${b.rough.length} roughing cycle${b.rough.length === 1 ? "" : "s"} where the current program has ${a.rough.length}.`);
   b.rough.forEach((c, i) => {
     const was = a.rough[i];
-    if (c.allowX < 0 || c.allowZ < 0) add("stop", `The roughing cycle on line ${c.line} has a finish allowance below zero (U${n4(c.allowX)} W${n4(c.allowZ)}). Roughing would cut under the finished size.`, c.line);
+    // (roughing the inside of a bore uses a negative U, so it's only wrong when it has changed sign)
+    const flipped = (now, before) => (now < 0) !== (before < 0);
+    if ((c.allowX < 0 || c.allowZ < 0) && (!was || flipped(c.allowX, was.allowX) || flipped(c.allowZ, was.allowZ))) add("stop", `The roughing cycle on line ${c.line} has a finish allowance below zero (U${n4(c.allowX)} W${n4(c.allowZ)}). Roughing would cut under the finished size.`, c.line);
     if (!c.finished && (!was || was.finished)) add("stop", `The roughing cycle on line ${c.line} is never followed by its finishing pass (G70), so the part would be left oversize by the finish allowance.`, c.line);
     if (!was) return;
     faster(`The roughing depth of cut on line ${c.line}`, was.depth, c.depth, "D, per side per pass");
@@ -297,7 +381,28 @@ export function draftChecks(oldContent, newContent, { part = null, machineFacts 
       else add("stop", `${what} That is how inserts and cutters get broken.`, biteB.line);
     }
   }
-  measured.push("How much metal any single pass takes off.");
+  if (a.sim && b.sim) {
+    const dig = (m) => m.sim.deepestPlunge?.depth || 0;
+    if (dig(b) > dig(a) * 1.05 + tol) {
+      const what = `A plunge goes through ${sz(dig(b))} of metal (line ${b.sim.deepestPlunge.line}), where the deepest in the current program is ${sz(dig(a))}. The outside may not have been turned down yet when it's cut.`;
+      add(speedsMayRise ? "look" : "stop", what, b.sim.deepestPlunge.line);
+    }
+    const tb = (m) => m.sim.deepestThread?.depth || 0;
+    if (tb(b) > tb(a) * 1.05 + tol) add("stop", `A threading pass takes ${sz(tb(b))} in one go (line ${b.sim.deepestThread.line}), where the current program never takes more than ${sz(tb(a))}.`, b.sim.deepestThread.line);
+    if (b.sim.threadInMetal && !a.sim.threadInMetal) add("stop", `The thread is cut where the outside hasn't been turned down to it yet (${sz(b.sim.threadInMetal.over)} of metal still over it).`, b.sim.threadInMetal.line);
+    // (when it's a CUT that goes further, that is said below with the sizes; this is for a rapid that does)
+    const cutsFurther = b.sim.face - b.sim.length < a.sim.face - a.sim.length - tol;
+    if (b.sim.lowestZ < a.sim.lowestZ - tol && !cutsFurther) add("stop", `A move goes ${sz(a.sim.lowestZ - b.sim.lowestZ)} closer to the chuck than anything in the current program (to ${zText(b.sim.lowestZ, u)}). Rapid or cut, the jaws are there.`);
+  }
+  if (a.mill && b.mill) {
+    if (b.mill.rapidHits > a.mill.rapidHits) add("stop", `A rapid move crosses metal that hasn't been cut away yet (line ${b.mill.firstHit?.line ?? "?"}), which no rapid in the current program does.`, b.mill.firstHit?.line ?? null);
+    for (const t of Object.keys(b.mill.widest)) {
+      const was = a.mill.widest[t] || 0;
+      const now = b.mill.widest[t];
+      if (was > 0 && now > was * 1.3 + a.mill.cell * 2) add(speedsMayRise ? "look" : "stop", `T${t} cuts a path ${sz(now)} wide in one pass, where the current program never has it cutting more than ${sz(was)} wide. That's a much heavier cut for the same feed.`);
+    }
+  }
+  measured.push("How much metal any single pass or plunge takes off.");
 
   // -- the part it makes
   if (a.kind === "lathe" && b.kind === "lathe" && a.sim && b.sim) {
@@ -403,7 +508,28 @@ export function draftChecks(oldContent, newContent, { part = null, machineFacts 
 
   // -- and everything the ordinary checker says about any program
   const before = new Set(checkForPart(oldContent, part, machineFacts).map((f) => f.text));
-  for (const f of checkForPart(newContent, part, machineFacts)) out.push({ ...f, from: "rules", was: before.has(f.text) });
+  for (const f of checkForPart(newContent, part, machineFacts)) {
+    const was = before.has(f.text);
+    // The current program has this too: the draft is no worse for it, so it
+    // can't be what fails the draft. It's still shown.
+    if (was && f.level === "stop") out.push({ ...f, level: "look", text: `${f.text} (The current program has this too.)`, from: "rules", was });
+    // A position with no decimal point can mean ten-thousandths. In a draft that's a stop.
+    else if (!was && /no decimal point/.test(f.text)) out.push({ ...f, level: "stop", from: "rules", was });
+    else out.push({ ...f, from: "rules", was });
+  }
+
+  // -- a program with things the follower can't follow, whose code has changed:
+  //    nothing above can be relied on for it
+  const beyond = [
+    (a.opaque.length || b.opaque.length) && "macros, live tools, the sub-spindle or sub-programs",
+    (a.shifts.length || b.shifts.length) && "lines that move the coordinate system",
+    (a.text.tail.length || b.text.tail.length) && "sub-programs after the end",
+  ].filter(Boolean);
+  if (beyond.length && !kept.same) {
+    unmeasured = `This program has ${beyond.join(", and ")}. The app can't follow those, so it could not measure this rewrite: ${kept.changed} line${kept.changed === 1 ? "" : "s"} of code changed and nothing here vouches for them.`;
+    notMeasured.unshift(unmeasured);
+  }
+  if (kept.same) measured.unshift("Every line of code is the same as the current program's, word for word. Only comments changed, or a speed or feed came down.");
   measured.unshift("Program number, units, work offset, each tool's offset number, and that every tool is on the machine's list.");
   return finish({ measured, notMeasured });
 }

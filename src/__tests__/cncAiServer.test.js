@@ -37,13 +37,15 @@ const bad400 = () => new Anthropic.BadRequestError(400, { type: "error", error: 
 describe("what gets sent", () => {
   it("every job sends the shop rules, the pack, and asks for a fixed shape back", () => {
     for (const task of TASKS) {
-      const r = buildRequest(task, input({ instruction: "clean it up", draft: PROGRAM, problems: "p", findings: "f", notes: "n" }));
+      const r = buildRequest(task, input({ instruction: "clean it up", draft: PROGRAM, problems: "p", findings: "f", notes: "n", question: "What does line 4 do?" }));
       expect(r.model).toBe("claude-fable-5-2");
       expect(r.system[0].text).toBe(SHOP);
       expect(r.thinking).toEqual({ type: "adaptive" });
-      expect(r.output_config.effort).toBe("high");
-      expect(r.output_config.format.type).toBe("json_schema");
-      expect(r.output_config.format.schema.additionalProperties).toBe(false);
+      if (task !== "ask") {   // (a question is the one job answered in its own words: see below)
+        expect(r.output_config.effort).toBe("high");
+        expect(r.output_config.format.type).toBe("json_schema");
+        expect(r.output_config.format.schema.additionalProperties).toBe(false);
+      }
       const blocks = r.messages[0].content;
       expect(blocks[0].text).toMatch(/^PART PACK/);
       expect(blocks[0].cache_control).toEqual({ type: "ephemeral" });   // the part every job shares

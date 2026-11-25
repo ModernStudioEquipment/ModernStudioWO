@@ -20,6 +20,12 @@ import { askAi, aiStatus } from "./cncAiClient.js";
 // { report } for a saved draft, { review } for a saved review.
 
 const LEVEL = { stop: "Fix", look: "Check", note: "Note" };
+const VERDICT = {
+  passed: { head: "The machine does exactly what it did before" },
+  changed: { head: "It changes what the machine does. Nothing was found wrong." },
+  unmeasured: { head: "The app could not measure this one" },
+  problems: { head: "It did not pass" },
+};
 
 export default function CncAi({ part, pp, machineFacts, open, onClose, onFill }) {
   const mode = typeof open === "string" ? open : open?.report ? "report" : "reviewed";
@@ -183,13 +189,15 @@ export default function CncAi({ part, pp, machineFacts, open, onClose, onFill })
       {/* ---- a rewrite, or the record of one ---- */}
       {phase === "result" && shown?.kind === "rewrite" && (
         <div className="ai-out">
-          <div className={`ai-verdict ${shown.verdict}`}>
-            {shown.verdict === "passed" ? <ShieldCheck size={26} /> : <ShieldAlert size={26} />}
+          {/* Four outcomes, and only one is green: the machine doing exactly what it did before. */}
+          <div className={`ai-verdict ${shown.verdict === "passed" ? "passed" : shown.verdict === "problems" ? "problems" : "look"}`}>
+            {shown.verdict === "passed" ? <ShieldCheck size={26} /> : shown.verdict === "problems" ? <ShieldAlert size={26} /> : <AlertTriangle size={26} />}
             <div>
-              <b>{shown.verdict === "passed" ? (shown.demo ? "Demo: it passed the checks on a canned answer" : "It passed every check that could be made") : "It did not pass"}</b>
+              <b>{shown.demo ? "Demo: " : ""}{VERDICT[shown.verdict]?.head || "It did not pass"}</b>
               <span>
-                {shown.verdict === "passed"
-                  ? `Measured against ${shown.basedOn?.name || "the current program"} and read by a second pass. What was and wasn't measured is listed below. It is still NOT PROVEN: prove it out at the machine like any new program.`
+                {shown.verdict === "passed" ? `Every line of code is the same as in ${shown.basedOn?.name || "the current program"}: only comments changed, or a speed or feed came down. It is still marked not proven.`
+                  : shown.verdict === "changed" ? `${shown.changedLines || "Some"} line${shown.changedLines === 1 ? "" : "s"} of code changed. The measurements and the second read found nothing wrong, but no set of checks covers everything. Have a lead read the changed lines, then prove it out: Graphics, single block, measure the first part.`
+                  : shown.verdict === "unmeasured" ? `${shown.unmeasured} Only the second read has looked at it. A lead must go through every changed line before anyone runs it.`
                   : shown.reasons.join(" ")}
               </span>
             </div>
@@ -248,8 +256,8 @@ export default function CncAi({ part, pp, machineFacts, open, onClose, onFill })
               <button className="wz-back" onClick={() => { setRun(null); setPhase("ask"); }}><RotateCcw size={16} /> Ask again</button>
               <span className="cl-spacer" />
               <button className="wz-skip" onClick={() => onClose({})}>Throw it away</button>
-              {run.verdict === "passed" || sure ? (
-                <button className="wz-next" onClick={save} disabled={saving}><Save size={18} /> {saving ? "Saving…" : run.verdict === "passed" ? "Save as a new version" : "Yes, save it with its problems"}</button>
+              {run.verdict === "passed" || run.verdict === "changed" || sure ? (
+                <button className="wz-next" onClick={save} disabled={saving}><Save size={18} /> {saving ? "Saving…" : run.verdict === "problems" ? "Yes, save it with its problems" : run.verdict === "unmeasured" ? "Yes, save it unmeasured" : "Save as a new version"}</button>
               ) : (
                 <button className="wz-skip ai-anyway" onClick={() => setSure(true)}>Save it anyway</button>
               )}

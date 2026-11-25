@@ -73,7 +73,8 @@ export function simulateLathe(path, stock = null) {
 
   // Sample points along the bar: an even spread for curves, plus a tight pair
   // either side of every corner so a shoulder stays square instead of sloping.
-  const tight = length * 1e-5;
+  // (capped: a long part mustn't be measured more loosely than a short one)
+  const tight = Math.min(length * 1e-5, 2e-5);
   const grooveW = groovWidth(path, length);
   const marks = new Set();
   const N = 900;
@@ -115,6 +116,7 @@ export function simulateLathe(path, stock = null) {
   let onPlunge = null;
   let onKind = null;
   let onBite = null;
+  let onDig = null;
   const tol = Math.max(stockR * 0.004, 1e-4);
   // A groove or a part-off is very often cut with plain moves rather than a
   // grooving cycle: straight in, straight back out. That is a plunge too. What
@@ -124,9 +126,12 @@ export function simulateLathe(path, stock = null) {
   const plungeAt = (env, s, i) => {
     const next = segs[i + 1];
     const za = s.a[0], ra = s.a[2], rb = s.b[2];
-    if (!next || Math.abs(za - s.b[0]) > EPS || !(rb < ra - EPS)) return false;          // not straight in
+    if (Math.abs(za - s.b[0]) > EPS || !(rb < ra - EPS)) return false;                   // not straight in
     if (za >= face - tight * 2) return false;                                           // down the face of the part: a facing cut
-    if (!(Math.abs(next.a[0] - next.b[0]) < EPS && next.b[2] > next.a[2] + EPS)) return false; // doesn't come straight back out
+    // It comes straight back out, or it never moves on from there at all (the
+    // next thing it does is go home, or the program ends): either way a slot.
+    const carriesOn = next && Math.abs(next.a[0] - s.b[0]) < EPS && Math.abs(next.a[2] - s.b[2]) < EPS;
+    if (carriesOn && !(Math.abs(next.a[0] - next.b[0]) < EPS && next.b[2] > next.a[2] + EPS)) return false;
     return radiusAt(env, za + grooveW / 2 + tight * 4) > Math.max(rb, 0) + tol;           // metal beside it: it's cutting a slot
   };
   // A pass along the part made INSIDE a hole (a boring bar's) is not the
@@ -150,6 +155,8 @@ export function simulateLathe(path, stock = null) {
       const bottom = Math.max(0, Math.min(ra, rb));
       if (s.type !== "groove" && onPlunge) onPlunge(i, za, bottom);
       if (onKind) onKind(s.tool, "groove");
+      // how much metal the plunge goes through: a groove cut before the outside is turned goes through far more
+      if (onDig) onDig(s, Math.max(0, radiusAt(env, za) - bottom));
       for (let k = lo(za - grooveW / 2); k < zs.length && zs[k] <= za + grooveW / 2 + EPS; k++) if (bottom < env[k]) env[k] = bottom;
       return;
     }
@@ -175,6 +182,11 @@ export function simulateLathe(path, stock = null) {
   onPlunge = (index, z, r) => plunged.push({ index, z, r });
   const toolKinds = {};   // tool -> the kinds of cut it makes: turn, face, groove, thread, drill
   onKind = (tool, kind) => { (toolKinds[tool] ||= []).includes(kind) || toolKinds[tool].push(kind); };
+  let deepestPlunge = null; // the deepest any plunge goes through metal: { line, depth }
+  onDig = (s, depth) => { if (!deepestPlunge || depth > deepestPlunge.depth) deepestPlunge = { line: s.line, depth }; };
+  let threadInMetal = null; // a thread started where the outside hasn't been turned down to it yet
+  let deepestThread = null; // the most any one threading pass takes off
+  let lowestZ = Infinity;   // the furthest toward the chuck that anything goes, rapids included
   let deepest = null;     // the heaviest single turning pass: { line, depth }
   onBite = (index, s, depth) => { if (!deepest || depth > deepest.depth) deepest = { line: s.line, depth, z: Math.min(s.a[0], s.b[0]) }; };
   // Threads cut so far: a threading tool pulls back out through its own
@@ -195,7 +207,27 @@ export function simulateLathe(path, stock = null) {
   };
   segs.forEach((s, index) => {
     landing(index);
-    if (s.type === "thread") { threaded.push({ z0: Math.min(s.a[0], s.b[0]), z1: Math.max(s.a[0], s.b[0]), minor: Math.min(Math.abs(s.a[2]), Math.abs(s.b[2])) }); onKind(s.tool, "thread"); return; }
+    lowestZ = Math.min(lowestZ, s.a[0], s.b[0]);
+    if (s.type === "thread") {
+      const t0 = Math.min(s.a[0], s.b[0]), t1 = Math.min(face, Math.max(s.a[0], s.b[0]));
+      const root = Math.min(Math.abs(s.a[2]), Math.abs(s.b[2]));
+      // The metal above the thread's root right now: the bar as turned so far,
+      // or the root of an earlier pass over the same length.
+      let above = 0;
+      for (let k = lo(t0); k < zs.length && zs[k] <= t1; k++) above = Math.max(above, env[k]);
+      const earlier = threaded.filter((t) => t.z0 < t1 && t.z1 > t0).map((t) => t.minor);
+      const from = earlier.length ? Math.min(above, ...earlier) : above;
+      const take = Math.max(0, from - root);
+      // A cycle (G76) shares its depth out over its own passes, so what matters
+      // there is whether the outside was ready for it. A single pass (G32, G92)
+      // takes everything between where it is and what's above it.
+      const cycleHeight = s.height || 0;
+      if (cycleHeight > 0) { if (above > root + cycleHeight + Math.max(tol, cycleHeight * 0.5) && !threadInMetal) threadInMetal = { line: s.line, over: above - (root + cycleHeight) }; }
+      else if (!deepestThread || take > deepestThread.depth) deepestThread = { line: s.line, depth: take };
+      threaded.push({ z0: Math.min(s.a[0], s.b[0]), z1: Math.max(s.a[0], s.b[0]), minor: root });
+      onKind(s.tool, "thread");
+      return;
+    }
     if (isCut(s)) {
       if (s.a[2] < 1e-6 && s.b[2] < 1e-6 && Math.abs(s.a[0] - s.b[0]) > EPS) onKind(s.tool, "drill");
       cut(env, s, index);
@@ -225,7 +257,7 @@ export function simulateLathe(path, stock = null) {
     if (worst && (!hits.has(s.line) || worst.depth > hits.get(s.line).depth)) hits.set(s.line, { line: s.line, index, ...worst, from: [za, ra], to: [zb, rb] });
   });
   landing(segs.length);
-  onPlunge = null; onKind = null; onBite = null; // later walks (stepping through the program) only redraw; the lists are made
+  onPlunge = null; onKind = null; onBite = null; onDig = null; // later walks (stepping through the program) only redraw; the lists are made
   if (bore) notes.push("Holes and bores aren't shown or checked, only the outside.");
   if (plunged.length || segs.some((s) => s.type === "groove")) notes.push("Groove width is a guess. The program doesn't give the insert's width.");
 
@@ -273,7 +305,7 @@ export function simulateLathe(path, stock = null) {
 
   return {
     zs, face, back, stockR, length, guessed, bore, unsure, notes, threads, grooves, grooveW, corners, tight,
-    toolKinds, deepest,
+    toolKinds, deepest, deepestPlunge, deepestThread, threadInMetal, lowestZ,
     collisions: [...hits.values()].sort((a, b) => a.line - b.line),
     final: Float64Array.from(env),
     outlineAt,

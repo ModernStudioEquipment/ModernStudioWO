@@ -160,6 +160,7 @@ export function simulateMill(path, { stockText = "", toolNames = {}, cells = 200
     const r2 = r * r;
     const low = Math.min(az, bz);
     let bite = 0;   // the most this move took off any one square
+    let touched = 0; // how many squares it cut into
     for (let j = j0; j <= j1; j++) {
       const py = by0 + (j + 0.5) * cell;
       for (let i = i0; i <= i1; i++) {
@@ -171,22 +172,62 @@ export function simulateMill(path, { stockText = "", toolNames = {}, cells = 200
         // a straight plunge cuts to its bottom; a move that travels cuts to the depth it has there
         const z = len2 < EPS ? low : az + (bz - az) * t;
         const k = j * nx + i;
-        if (z < h[k]) { if (h[k] - z > bite) bite = h[k] - z; h[k] = z; }
+        if (z < h[k]) { if (h[k] - z > bite) bite = h[k] - z; h[k] = z; touched += 1; }
       }
     }
+    lastTouched = touched;
     return bite;
+  };
+  let lastTouched = 0;
+  // Is there metal in the way of this move, as the block stands? (For rapids:
+  // the cutter's whole footprint, all the way along.)
+  const blocked = (h, s) => {
+    const r = rad(s);
+    const ax = s.a[0], ay = s.a[1], az = s.a[2], bx = s.b[0], by = s.b[1], bz = s.b[2];
+    const dx = bx - ax, dy = by - ay;
+    const len2 = dx * dx + dy * dy;
+    const i0 = Math.max(0, Math.floor((Math.min(ax, bx) - r - bx0) / cell));
+    const i1 = Math.min(nx - 1, Math.ceil((Math.max(ax, bx) + r - bx0) / cell));
+    const j0 = Math.max(0, Math.floor((Math.min(ay, by) - r - by0) / cell));
+    const j1 = Math.min(ny - 1, Math.ceil((Math.max(ay, by) + r - by0) / cell));
+    const inR2 = (r - cell * 0.75) * (r - cell * 0.75);   // a little inside the cutter's edge: the grid is only so fine
+    const low = Math.min(az, bz);
+    for (let j = j0; j <= j1; j++) {
+      const py = by0 + (j + 0.5) * cell;
+      for (let i = i0; i <= i1; i++) {
+        const px = bx0 + (i + 0.5) * cell;
+        const t = len2 < EPS ? 0 : Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / len2));
+        const qx = ax + dx * t, qy = ay + dy * t;
+        if (r <= cell || (px - qx) * (px - qx) + (py - qy) * (py - qy) > inR2) continue;
+        const z = len2 < EPS ? low : az + (bz - az) * t;
+        if (h[j * nx + i] > z + 1e-4) return true;
+      }
+    }
+    return false;
   };
 
   // The whole program once, for the finished part. On the way, the deepest
   // any single travelling pass cuts into what's there at that moment: one pass
   // at full depth breaks cutters that three shallower ones wouldn't.
+  // Also on the way: rapids that cross metal still standing, and the widest
+  // path each tool cuts in one pass.
   const final = fresh();
   let deepest = null;
-  for (const s of cuts) {
+  let rapidHits = 0;
+  let firstHit = null;
+  const widest = {};
+  for (const s of segs) {
+    if (!isCut(s)) {
+      if (blocked(final, s)) { rapidHits += 1; firstHit ||= { line: s.line }; }
+      continue;
+    }
     const bite = stamp(final, s);
     // (a straight plunge is a drill or an entry, judged by its depth elsewhere; this is about passes that travel)
-    const travels = Math.abs(s.b[0] - s.a[0]) > EPS || Math.abs(s.b[1] - s.a[1]) > EPS;
+    const len = Math.hypot(s.b[0] - s.a[0], s.b[1] - s.a[1]);
+    const travels = len > EPS;
     if (travels && bite > 0 && (!deepest || bite > deepest.depth)) deepest = { line: s.line, depth: bite, tool: s.tool };
+    // how wide a strip of fresh metal this pass took, from how many squares it cut into
+    if (len > cell * 3 && lastTouched) widest[s.tool] = Math.max(widest[s.tool] || 0, Math.min((lastTouched * cell * cell) / len, 2 * rad(s)));
   }
 
   // The block after the first n moves, plus `part` of the next. Stepping
@@ -220,7 +261,7 @@ export function simulateMill(path, { stockText = "", toolNames = {}, cells = 200
       return i < 0 || j < 0 || i >= nx || j >= ny ? null : h[j * nx + i];
     },
     cutShare: cutCells / final.length,
-    deepest,
+    deepest, rapidHits, firstHit, widest,
     box: { x0: bx0, x1: bx1, y0: by0, y1: by1, top, bottom }, cut: { x0, x1, y0, y1, zLow },
     // Where the cutter is after n moves (null before the first), and how big.
     toolAt: (count, part = 0) => {

@@ -12,6 +12,7 @@
 //
 //   {"t":"start"}                      the job was accepted
 //   {"t":"tick","chars":1234}          still working (also keeps the line open)
+//   {"t":"text","text":"…"}            the next piece of a plain-text answer (questions only)
 //   {"t":"done","result":…,"usage":…}  the answer
 //   {"t":"error","error":"…"}          it failed; nothing was changed
 //
@@ -61,6 +62,7 @@ export async function POST(request, { client = null } = {}) {
         const out = await runJob(client || makeClient(), task, input, {
           onStream: (s) => { live = s; },
           onProgress: (p) => { chars = p.chars; },
+          onText: (text) => say({ t: "text", text }),          // an answer to a question arrives as it's written
           gone: () => !open,
         });
         say({ t: "done", ...out });

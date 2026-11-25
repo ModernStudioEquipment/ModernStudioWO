@@ -94,9 +94,13 @@ export function toolpath(content, { kind: machineKind = "" } = {}) {
   const opaque = [];
   const offsets = {};
   //   homeVia    going home by way of a named point ("G28 X0. Z0."), as written
+  //   homes      where the tool was each time it was sent home (null when not known)
+  //   profileRapids  rapid moves written inside a roughing cycle's profile, which the finishing pass repeats as rapids
   const taps = [];
   const shifts = [];
   const homeVia = [];
+  const homes = [];
+  let profileRapids = 0;
   let unhomed = 0;
   let awayFromHome = false;   // has the tool moved since it was last sent home (or the program began)?
   let ended = false;          // M30 or M02 has been read: nothing after it runs
@@ -123,7 +127,7 @@ export function toolpath(content, { kind: machineKind = "" } = {}) {
   if (kind === "lathe") walkLathe(); else walkMill();
 
   if (full) notes.add(`Only the first ${MAX_SEGS.toLocaleString()} moves are drawn.`);
-  return { kind, segs, notes: [...notes], tools: toolsUsed, units, events, cycles, arrivals, opaque, offsets, taps, shifts, homeVia, unhomed, bounds: boundsOf(segs), stats: statsOf(kind, segs) };
+  return { kind, segs, notes: [...notes], tools: toolsUsed, units, events, cycles, arrivals, opaque, offsets, taps, shifts, homeVia, homes, profileRapids, unhomed, bounds: boundsOf(segs), stats: statsOf(kind, segs) };
 
   // -- mill -------------------------------------------------------------------
   function walkMill() {
@@ -166,7 +170,7 @@ export function toolpath(content, { kind: machineKind = "" } = {}) {
         else if (DRILL_CYCLES.includes(g)) {
           cycle = { z: null, r: null }; initZ = pos[2]; startedCycle = true;
           // tapping: the feed has to be the speed times the thread's lead, so their ratio is what matters
-          if ((g === 84 || g === 74) && modal.s > 0) taps.push({ line: n, tool: tool || pendingT, lead: modal.f / modal.s });
+          cycle.tap = g === 84 || g === 74;
         }
         else if (g === 28 || g === 30 || g === 53) home = g === 53 ? "machine" : "via";
       }
@@ -186,6 +190,7 @@ export function toolpath(content, { kind: machineKind = "" } = {}) {
         // "G28 Z0." rapids to Z0 of the part first, which is the classic way to
         // drive a tool into the work; in incremental mode ("G91 G28 Z0.") the
         // point is where it already is. G53 goes straight there.
+        homes.push({ at: pos.every((v) => v != null) ? pos.slice() : null, line: n, index: segs.length });
         if (home === "via" && abs && w.some((v) => v != null)) {
           homeVia.push(line.code.replace(/\s+/g, ""));
           if (pos.every((v) => v != null)) push(pos.slice(), [w[0] ?? pos[0], w[1] ?? pos[1], w[2] ?? pos[2]], "rapid", tool || pendingT, n);
@@ -206,6 +211,8 @@ export function toolpath(content, { kind: machineKind = "" } = {}) {
           const hx = at(0);
           const hy = at(1);
           if (hx != null && hy != null && cycle.z != null) {
+            // (at every hole, not just the first: a feed or speed changed part way down the list changes the thread)
+            if (cycle.tap && modal.s > 0) taps.push({ line: n, tool: tool || pendingT, lead: modal.f / modal.s });
             const startZ = pos[2] ?? initZ ?? cycle.r ?? cycle.z;
             const top = retractToR && cycle.r != null ? cycle.r : (initZ ?? cycle.r ?? startZ);
             const who = tool || pendingT;
@@ -306,7 +313,8 @@ export function toolpath(content, { kind: machineKind = "" } = {}) {
             if (awayFromHome) unhomed += 1;
           }
           tool = num;
-          if (digits.length >= 3) (offsets[num] ||= []).includes(t.v % 100) || offsets[num].push(t.v % 100);
+          // (offset 00 cancels the offset, on the way home: it isn't a different offset)
+          if (digits.length >= 3 && t.v % 100 !== 0) (offsets[num] ||= []).includes(t.v % 100) || offsets[num].push(t.v % 100);
         }
       }
       if (G.includes(4)) continue; // a dwell's X or U is seconds, not a place
@@ -320,6 +328,7 @@ export function toolpath(content, { kind: machineKind = "" } = {}) {
         // G28 goes home BY WAY OF the point on the line: "G28 U0. W0." goes
         // straight there, but "G28 X0. Z0." rapids to the centre of the face
         // first. (G53 has no such point.)
+        homes.push({ at: x != null && z != null ? P(z, x) : null, line: n, index: segs.length });
         if (!G.includes(53) && (val(line, "X") != null || val(line, "Z") != null || (val(line, "U") ?? 0) !== 0 || (val(line, "W") ?? 0) !== 0)) homeVia.push(line.code.replace(/\s+/g, ""));
         if (!G.includes(53) && x != null && z != null) {
           const vx = val(line, "X") ?? (val(line, "U") != null ? x + val(line, "U") : x);
@@ -360,10 +369,17 @@ export function toolpath(content, { kind: machineKind = "" } = {}) {
       }
 
       if (G.includes(76)) { // threading cycle: drawn as the thread's final pass
-        if (x != null && z != null && X != null && Z != null) {
+        // The end of the thread as X and Z, or as U and W measured from the
+        // start. (The first line of the two-line form has neither: skipped.)
+        const endX = X ?? (U != null && x != null ? x + U : null);
+        const endZ = Z ?? (W != null && z != null ? z + W : null);
+        if (x != null && z != null && endX != null && endZ != null) {
           useTool(tool);
-          // pitch = F (the lead); K = thread height, D = first pass depth, both as radius
-          push(P(z, X), P(Z, X), "thread", tool, n, { pitch: modal.f, height: val(line, "K") ?? 0, firstCut: val(line, "D") ?? 0, fromDia: x });
+          // pitch = F (the lead); K = thread height, D = first pass depth, both
+          // as radius. The two-line form gives those as P and Q with no decimal
+          // point, in ten-thousandths.
+          const scaled = (l) => (val(line, l) != null ? val(line, l) / 10000 : null);
+          push(P(z, endX), P(endZ, endX), "thread", tool, n, { pitch: modal.f, height: val(line, "K") ?? scaled("P") ?? 0, firstCut: val(line, "D") ?? scaled("Q") ?? 0, fromDia: x });
         }
         thread92 = null;
         continue;
@@ -378,6 +394,8 @@ export function toolpath(content, { kind: machineKind = "" } = {}) {
         continue;
       }
       if (G.includes(74) || G.some((g) => g >= 81 && g <= 89)) { // peck drill / drill along Z, back to where it started
+        // tapping on a lathe: the feed per turn IS the thread's lead
+        if (G.includes(84) && modal.f > 0) taps.push({ line: n, tool, lead: modal.perRev ? modal.f : modal.s > 0 ? modal.f / modal.s : 0 });
         if (x != null && z != null && Z != null) { useTool(tool); push(P(z, x), P(Z, x), "feed", tool, n); }
         continue;
       }
@@ -395,6 +413,10 @@ export function toolpath(content, { kind: machineKind = "" } = {}) {
       // doesn't count toward the part's diameters.
       const approach = !!profile && !profile.on && N === profile.p;
       if (approach) profile.on = true;
+      // A rapid written inside the profile (after its first line) is cut as a
+      // feed while roughing, but the finishing pass runs it as the rapid it is,
+      // through the metal left for finishing.
+      if (profile?.on && !approach && motion === 0) profileRapids += 1;
       const type = approach ? "rapid" : profile?.on ? "profile" : motion === 0 ? "rapid" : motion === 32 ? "thread" : "feed";
       // a single threading pass (G32): the feed is the lead, as on the cycles
       const more = type === "thread" ? { pitch: modal.f, fromDia: x ?? tx } : undefined;

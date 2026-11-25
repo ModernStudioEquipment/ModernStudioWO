@@ -162,7 +162,7 @@ export default function CncPartOverview({ part, pp, machineFacts, onAsk, onDetai
           <b><Sparkles size={15} /> AI</b>
           <span>
             {newest.ai?.kind === "rewrite"
-              ? `This version is an AI draft. ${newest.ai.verdict === "passed" ? "It passed the checks." : "It did not pass the checks."}`
+              ? `This version is an AI draft. ${{ passed: "The machine does exactly what it did before.", changed: "It changes what the machine does; nothing was found wrong, and a lead should read it.", unmeasured: "The app could not measure it." }[newest.ai.verdict] || "It did not pass the checks."}`
               : newest.ai?.kind === "written" ? newest.ai.summary || "This version was written by the app from sizes."
               : "Have it read this program, or write a better version."}
           </span>

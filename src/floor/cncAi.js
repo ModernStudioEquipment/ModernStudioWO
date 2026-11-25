@@ -142,7 +142,9 @@ const squash = (s) => String(s || "").replace(/^\s*\d+\|\s?/, "").replace(/\s+/g
 // stop with nothing written beside it is still a stop.
 export function placeFindings(findings, content) {
   const lines = String(content || "").replace(/\r\n?/g, "\n").split("\n").map(squash);
-  return (findings || []).filter((f) => f && typeof f === "object").map((f) => {
+  // (a finding that arrives as bare text, not in the form asked for, is kept as a stop: it may be the one that matters)
+  const formed = (findings || []).map((f) => (typeof f === "string" && f.trim() ? { level: "stop", line: null, quote: "", problem: f.trim(), fix: "" } : f));
+  return formed.filter((f) => f && typeof f === "object").map((f) => {
     const q = squash(f.quote);
     const hit = (i) => i >= 0 && i < lines.length && q.length >= 2 && lines[i] && (lines[i].includes(q) || q.includes(lines[i]));
     const n = Number(f.line) - 1;
@@ -286,8 +288,14 @@ export async function runRewrite({ ask, part, programs, machineFacts = {}, instr
   if (!second) reasons.push(stopsIn(measured).length ? "It wasn't given a second read, because it didn't pass the measurements." : "The final version wasn't given a second read.");
   else if (stopsIn(second.findings).length) reasons.push(`The second read found ${stopsIn(second.findings).length} problem${stopsIn(second.findings).length === 1 ? "" : "s"} that ${stopsIn(second.findings).length === 1 ? "wasn't" : "weren't"} fixed.`);
   else if (!secondPassed(second)) reasons.push("The second read said this should not be run.");
-  const verdict = reasons.length ? "problems" : "passed";
-  step("done", verdict === "passed" ? "Done. It passed every check." : "Done. It did not pass.");
+  // Four outcomes, and only one of them is a pass:
+  //   passed      the machine does exactly what it did before (comments, or something slower)
+  //   changed     it changes what the machine does; nothing was found wrong, but no set of
+  //               checks covers everything, so a person has to read the changed lines
+  //   unmeasured  as above, on a program the app can't follow at all
+  //   problems    something was found
+  const verdict = reasons.length ? "problems" : measured.sameMachine ? "passed" : measured.unmeasured ? "unmeasured" : "changed";
+  step("done", verdict === "passed" ? "Done. The machine does exactly what it did before." : verdict === "problems" ? "Done. It did not pass." : "Done. Nothing was found wrong, but it needs a lead to read it.");
 
   return {
     kind: "rewrite", verdict, reasons, program,
@@ -298,6 +306,8 @@ export async function runRewrite({ ask, part, programs, machineFacts = {}, instr
     questions: (answer.questions || []).filter(Boolean),
     measured, second, fixes, reads,
     coverage: measured.coverage || { measured: [], notMeasured: [] },
+    unmeasured: measured.unmeasured || "",
+    changedLines: diffPrograms(current.content, program).changes.filter((c) => c.op === "+" && c.text.replace(/\([^)]*\)/g, "").trim()).length,
     diff: diffPrograms(current.content, program),
     usage, cost: costOf(usage), notes: [...notes],
     demo: [...notes].some((n) => /^Demo:/.test(n)),
@@ -370,7 +380,7 @@ export async function runReview({ ask, part, programs, machineFacts = {}, onStep
 export function reportToKeep(run) {
   const trim = (list, n = 40) => (list || []).slice(0, n);
   return {
-    kind: "rewrite", verdict: run.verdict, reasons: run.reasons, at: run.at,
+    kind: "rewrite", verdict: run.verdict, reasons: run.reasons, at: run.at, unmeasured: run.unmeasured || "", changedLines: run.changedLines || 0,
     instruction: run.instruction, sizesMayChange: run.sizesMayChange, speedsMayRise: run.speedsMayRise,
     summary: run.summary, changes: trim(run.changes), assumptions: trim(run.assumptions), questions: trim(run.questions),
     measured: trim(run.measured.filter((f) => f.level !== "note" && !f.was)).map(({ level, text, line }) => ({ level, text, line })),

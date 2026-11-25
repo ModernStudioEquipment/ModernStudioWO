@@ -37,6 +37,8 @@ M30
 `;
 // The same part, tidied: comments added, lower feed, nothing about the shape changed.
 const GOOD = PIN.replace("G71 P10 Q20 U0.02 W0.005 D0.08 F0.012", "(ROUGH THE OUTSIDE)\nG71 P10 Q20 U0.02 W0.005 D0.06 F0.010").replace("G70 P10 Q20", "(FINISH PASS)\nG70 P10 Q20");
+// Comments only: the machine does exactly what it did.
+const TIDY = PIN.replace("G71 P10 Q20", "(ROUGH THE OUTSIDE)\nG71 P10 Q20").replace("G70 P10 Q20", "(FINISH PASS)\nG70 P10 Q20");
 const levels = (list, level) => list.filter((f) => f.level === level).map((f) => f.text);
 const check = (draft, opts = {}) => draftChecks(PIN, draft, { part, machineFacts: tools, ...opts });
 
@@ -233,9 +235,10 @@ describe("what the AI says about a line", () => {
       { level: "STOP", line: 1, quote: "O1", problem: "  " },          // a stop with nothing written is still a stop
       { level: "Look", line: 1, quote: "O1", problem: "y" },
       { level: "note", line: 1, quote: "O1", problem: " " },           // an empty note is nothing
-      null, "junk",
+      null, "this rapid crashes",                                      // not in the form asked for: kept, as a stop
     ], listing);
-    expect(out.map((f) => f.level)).toEqual(["stop", "stop", "look"]);
+    expect(out.map((f) => f.level)).toEqual(["stop", "stop", "look", "stop"]);
+    expect(out[3].text).toBe("this rapid crashes");
     expect(out[1].text).toMatch(/gave no explanation/);
   });
 
@@ -269,7 +272,7 @@ const AI_STOP = [{ level: "stop", line: 8, quote: "G54 G00 X1.35 Z0.1 M08", prob
 
 describe("the rewrite loop", () => {
   it("a good draft: written, measured, read once, passed", async () => {
-    const s = script({ expect: "write", reply: wrote(GOOD) }, { expect: "verify", reply: read() });
+    const s = script({ expect: "write", reply: wrote(TIDY) }, { expect: "verify", reply: read() });
     const r = await run(s);
     expect(r.verdict).toBe("passed");
     expect(r.reasons).toEqual([]);
@@ -286,7 +289,7 @@ describe("the rewrite loop", () => {
   });
 
   it("a draft that fails the measurements goes back with exactly what was measured, before anyone reads it", async () => {
-    const s = script({ expect: "write", reply: wrote(CLOSER) }, { expect: "fix", reply: wrote(GOOD) }, { expect: "verify", reply: read() });
+    const s = script({ expect: "write", reply: wrote(CLOSER) }, { expect: "fix", reply: wrote(TIDY) }, { expect: "verify", reply: read() });
     const r = await run(s);
     expect(r.verdict).toBe("passed");
     expect(r.fixes).toBe(1);
@@ -297,8 +300,8 @@ describe("the rewrite loop", () => {
 
   it("a fault the second read finds is fixed, measured again, and read again", async () => {
     const s = script(
-      { expect: "write", reply: wrote(GOOD) }, { expect: "verify", reply: read(AI_STOP) },
-      { expect: "fix", reply: wrote(GOOD.replace("(FINISH PASS)", "(FINISH PASS, ONE CUT)")) }, { expect: "verify", reply: read() },
+      { expect: "write", reply: wrote(TIDY) }, { expect: "verify", reply: read(AI_STOP) },
+      { expect: "fix", reply: wrote(TIDY.replace("(FINISH PASS)", "(FINISH PASS, ONE CUT)")) }, { expect: "verify", reply: read() },
     );
     const r = await run(s);
     expect(r.verdict).toBe("passed");
@@ -311,9 +314,9 @@ describe("the rewrite loop", () => {
 
   it("a fix that breaks something else is caught by measuring again, not passed on trust", async () => {
     const s = script(
-      { expect: "write", reply: wrote(GOOD) }, { expect: "verify", reply: read(AI_STOP) },
+      { expect: "write", reply: wrote(TIDY) }, { expect: "verify", reply: read(AI_STOP) },
       { expect: "fix", reply: wrote(CLOSER) },       // "fixed", but now it cuts into the jaws
-      { expect: "fix", reply: wrote(GOOD) }, { expect: "verify", reply: read() },
+      { expect: "fix", reply: wrote(TIDY) }, { expect: "verify", reply: read() },
     );
     const r = await run(s);
     expect(r.verdict).toBe("passed");
@@ -334,8 +337,8 @@ describe("the rewrite loop", () => {
 
   it("a second reader that never stops finding faults ends in 'did not pass', not in a loop", async () => {
     const s = script(
-      { reply: wrote(GOOD) }, { reply: read(AI_STOP) }, { reply: wrote(GOOD) }, { reply: read(AI_STOP) },
-      { reply: wrote(GOOD) }, { reply: read(AI_STOP) }, { reply: wrote(GOOD) },
+      { reply: wrote(TIDY) }, { reply: read(AI_STOP) }, { reply: wrote(TIDY) }, { reply: read(AI_STOP) },
+      { reply: wrote(TIDY) }, { reply: read(AI_STOP) }, { reply: wrote(TIDY) },
     );
     const r = await run(s);
     expect(s.left()).toBe(0);
@@ -345,7 +348,7 @@ describe("the rewrite loop", () => {
   });
 
   it("the last fix used up on a second-read fault: the fault is reported, not hidden", async () => {
-    const s = script({ reply: wrote(CLOSER) }, { reply: wrote(CLOSER) }, { reply: wrote(CLOSER) }, { reply: wrote(GOOD) }, { reply: read(AI_STOP) });
+    const s = script({ reply: wrote(CLOSER) }, { reply: wrote(CLOSER) }, { reply: wrote(CLOSER) }, { reply: wrote(TIDY) }, { reply: read(AI_STOP) });
     const r = await run(s);
     expect(r.verdict).toBe("problems");
     expect(r.second.findings).toHaveLength(1);
@@ -353,14 +356,14 @@ describe("the rewrite loop", () => {
   });
 
   it("'ok' from the second reader doesn't pass a draft with a stop in its own findings", async () => {
-    const s = script({ reply: wrote(GOOD) }, { reply: read(AI_STOP, "ok_to_prove_out") }, { reply: wrote(GOOD) }, { reply: read() });
+    const s = script({ reply: wrote(TIDY) }, { reply: read(AI_STOP, "ok_to_prove_out") }, { reply: wrote(TIDY) }, { reply: read() });
     const r = await run(s);
     expect(s.calls[2].task).toBe("fix");
     expect(r.verdict).toBe("passed");
   });
 
   it("something that isn't a program never reaches the second read", async () => {
-    const s = script({ reply: wrote("I can't do that safely.") }, { reply: wrote(GOOD) }, { reply: read() });
+    const s = script({ reply: wrote("I can't do that safely.") }, { reply: wrote(TIDY) }, { reply: read() });
     const r = await run(s);
     expect(s.calls[1].task).toBe("fix");
     expect(s.calls[1].input.problems).toMatch(/isn't a program/);
@@ -368,12 +371,12 @@ describe("the rewrite loop", () => {
   });
 
   it("an error from the AI stops the run and nothing is returned", async () => {
-    const s = script({ reply: wrote(GOOD) });
+    const s = script({ reply: wrote(TIDY) });
     await expect(run({ ...s, ask: async (task, input) => { if (task === "verify") throw new Error("The AI is busy right now."); return s.ask(task, input); } })).rejects.toThrow(/busy/);
   });
 
   it("keeps a short record with a saved draft", async () => {
-    const s = script({ reply: wrote(GOOD, { questions: ["Is the chamfer 1/16?"] }) }, { reply: read() });
+    const s = script({ reply: wrote(TIDY, { questions: ["Is the chamfer 1/16?"] }) }, { reply: read() });
     const kept = reportToKeep(await run(s));
     expect(kept).toMatchObject({ kind: "rewrite", verdict: "passed", instruction: "Tidy it up", questions: ["Is the chamfer 1/16?"], fixes: 0, reads: 1, basedOn: { id: "v1" } });
     expect(kept.second.verdict).toBe("ok_to_prove_out");
@@ -390,6 +393,16 @@ describe("the rewrite loop", () => {
     let asked = 0;
     await expect(runRewrite({ ask: async () => { asked += 1; return {}; }, part, programs, machineFacts: {}, instruction: "x" })).rejects.toThrow(/Fill these in on the part first: that machine's tool list/);
     expect(asked).toBe(0);   // nothing was spent finding that out
+  });
+
+  it("a draft that changes what the machine does is never a pass, even with nothing found wrong", async () => {
+    // a lower feed and shallower roughing passes: safe on the face of it, measured clean, read clean
+    const s = script({ expect: "write", reply: wrote(GOOD) }, { expect: "verify", reply: read() });
+    const r = await run(s);
+    expect(r.verdict).toBe("changed");
+    expect(r.reasons).toEqual([]);
+    expect(r.changedLines).toBeGreaterThan(0);
+    expect(reportToKeep(r).verdict).toBe("changed");
   });
 
   it("refuses to start with no program", async () => {
