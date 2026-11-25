@@ -172,15 +172,20 @@ const notesText = (r) => [
 
 // ---- what it cost -------------------------------------------------------------
 //
-// Dollars per million tokens for the default model (Claude Fable 5.2), for the
-// estimate shown on screen. An estimate: the bill is whatever Anthropic's
-// console says. Change these if lib/cncAi.js's DEFAULT_MODEL changes.
+// The server prices each answer by the model that gave it (`dollars`, web
+// searches included). Older answers without it are priced as Claude Fable 5.2,
+// the dearer of the two models. An estimate: the bill is Anthropic's console.
 export const PRICE = { input: 8, output: 40, cacheRead: 0.2, cacheWrite: 10 };
 export const addUsage = (a, b) => ({
   input: (a?.input || 0) + (b?.input || 0), output: (a?.output || 0) + (b?.output || 0),
   cacheRead: (a?.cacheRead || 0) + (b?.cacheRead || 0), cacheWrite: (a?.cacheWrite || 0) + (b?.cacheWrite || 0),
+  dollars: costOf(a) + costOf(b),
 });
-export const costOf = (u) => ((u?.input || 0) * PRICE.input + (u?.output || 0) * PRICE.output + (u?.cacheRead || 0) * PRICE.cacheRead + (u?.cacheWrite || 0) * PRICE.cacheWrite) / 1e6;
+export function costOf(u) {
+  if (!u) return 0;
+  if (typeof u.dollars === "number") return u.dollars;
+  return ((u.input || 0) * PRICE.input + (u.output || 0) * PRICE.output + (u.cacheRead || 0) * PRICE.cacheRead + (u.cacheWrite || 0) * PRICE.cacheWrite) / 1e6;
+}
 export const fmtCost = (dollars) => (dollars < 0.005 ? "under 1¢" : dollars < 1 ? `about ${Math.round(dollars * 100)}¢` : `about $${dollars.toFixed(2)}`);
 
 // ---- what has to be known before a rewrite is allowed ---------------------------

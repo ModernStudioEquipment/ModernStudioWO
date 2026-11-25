@@ -450,7 +450,9 @@ describe("the review", () => {
 describe("what it cost", () => {
   it("adds up the tokens and prices them", () => {
     const u = addUsage({ input: 10000, output: 4000, cacheRead: 20000, cacheWrite: 8000 }, { input: 5000, output: 1000 });
-    expect(u).toEqual({ input: 15000, output: 5000, cacheRead: 20000, cacheWrite: 8000 });
+    expect(u).toMatchObject({ input: 15000, output: 5000, cacheRead: 20000, cacheWrite: 8000 });
+    // what the server priced (by the model that answered) is what's added up, when it's there
+    expect(costOf(addUsage({ input: 1, dollars: 0.5 }, { input: 1, dollars: 0.25 }))).toBe(0.75);
     expect(costOf(u)).toBeCloseTo(0.12 + 0.2 + 0.004 + 0.08, 6);   // 15k in, 5k out, 20k read from cache, 8k written to it
     expect(fmtCost(0.001)).toBe("under 1¢");
     expect(fmtCost(0.204)).toBe("about 20¢");

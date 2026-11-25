@@ -818,3 +818,10 @@ button.cp-checkrow > span{flex:1; min-width:0; display:flex; flex-direction:colu
 .cm-ctlpick button.on{border-color:var(--m, var(--accent)); background:color-mix(in srgb,var(--m, var(--accent)) 14%,transparent)}
 .cm-manual{display:inline-flex; align-items:center; gap:6px; font-size:14px; color:#9CC4FF; text-decoration:underline; text-underline-offset:2px}
 .ch-saw span{color:#9BE8C6}
+
+/* ---- the control panel model on a machine's page ---- */
+.cm-panel{margin:4px 0 16px; border:1px solid var(--line2); border-radius:14px; padding:10px 12px; background:var(--panel)}
+.cm-panel > summary{cursor:pointer; font-size:15px; font-weight:800; color:#F3F6F8; padding:4px 2px; list-style:none}
+.cm-panel > summary::before{content:"▸ "; color:var(--m, var(--accent))}
+.cm-panel[open] > summary::before{content:"▾ "}
+.cm-panel[open] > summary{margin-bottom:10px}

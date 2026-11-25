@@ -103,7 +103,7 @@ export default function CncChat({ part = null, pp = null, machineFacts = {}, par
       let streamed = "";
       const out = await askAi("ask", input, { signal: stopper.current.signal, onText: (t) => { streamed += t; if (alive.current) setLive(streamed); } });
       if (!alive.current) return;
-      const answer = await save({ role: "assistant", body: out.result.answer, meta: { machinePhotos: machinePhotosLine(input.photos), notes: out.notes || [], cost: costOf(out.usage) + (out.searches || 0) * 0.01, model: out.model || "", sources: out.sources || [], searches: out.searches || 0 } });
+      const answer = await save({ role: "assistant", body: out.result.answer, meta: { machinePhotos: machinePhotosLine(input.photos), notes: out.notes || [], cost: costOf(out.usage), model: out.model || "", sources: out.sources || [], searches: out.searches || 0 } });
       if (!alive.current) return;
       setMessages((m) => [...(m || []), answer]);
       // what it learned is kept straight away, for every later question

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Plus, Trash2, Check, Upload, Printer, BookOpen } from "lucide-react";
 import CncToolSheet from "./CncToolSheet.jsx";
+import CncControlPanel from "./CncControlPanel.jsx";
 import { db } from "../lib/db.js";
 import { MACHINES, CONTROLS, controlOf, controlKey } from "./machines.js";
 import { cleanMachineFacts, suggestTools } from "./cncPack.js";
@@ -22,6 +23,7 @@ export default function CncMachines({ onSaved, parts = [], programIndex = [], fo
   const current = sel || used[0]?.key || MACHINES[0].key;
   const [more, setMore] = useState(false); // the rest of a machine's details, folded away
   const [sheet, setSheet] = useState("");  // which machine's tool list is up to print
+  const [panelOpen, setPanelOpen] = useState(true);   // the control panel model
 
   useEffect(() => {
     (async () => {
@@ -177,6 +179,13 @@ export default function CncMachines({ onSaved, parts = [], programIndex = [], fo
                 </a>
               )}
             </div>
+
+            {controlKey(m, f) && (
+              <details className="cm-panel" open={panelOpen} onToggle={(e) => setPanelOpen(e.currentTarget.open)}>
+                <summary>How to use the {m.short}'s control, step by step</summary>
+                <CncControlPanel machine={m} control={controlKey(m, f)} saved={f.guides} onSave={(guides) => set(m.key, "guides", guides)} />
+              </details>
+            )}
 
             {(() => {
               // Every tool the machine's programs call, with what they call it.

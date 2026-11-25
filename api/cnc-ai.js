@@ -35,7 +35,7 @@ const json = (status, body) =>
 
 export async function GET(request) {
   if (!(await callerStaff(request))) return notSignedIn();
-  return json(200, { ready: aiReady(), model: aiModel() });
+  return json(200, { ready: aiReady(), model: aiModel(), writingModel: aiModel("write") });
 }
 
 export async function POST(request, { client = null } = {}) {

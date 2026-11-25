@@ -1,0 +1,109 @@
+/* The Haas control panel, drawn to look like the real one: brushed steel,
+   grey keys with black lettering, teal and cream keys where Haas puts them. */
+.kp-wrap{display:flex; flex-direction:column; gap:12px; min-width:0}
+.kp-sub{margin:0; font-size:13px; color:#AEB8C4; line-height:1.4}
+.kp-tip{text-align:center}
+
+/* ---- guides ---- */
+.kp-guides{display:flex; flex-wrap:wrap; gap:6px}
+.kp-guides button{display:inline-flex; align-items:center; gap:5px; font:inherit; font-size:13.5px; font-weight:700; padding:7px 12px; border-radius:999px; border:1px solid var(--line2, #333); background:transparent; color:#C9D2DC; cursor:pointer}
+.kp-guides button.on{border-color:var(--m, #FFB224); color:#F3F6F8; background:color-mix(in srgb, var(--m, #FFB224) 16%, transparent)}
+.kp-guides button svg{color:#3DDC97}
+.kp-step{display:flex; flex-direction:column; gap:10px; border:1px solid var(--line2, #333); border-radius:14px; padding:14px 16px; background:var(--rail, #14181C)}
+.kp-stephead{display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px}
+.kp-stephead b{font-size:17px; color:#F3F6F8}
+.kp-checked{display:inline-flex; align-items:center; gap:5px; font-size:12.5px; font-weight:700; color:#FFB224}
+.kp-checked.ok{color:#3DDC97}
+.kp-say{display:flex; align-items:flex-start; gap:12px}
+.kp-num{flex:none; display:flex; flex-direction:column; align-items:center; justify-content:center; width:52px; height:52px; border-radius:12px; background:#FFB224; color:#1A1205; font-size:22px; font-weight:900; line-height:1}
+.kp-num i{font-style:normal; font-size:10px; font-weight:700; margin-top:2px}
+.kp-say p{margin:0; font-size:18px; line-height:1.45; color:#F3F6F8}
+.kp-say textarea{flex:1; min-width:0; font:inherit; font-size:16px; padding:8px 10px; border-radius:10px; border:1px solid var(--line2, #333); background:#0E1114; color:#F3F6F8; resize:vertical}
+.kp-keysline{display:flex; flex-wrap:wrap; gap:6px}
+.kp-keysline span{display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:700; color:#E8EEF4; border:1px solid var(--line2, #333); border-radius:8px; padding:4px 9px 4px 4px}
+.kp-keysline b{display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; border-radius:50%; background:#FFB224; color:#1A1205; font-size:12px}
+.kp-nav, .kp-editrow{display:flex; flex-wrap:wrap; align-items:center; gap:8px}
+.kp-next{border-color:#FFB224 !important; color:#F3F6F8 !important}
+.kp-edit{display:flex; flex-direction:column; gap:8px; border-top:1px solid var(--line, #222); padding-top:10px}
+.kp-save{border-color:#FFB224 !important}
+.kp-check{display:flex; flex-wrap:wrap; align-items:center; gap:8px; font-size:13.5px; color:#C9D2DC; border-top:1px solid var(--line, #222); padding-top:10px}
+.kp-check input{width:150px; font:inherit; font-size:14px; padding:6px 10px; border-radius:9px; border:1px solid var(--line2, #333); background:#0E1114; color:#F3F6F8}
+.kp-info{position:relative; display:flex; flex-direction:column; gap:2px; border:1px solid rgba(156,196,255,.5); background:rgba(156,196,255,.08); border-radius:12px; padding:10px 40px 10px 14px; font-size:14.5px; color:#E8EEF4}
+.kp-info b{color:#9CC4FF}
+.kp-info .cl-x{position:absolute; top:8px; right:8px}
+
+/* ---- the panel ---- */
+.kp-scale{width:100%; overflow:hidden}
+.kp-scale.slide{overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch; overscroll-behavior-x:contain; border-radius:16px}
+.kp{
+  --key:64px; --keyh:48px; --gap:9px;
+  display:flex; gap:22px; padding:22px; border-radius:16px; color:#1B1E22;
+  background:
+    repeating-linear-gradient(90deg, rgba(255,255,255,.035) 0 1px, transparent 1px 3px),
+    linear-gradient(160deg, #B9BDC1 0%, #9EA3A8 40%, #B4B8BC 70%, #8E9397 100%);
+  box-shadow:inset 0 0 0 2px #6F7479, 0 10px 30px rgba(0,0,0,.45);
+  font-family:"Helvetica Neue", Arial, sans-serif;
+}
+.kp-col{display:flex; flex-direction:column; gap:14px; min-width:0}
+.kp-side{width:200px; align-items:center; justify-content:space-between; padding:6px 0}
+.kp-logo{width:120px; height:120px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:72px; font-weight:900; font-style:italic; color:#D8DCDF; background:radial-gradient(circle at 40% 35%, #D7343A, #8E1418); box-shadow:inset 0 0 0 6px #C9CDD0, 0 2px 6px rgba(0,0,0,.4)}
+.kp-powers{display:flex; gap:18px}
+.kp-big{display:flex; flex-direction:column; align-items:center; gap:6px; position:relative}
+.kp-biglab{font-size:12px; font-weight:800; letter-spacing:.02em; color:#1B1E22; white-space:nowrap}
+.kp-big button{position:relative; border:none; cursor:pointer; border-radius:50%; width:64px; height:64px; box-shadow:inset 0 0 0 5px #C9CDD0, inset 0 0 0 7px #6F7479, 0 3px 6px rgba(0,0,0,.4)}
+.kp-pon button{background:radial-gradient(circle at 40% 35%, #59C26A, #1D7A2E)}
+.kp-poff button, .kp-fh button{background:radial-gradient(circle at 40% 35%, #F0505A, #A1161E)}
+.kp-cs button{background:radial-gradient(circle at 40% 35%, #59C26A, #1D7A2E)}
+.kp-estop button{width:108px; height:108px; background:radial-gradient(circle at 42% 38%, #F04848, #A0121A 70%); box-shadow:0 0 0 14px #F2C200, 0 0 0 16px #8A7200, 0 5px 10px rgba(0,0,0,.5)}
+.kp-estop .kp-biglab{margin-bottom:16px}
+.kp-handle button{width:132px; height:132px; background:repeating-conic-gradient(#D7DADD 0 2deg, #A7ACB0 2deg 4deg); box-shadow:inset 0 0 0 26px #C3C7CA, inset 0 0 0 28px #7D8287, 0 4px 8px rgba(0,0,0,.45)}
+.kp-handle button::after{content:""; position:absolute; left:50%; top:50%; width:52px; height:52px; margin:-26px 0 0 -26px; border-radius:50%; background:radial-gradient(circle at 40% 35%, #E9ECEE, #9FA4A8)}
+
+.kp-screen{display:flex; flex-direction:column; gap:6px; min-height:120px; padding:14px 18px; border-radius:8px; border:10px solid #15181B; box-shadow:0 2px 6px rgba(0,0,0,.5)}
+.kp-screen span{font-family:"Courier New", monospace; font-size:13px; letter-spacing:.04em}
+.kp-screen b{font-size:20px; line-height:1.35; font-weight:700}
+.kp.classic .kp-screen{background:linear-gradient(#2563EB, #1D4ED8); color:#E8F0FF}
+.kp.classic .kp-screen span{color:#BFD3FF}
+.kp.ngc .kp-screen{background:linear-gradient(#E8EBEF, #D3D8DE); color:#1C2430}
+.kp.ngc .kp-screen span{color:#3F4A5A}
+
+.kp-body{display:flex; gap:26px}
+.kp-right{display:flex; gap:22px; align-items:flex-start}
+.kp-rows{display:flex; flex-direction:column; gap:var(--gap)}
+.kp-rows.gap{margin-top:6px}
+.kp-row{display:flex; gap:var(--gap)}
+.kp-gap{width:var(--key)}
+.kp-text{width:var(--key); display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:800; color:#2A2E33; letter-spacing:.04em}
+.kp-title{font-size:13px; font-weight:900; letter-spacing:.08em; text-align:center; color:#1B1E22; display:flex; align-items:center; gap:8px}
+.kp-title::before, .kp-title::after{content:""; flex:1; height:5px; background:#1B1E22; border-radius:2px}
+
+.kp-key{
+  position:relative; width:calc(var(--key) * var(--w, 1) + var(--gap) * (var(--w, 1) - 1)); height:var(--keyh);
+  display:flex; align-items:center; justify-content:center; gap:3px; padding:0 3px; cursor:pointer;
+  border:none; border-radius:10px; font:inherit; font-size:8.5px; font-weight:800; line-height:1.1; text-align:center; white-space:pre-line; letter-spacing:.01em;
+  color:#2A2E33; background:linear-gradient(180deg, #D3D6D9, #A9AEB3);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.7), inset 0 -3px 0 rgba(0,0,0,.18), 0 2px 0 #6F7479, 0 3px 5px rgba(0,0,0,.35);
+}
+.kp-key:active{transform:translateY(1px)}
+.kp-key.red{background:linear-gradient(180deg, #E8553B, #B42A15); color:#FFF; font-size:15px}
+.kp.classic .kp-key.red{background:linear-gradient(180deg, #F07A2B, #C2530F)}
+.kp-key.teal{background:linear-gradient(180deg, #47A7AE, #24777E); color:#EAF8F9}
+.kp-key.cream{background:linear-gradient(180deg, #EFE6BF, #CBBE88); color:#2A2E33; font-size:10px}
+.kp-key.alpha{background:linear-gradient(180deg, #DADDE0, #B2B7BB); font-size:15px; font-weight:700}
+.kp-key.shift{background:linear-gradient(180deg, #DADDE0, #B2B7BB); color:#E3A500; font-size:13px; font-weight:900}
+.kp-key.mode{clip-path:polygon(0 0, 80% 0, 100% 50%, 80% 100%, 0 100%); padding-right:10px}
+.kp-shift{position:absolute; top:3px; left:6px; font-style:normal; font-size:10px; color:#D99A00; font-weight:900}
+.kp-arrowicon{width:20px; height:20px; fill:#2A2E33; flex:none}
+.kp-key.grey .kp-arrowicon{fill:#2A2E33}
+
+/* the keys to press: lit, numbered, pointed at */
+.kp-key.lit, .kp-big.lit button{outline:4px solid #FFB224; outline-offset:2px; box-shadow:0 0 0 8px rgba(255,178,36,.35), 0 0 24px 6px rgba(255,178,36,.75); z-index:2}
+.kp-key.mode.lit{clip-path:none}
+.kp-key.info{outline:3px solid #6EA8FF; outline-offset:2px}
+.kp-badge{position:absolute; top:-12px; right:-10px; min-width:24px; height:24px; padding:0 6px; border-radius:12px; display:flex; align-items:center; justify-content:center; background:#FFB224; color:#1A1205; font-size:14px; font-weight:900; box-shadow:0 2px 4px rgba(0,0,0,.4); z-index:3}
+.kp-point{position:absolute; left:50%; top:-40px; transform:translateX(-50%); font-size:26px; color:#FF8A00; text-shadow:0 0 6px rgba(255,255,255,.9), 0 2px 3px rgba(0,0,0,.5); animation:kp-bob 0.9s ease-in-out infinite; pointer-events:none; z-index:3}
+@keyframes kp-bob{0%,100%{transform:translate(-50%, 0)} 50%{transform:translate(-50%, 8px)}}
+@media (prefers-reduced-motion: reduce){ .kp-point{animation:none} }
+.kp-wrap .kp-check input{width:170px; flex:none}
+.kp-wrap .kp-check{font-size:13px}
+.kp-point{top:-30px; font-size:20px}

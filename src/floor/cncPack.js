@@ -9,6 +9,7 @@
 // pack below is the opposite of guessing.
 
 import { MACHINES, controlOf } from "./machines.js";
+import { cleanGuides } from "./cncKeypad.js";
 import { splitMachines, splitPrograms } from "./cncParts.js";
 import { programInfo, programLine, looksLikeProgram, checkProgram, checkCounts, diffPrograms, operatorStops, cleanProgramText } from "./cncGcode.js";
 import { toolpath } from "./cncPath.js";
@@ -53,6 +54,7 @@ export function cleanMachineFacts(f) {
     model: text("model"), control: ["classic", "ngc"].includes(text("control")) ? text("control") : "", holding: text("holding"), maxBar: text("maxBar"), liveTools: text("liveTools"), notes: text("notes"),
     tools: cleanTools(f?.tools),
     photos: (Array.isArray(f?.photos) ? f.photos : []).filter((u) => typeof u === "string" && u),
+    guides: cleanGuides(f?.guides),   // the control panel guides as the shop changed them (cncKeypad.js)
   };
 }
 

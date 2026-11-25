@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import Anthropic from "@anthropic-ai/sdk";
 import { GET, POST } from "../../api/cnc-ai.js";
-import { buildRequest, checkInput, runJob, explain, shapeProblem, drawingBlock, numbered, usageOf, AiProblem, TASKS, SHOP, MAX_PROGRAM_CHARS } from "../../lib/cncAi.js";
+import { buildRequest, checkInput, runJob, explain, shapeProblem, drawingBlock, numbered, usageOf, AiProblem, TASKS, SHOP, MAX_PROGRAM_CHARS, dollarsFor } from "../../lib/cncAi.js";
 
 // The server half of the AI. No request here reaches Anthropic: a stand-in
 // client plays the SDK's part, so what's tested is what this code sends, what
@@ -22,7 +22,7 @@ const streamOf = (message, { text = "" } = {}) => {
   };
 };
 const reply = (result, more = {}) => ({
-  model: "claude-fable-5-2", stop_reason: "end_turn",
+  model: "claude-opus-5-5", stop_reason: "end_turn",
   content: [{ type: "thinking", thinking: "" }, { type: "text", text: JSON.stringify(result) }],
   usage: { input_tokens: 1000, output_tokens: 400, cache_read_input_tokens: 600, cache_creation_input_tokens: 0 },
   ...more,
@@ -38,7 +38,7 @@ describe("what gets sent", () => {
   it("every job sends the shop rules, the pack, and asks for a fixed shape back", () => {
     for (const task of TASKS) {
       const r = buildRequest(task, input({ instruction: "clean it up", draft: PROGRAM, problems: "p", findings: "f", notes: "n", question: "What does line 4 do?" }));
-      expect(r.model).toBe("claude-fable-5-2");
+      expect(r.model).toBe("claude-opus-5-5");
       expect(r.system[0].text).toBe(SHOP);
       expect(r.thinking).toEqual({ type: "adaptive" });
       if (task !== "ask") {   // (a question is the one job answered in its own words: see below)
@@ -132,7 +132,8 @@ describe("asking", () => {
     expect(c.calls[0].body.fallbacks).toBe("default");
     expect(c.calls[0].body.betas).toEqual(["server-side-fallback-2026-07-01"]);
     expect(out.result.program).toBe(PROGRAM);
-    expect(out.usage).toEqual({ input: 1000, output: 400, cacheRead: 600, cacheWrite: 0 });
+    expect(out.usage).toMatchObject({ input: 1000, output: 400, cacheRead: 600, cacheWrite: 0 });
+    expect(out.usage.dollars).toBeGreaterThan(0);
     expect(out.notes).toEqual([]);
   });
 
@@ -243,7 +244,7 @@ describe("the route", () => {
     signedIn();
     expect(await (await GET(new Request("https://x/api/cnc-ai", { headers: { authorization: "Bearer good" } }))).json()).toMatchObject({ ready: false });
     process.env.ANTHROPIC_API_KEY = "sk-test";
-    expect(await (await GET(new Request("https://x/api/cnc-ai", { headers: { authorization: "Bearer good" } }))).json()).toMatchObject({ ready: true, model: "claude-fable-5-2" });
+    expect(await (await GET(new Request("https://x/api/cnc-ai", { headers: { authorization: "Bearer good" } }))).json()).toMatchObject({ ready: true, model: "claude-opus-5-5", writingModel: "claude-opus-5-5" });
   });
 
   it("without a key it says what's needed instead of failing strangely", async () => {
@@ -387,5 +388,25 @@ describe("drafting operator steps", () => {
   it("an answer with no steps isn't taken as one", () => {
     expect(shapeProblem("steps", { steps: [" "], unsure: [] })).toBe("the steps");
     expect(shapeProblem("steps", { steps: ["Load the bar"], unsure: [] })).toBe("");
+  });
+});
+
+describe("which model answers, and what it cost", () => {
+  afterEach(() => { delete process.env.CNC_AI_WRITING_MODEL; delete process.env.CNC_AI_MODEL; });
+  it("Opus 5.5 for everything; Fable can be put on writing programs alone", () => {
+    for (const t of ["ask", "review", "write", "steps"]) expect(buildRequest(t, input({ instruction: "x", question: "q" })).model).toBe("claude-opus-5-5");
+    process.env.CNC_AI_WRITING_MODEL = "claude-fable-5-2";
+    expect(buildRequest("write", input({ instruction: "x" })).model).toBe("claude-fable-5-2");
+    expect(buildRequest("verify", input({ instruction: "x", draft: PROGRAM })).model).toBe("claude-fable-5-2");
+    expect(buildRequest("ask", input({ question: "q" })).model).toBe("claude-opus-5-5");
+    process.env.CNC_AI_MODEL = "claude-x";
+    expect(buildRequest("write", input({ instruction: "x" })).model).toBe("claude-x");
+  });
+  it("each answer is priced by the model that gave it, searches included", async () => {
+    const c = fakeClient(() => streamOf({ ...reply({}), model: "claude-opus-5-5", usage: { input_tokens: 1_000_000, output_tokens: 100_000 }, content: [{ type: "server_tool_use", id: "s", name: "web_search", input: {} }, { type: "text", text: "ok" }] }));
+    const out = await runJob(c, "ask", { pack: "SHOP", program: "", question: "q", history: "" });
+    expect(out.usage.dollars).toBeCloseTo(4 + 2 + 0.01, 6);
+    expect(dollarsFor({ input: 1_000_000 }, "claude-fable-5-2")).toBe(8);
+    expect(dollarsFor({ input: 1_000_000 }, "something-new")).toBe(8);   // unknown: priced as the dearer
   });
 });
