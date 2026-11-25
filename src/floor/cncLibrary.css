@@ -602,3 +602,47 @@ button.cp-checkrow > span{flex:1; min-width:0; display:flex; flex-direction:colu
 .cp-ai{display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:800; letter-spacing:.4px; text-transform:uppercase; color:#C792EA; border:1px solid rgba(199,146,234,.5); border-radius:999px; padding:2px 8px}
 .ai-needs{border:1px solid var(--line2); border-radius:12px; padding:14px 16px; background:var(--rail)}
 .ai-needs li b{font-size:16px}
+
+/* ---- a program written from sizes ---- */
+.np-draw{border:1px solid var(--line2); border-radius:12px; background:#F5F6F8; padding:8px 10px; min-height:96px; display:flex; align-items:center; justify-content:center; color:#5A6573; font-size:14px; text-align:center}
+.np-draw .rs-drawing{margin:0; width:100%}
+.np-draw .rs-drawing figcaption, .np-draw .rs-sizes{display:none}
+.np-card{max-width:720px}
+.np-grid{display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:14px 16px; margin-top:6px}
+.np-grid.three{grid-template-columns:repeat(3, minmax(0,1fr))}
+.np-field{display:flex; flex-direction:column; gap:5px; min-width:0}
+.np-field.wide{grid-column:1 / -1}
+.np-lab{font-size:14.5px; font-weight:700; color:#F3F6F8}
+.np-hint{font-size:12.5px; color:#AEB8C4; line-height:1.35}
+.np-err{font-size:13px; font-weight:600; color:#FF8A8A; line-height:1.35}
+.cl-editor .np-in{font:inherit; font-size:17px; padding:11px 13px; border-radius:11px; background:var(--rail); border:2px solid var(--line2); color:#F3F6F8; width:100%; min-width:0}
+.cl-editor .np-in:focus{border-color:var(--accent); outline:none}
+.cl-editor .bad .np-in{border-color:#FF7A7A}
+.cl-editor select.np-in{appearance:auto}
+.np-machines{display:flex; gap:10px; flex-wrap:wrap}
+.np-machines button{font:inherit; font-size:16px; font-weight:800; padding:12px 20px; border-radius:12px; cursor:pointer; background:var(--rail); border:2px solid var(--line2); color:#D6DEE6}
+.np-machines button.on{border-color:var(--m); color:#F3F6F8; background:color-mix(in srgb,var(--m) 16%,var(--rail))}
+.np-steps{display:flex; flex-direction:column; gap:8px; margin-top:6px}
+.np-stephead, .np-step{display:grid; grid-template-columns:56px minmax(0,1fr) minmax(0,1fr) 34px; gap:10px; align-items:center}
+.np-stephead span{font-size:12px; font-weight:800; letter-spacing:.4px; text-transform:uppercase; color:#AEB8C4}
+.np-step b{font-size:13px; font-weight:800; color:#AEB8C4}
+.np-steps .cl-btn{align-self:flex-start; margin-top:2px}
+.np-tools{display:flex; flex-direction:column; gap:10px; margin-top:6px}
+.np-tool{display:grid; grid-template-columns:96px minmax(0,1fr); gap:6px 12px; align-items:center}
+.np-tool:has(.pocket){grid-template-columns:96px 96px minmax(0,1fr)}
+.np-tool b{font-size:14.5px; color:#F3F6F8}
+.np-tool .np-err{grid-column:2 / -1}
+.np-warn{list-style:none; margin:4px 0 0; padding:10px 12px; display:flex; flex-direction:column; gap:7px; border:1px solid rgba(255,178,36,.45); border-radius:11px; background:rgba(255,178,36,.06)}
+.np-warn li{display:flex; gap:8px; align-items:flex-start; font-size:13.5px; line-height:1.4; color:#E8EEF4}
+.np-warn svg{flex:none; margin-top:3px; color:var(--accent)}
+.np-left{display:flex; flex-direction:column; gap:6px; margin-top:8px}
+.np-left b{font-size:14.5px; color:#F3F6F8}
+.np-left button{display:flex; align-items:center; justify-content:space-between; gap:10px; text-align:left; font:inherit; font-size:14px; padding:10px 12px; border-radius:10px; background:var(--rail); border:1px solid var(--line2); color:#FFB0B0; cursor:pointer}
+.np-code summary{cursor:pointer; font-size:14px; font-weight:600; color:#AEB8C4; padding:4px 0}
+.np .wz-count{display:inline-flex; align-items:center; gap:6px}
+@media (max-width:640px){
+  .np-grid, .np-grid.three{grid-template-columns:minmax(0,1fr)}
+  .np-tool, .np-tool:has(.pocket){grid-template-columns:minmax(0,1fr)}
+  .np-stephead, .np-step{grid-template-columns:44px minmax(0,1fr) minmax(0,1fr) 30px; gap:7px}
+}
+.ai .wz-next, .np .wz-next{white-space:nowrap}

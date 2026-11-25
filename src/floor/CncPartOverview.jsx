@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { ArrowRight, FileText, ShieldCheck, ShieldAlert, Upload, AlertTriangle, CheckCircle2, Check, ListChecks, Box, ClipboardList, Pencil, Sparkles } from "lucide-react";
+import { ArrowRight, FileText, ShieldCheck, ShieldAlert, Upload, AlertTriangle, CheckCircle2, Check, ListChecks, Box, ClipboardList, Pencil, Sparkles, Ruler } from "lucide-react";
 import CncPreview from "./CncPreview.jsx";
 import CncProveOut from "./CncProveOut.jsx";
 import CncRunSheet from "./CncRunSheet.jsx";
 import CncAi from "./CncAi.jsx";
+import CncNewProgram from "./CncNewProgram.jsx";
 import { PART_STEPS, FACT_FIELDS, neededLeft, programLine } from "./cncPack.js";
 import { fmtDuration } from "./cncTime.js";
 import { MACHINES } from "./machines.js";
@@ -12,15 +13,18 @@ import { splitMachines } from "./cncParts.js";
 // A part at a glance. What it looks like, where it stands, and one button for
 // the next thing to do. Everything else is a tap away ("All details"), not on
 // the screen competing for attention.
-export default function CncPartOverview({ part, pp, machineFacts, onAsk, onDetails, onMakeWorkOrder, onOpenMachines }) {
+export default function CncPartOverview({ part, pp, machineFacts, onAsk, onDetails, onMakeWorkOrder, onOpenMachines, onCommit }) {
   const [proving, setProving] = useState(false);
   const [showChecks, setShowChecks] = useState(false);
   const [sheet, setSheet] = useState(false);
   const [ai, setAi] = useState(null);   // "review" | "rewrite" | { report } while the AI screen is up
+  const [writing, setWriting] = useState(false);   // the "write one from sizes" screens are up
   const newest = pp.newest;
   const d = pp.newestInfo;
   const step = pp.step;
   const machines = splitMachines(part.machine).map((k) => MACHINES.find((m) => m.key === k)).filter(Boolean);
+  // Only lathe work can be written from sizes, so it's only offered for a part that's on a lathe (or on nothing yet).
+  const canWrite = !machines.some((m) => m.kind === "mill") || machines.some((m) => m.kind === "lathe");
   const left = neededLeft(part, pp.programs);
   const proven = newest?.status === "proven";
   const answers = FACT_FIELDS.filter((f) => String(part.facts?.[f.key] || "").trim());
@@ -35,6 +39,7 @@ export default function CncPartOverview({ part, pp, machineFacts, onAsk, onDetai
     : !proven ? { label: "Prove it out", icon: ShieldCheck, go: () => setProving(true) }
     : { label: "Print the run sheet", icon: FileText, go: () => setSheet(true) };
 
+  if (writing) return <CncNewProgram part={part} pp={pp} machineFacts={machineFacts} onCommit={onCommit} onClose={() => setWriting(false)} />;
   // The AI takes the whole screen while it's open: one thing at a time.
   if (ai) {
     return (
@@ -62,6 +67,7 @@ export default function CncPartOverview({ part, pp, machineFacts, onAsk, onDetai
             <Box size={40} />
             <b>{pp.loading ? "Loading…" : "No program yet"}</b>
             {!pp.loading && <span>Add this part's program and it shows here in 3D.</span>}
+            {!pp.loading && canWrite && <button className="cl-btn" onClick={() => setWriting(true)}><Ruler size={14} /> Or write one from sizes</button>}
           </div>
         )}
       </div>
@@ -115,7 +121,10 @@ export default function CncPartOverview({ part, pp, machineFacts, onAsk, onDetai
           ) : (
             <>
               <span className="ov-sub">None on file.</span>
-              <div className="ov-btns"><button className="cl-btn" onClick={() => onAsk({ only: ["program"] })}><Upload size={14} /> Add the program</button></div>
+              <div className="ov-btns">
+                <button className="cl-btn" onClick={() => onAsk({ only: ["program"] })}><Upload size={14} /> Add the program</button>
+                {canWrite && <button className="cl-btn" onClick={() => setWriting(true)}><Ruler size={14} /> Write one from sizes</button>}
+              </div>
             </>
           )}
         </section>

@@ -323,7 +323,10 @@ export function partSizes(sim, n = Infinity) {
   for (let i = 1; i < line.length; i++) {
     const a = line[i - 1];
     const b = line[i];
-    if (Math.abs(a[1] - b[1]) > tol || a[1] < tol) continue; // a taper, a wall, or nothing left
+    // A taper or a wall has no one diameter. (A slot cut right through, as a
+    // part-off is, stays in for now: the lengths either side of it are joined
+    // across it below, and it's dropped at the end.)
+    if (Math.abs(a[1] - b[1]) > tol) continue;
     const last = raw[raw.length - 1];
     if (last && Math.abs(last.r - a[1]) <= tol && Math.abs(last.z1 - a[0]) <= short * 0.5) { last.z1 = b[0]; continue; }
     raw.push({ z0: a[0], z1: b[0], r: a[1] });
@@ -351,7 +354,7 @@ export function partSizes(sim, n = Infinity) {
   const out = [];
   for (const s of [...merged, ...grooved]) {
     const len = s.z1 - s.z0;
-    if (len < short) continue;
+    if (len < short || s.r < tol) continue;   // too short to measure, or nothing left there
     const th = s.groove ? null : live.find((t) => Math.min(t.z1, s.z1) - Math.max(t.z0, s.z0) > len * 0.5);
     out.push({
       z0: s.z0, z1: s.z1, mid: (s.z0 + s.z1) / 2, r: s.r, dia: s.r * 2, len: s.groove ? null : len,

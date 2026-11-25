@@ -371,6 +371,7 @@ export default function CncLibrary({ onClose, embedded = false, onMakeWorkOrder 
                 onDetails={() => setTab("details")}
                 onMakeWorkOrder={onMakeWorkOrder ? makeWorkOrder : null}
                 onOpenMachines={() => goField("tools")}
+                onCommit={commit}
               />
             )}
             {!wizard && (draft.copiedFrom || (draft.id && tab === "details")) && (<>
