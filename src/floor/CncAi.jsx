@@ -139,7 +139,7 @@ export default function CncAi({ part, pp, machineFacts, open, onClose, onFill })
             <span>It's allowed to run faster<i>Leave this off unless you want higher speeds or feeds. Off, anything made faster is rejected.</i></span>
           </label>
           {err && <div className="cl-err">{err}</div>}
-          <p className="ai-quiet">{status.demo ? "Demo: no AI is asked and nothing is sent anywhere." : "This sends the part's details and its program to Anthropic's AI. Each go costs somewhere between a few cents and a couple of dollars."}</p>
+          <p className="ai-quiet">{status.demo ? "Demo: no AI is asked and nothing is sent anywhere." : "This sends the part's details and its program to Anthropic's AI. A rewrite usually costs one to five dollars. What it cost is shown afterwards."}</p>
           <div className="wz-foot">
             <span className="cl-spacer" />
             <button type="submit" className="wz-next" disabled={!instruction.trim()}>Write it <ArrowRight size={18} /></button>
