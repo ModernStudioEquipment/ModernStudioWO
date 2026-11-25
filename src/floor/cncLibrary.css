@@ -135,3 +135,56 @@
 
 .cl-mkwo{border-color:var(--accent); color:var(--accent)}
 .cl-mkwo:hover{background:color-mix(in srgb, var(--accent) 12%, transparent)}
+
+/* ---- Parts | Machines switch ---- */
+.cl-views{display:inline-flex; gap:4px; padding:4px; border:1px solid var(--line2); border-radius:12px; background:var(--rail); margin-left:18px}
+.cl-views button{font:inherit; font-size:13px; font-weight:700; padding:7px 16px; border-radius:9px; border:none; background:transparent; color:var(--muted); cursor:pointer}
+.cl-views button.on{background:var(--accent); color:#20160a}
+
+/* ---- Program & setup (on a part) ---- */
+.cp{display:flex; flex-direction:column; gap:10px; border-top:1px solid var(--line); padding-top:18px}
+.cp-head{display:flex; align-items:baseline; gap:12px; flex-wrap:wrap}
+.cp-sub{font-size:12.5px; color:var(--muted)}
+.cp-facts{display:grid; grid-template-columns:1fr 1fr; gap:12px 14px}
+.cp-long{grid-column:1 / -1}
+.cp-note{font-size:13px; color:var(--muted); border:1px dashed var(--line2); border-radius:10px; padding:10px 12px}
+.cp-prog{border:1px solid var(--line2); border-left:4px solid var(--red,#FF5C5C); border-radius:12px; padding:12px 14px; display:flex; flex-direction:column; gap:8px; background:var(--panel)}
+.cp-prog.proven{border-left-color:#3DDC97}
+.cp-progtop{display:flex; align-items:flex-start; gap:12px; flex-wrap:wrap}
+.cp-progname{display:flex; flex-direction:column; gap:2px; min-width:0; flex:1 1 240px}
+.cp-progname b{font-size:14.5px; overflow-wrap:anywhere}
+.cp-progname span{font-size:12.5px; color:var(--muted); overflow-wrap:anywhere}
+.cp-stamp{display:inline-flex; align-items:center; gap:6px; font-size:11.5px; font-weight:800; text-transform:uppercase; letter-spacing:.4px; color:var(--red,#FF5C5C); white-space:nowrap}
+.cp-stamp.ok{color:#3DDC97}
+.cp-tools{font-size:12.5px; color:var(--muted); overflow-wrap:anywhere}
+.cp-warn{font-size:12.5px; font-weight:700; color:var(--accent)}
+.cp-progbtns{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+.cp-prove{display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap}
+.cl-editor .cp-prove input{padding:7px 10px; font-size:13px; width:180px}
+.cp-code{margin:0; max-height:340px; overflow:auto; background:#07090c; border:1px solid var(--line); border-radius:10px; padding:12px; font:12.5px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace; color:#D6DEE6; white-space:pre; tab-size:4}
+.cp-ready{border:1px solid var(--line2); border-radius:12px; padding:12px 14px; background:var(--rail); display:flex; flex-direction:column; gap:10px; margin-top:4px}
+.cp-readyhead{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+.cp-checks{list-style:none; margin:0; padding:0; display:grid; grid-template-columns:1fr 1fr; gap:6px 16px}
+.cp-checks li{display:flex; align-items:flex-start; gap:7px; font-size:13px; color:var(--muted); flex-wrap:wrap}
+.cp-checks li svg{flex:none; margin-top:2px}
+.cp-checks li.ok{color:#3DDC97}
+.cp-checks li em{flex-basis:100%; padding-left:22px; font-style:normal; font-size:12px; color:var(--dim)}
+
+/* ---- Machines page ---- */
+.cm{display:flex; flex-direction:column; gap:16px}
+.cm-card{border:1px solid var(--line); border-top:3px solid var(--m); border-radius:16px; padding:18px 20px; display:flex; flex-direction:column; gap:10px; background:var(--panel)}
+.cm-card input, .cm-card textarea{background:var(--rail); border:1px solid var(--line); color:#F3F6F8; font:inherit; font-size:15px; padding:10px 12px; border-radius:10px; outline:none; width:100%; min-width:0}
+.cm-card input:focus, .cm-card textarea:focus{border-color:var(--accent)}
+.cm-card textarea{resize:vertical; line-height:1.5}
+.cm-head{display:flex; align-items:center; gap:12px}
+.cm-head b{font-size:17px}
+.cm-grid{display:grid; grid-template-columns:1fr 1fr; gap:12px 14px}
+.cm-tools{display:flex; flex-direction:column; gap:8px}
+.cm-tool{display:flex; align-items:center; gap:8px}
+.cm-t{font-weight:800; color:var(--m)}
+.cm-card .cm-tnum{flex:none; width:64px; text-align:center}
+
+@media (max-width: 760px){
+  .cp-facts, .cm-grid, .cp-checks{grid-template-columns:1fr}
+  .cl-views{margin-left:0}
+}

@@ -4,11 +4,13 @@ import Sortable from "sortablejs";
 import { db } from "../lib/db.js";
 import { duplicatePart, isSkuTaken, cleanPhotos, MAX_PHOTOS, moveStep, splitPrograms, joinPrograms, splitMachines, joinMachines } from "./cncParts.js";
 import { MACHINES } from "./machines.js";
+import CncPrograms from "./CncPrograms.jsx";
+import CncMachines from "./CncMachines.jsx";
 import "./cncLibrary.css";
 
-const BLANK = { id: null, sku: "", name: "", material: "", notes: "", blueprintUrl: null, photos: [], steps: [""], productNo: "", programNo: "", machine: "" };
+const BLANK = { id: null, sku: "", name: "", material: "", notes: "", blueprintUrl: null, photos: [], steps: [""], productNo: "", programNo: "", machine: "", facts: {} };
 // The editor works on a list of programs; the part stores them joined.
-const toDraft = (p) => ({ ...p, steps: p.steps && p.steps.length ? p.steps : [""], programs: splitPrograms(p.programNo) });
+const toDraft = (p) => ({ ...p, steps: p.steps && p.steps.length ? p.steps : [""], programs: splitPrograms(p.programNo), facts: { ...(p.facts || {}) } });
 const fromDraft = (d) => ({ ...d, programNo: joinPrograms(d.programs) });
 
 // A step box that grows to show the whole step instead of cutting it off.
@@ -34,6 +36,13 @@ export default function CncLibrary({ onClose, embedded = false, onMakeWorkOrder 
   const fileRef = useRef(null);
   const photoRef = useRef(null);
   const [photoBusy, setPhotoBusy] = useState(false);
+  // "parts" is the catalogue; "machines" is each Haas's tool list and setup.
+  const [view, setView] = useState("parts");
+  const [machineFacts, setMachineFacts] = useState({});
+  const loadMachineFacts = useCallback(async () => {
+    try { setMachineFacts(await db.getMachineFacts()); } catch { /* the page itself reports it */ }
+  }, []);
+  useEffect(() => { loadMachineFacts(); }, [loadMachineFacts]);
 
   async function reload(selectId) {
     const list = await db.getCncParts();
@@ -54,6 +63,7 @@ export default function CncLibrary({ onClose, embedded = false, onMakeWorkOrder 
   // Opens a copy in the editor, unsaved. See cncParts.js for what changes.
   const duplicate = () => { setDraft(toDraft(duplicatePart(fromDraft(draft)))); setSavedAt(0); setErr(""); };
   const setField = (k, v) => setDraft((d) => ({ ...d, [k]: v }));
+  const setFact = (k, v) => setDraft((d) => ({ ...d, facts: { ...(d.facts || {}), [k]: v } }));
   const setStep = (i, v) => setDraft((d) => { const s = d.steps.slice(); s[i] = v; return { ...d, steps: s }; });
   const addStep = () => setDraft((d) => ({ ...d, steps: [...d.steps, ""] }));
   const setProgram = (i, v) => setDraft((d) => { const l = d.programs.slice(); l[i] = v; return { ...d, programs: l }; });
@@ -156,6 +166,7 @@ export default function CncLibrary({ onClose, embedded = false, onMakeWorkOrder 
       setErr(isSkuTaken(e) ? `SKU ${draft.sku} is already on another part. Change it and save again.`
         : /photos/.test(e?.message || "") ? "Extra photos need migration 0065 run first. Everything else on the part is fine."
         : /machine/.test(e?.message || "") ? "Picking a machine needs migration 0066 run first. Clear the machine to save everything else."
+        : /facts/.test(e?.message || "") ? "The Program & setup boxes need migration 0068 run first. Clear them to save everything else."
         : /cnc_parts/.test(e?.message || "") ? "Run migration 0041 to enable the CNC library." : e?.message || "Couldn't save.");
     } finally {
       setSaving(false);
@@ -178,6 +189,10 @@ export default function CncLibrary({ onClose, embedded = false, onMakeWorkOrder 
             <b>CNC&nbsp;CATALOG</b>
             <span>Every product · how to make it · blueprints · notes</span>
           </div>
+          <div className="cl-views" role="tablist" aria-label="Catalog section">
+            <button role="tab" aria-selected={view === "parts"} className={view === "parts" ? "on" : ""} onClick={() => setView("parts")}>Parts</button>
+            <button role="tab" aria-selected={view === "machines"} className={view === "machines" ? "on" : ""} onClick={() => setView("machines")}>Machines</button>
+          </div>
           <div className="cl-spacer" />
           {!embedded && (
             <button className="cl-back" onClick={onClose}>
@@ -186,7 +201,8 @@ export default function CncLibrary({ onClose, embedded = false, onMakeWorkOrder 
           )}
         </header>
 
-        <div className="cl-body">
+        {view === "machines" && <CncMachines onSaved={loadMachineFacts} />}
+        <div className="cl-body" style={view === "machines" ? { display: "none" } : undefined}>
           <aside className="cl-list">
             <input className="cl-search" placeholder="Search parts…" value={q} onChange={(e) => setQ(e.target.value)} />
             <button className="cl-new" onClick={newPart}>
@@ -348,6 +364,8 @@ export default function CncLibrary({ onClose, embedded = false, onMakeWorkOrder 
                 </label>
               </div>
             </div>
+
+            <CncPrograms part={draft} onFact={setFact} machineFacts={machineFacts} />
 
             <div className="cl-foot">
               <button className="cl-save" onClick={save} disabled={saving || !draft.name.trim()}>

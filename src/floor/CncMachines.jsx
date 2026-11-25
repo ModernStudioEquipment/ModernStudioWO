@@ -1,0 +1,177 @@
+import { useEffect, useRef, useState } from "react";
+import { Plus, Trash2, Check, Upload } from "lucide-react";
+import { db } from "../lib/db.js";
+import { MACHINES } from "./machines.js";
+import { cleanMachineFacts } from "./cncPack.js";
+
+// The Machines page of the CNC Catalog: what each Haas actually has in it.
+// A program is only as good as the tool list it was written against, so this
+// is where "T3 is the 1/2 inch drill" gets written down once, per machine,
+// instead of being guessed every time a program is touched.
+export default function CncMachines({ onSaved }) {
+  const [facts, setFacts] = useState({});      // machine key -> facts being edited
+  const [saved, setSaved] = useState({});      // machine key -> JSON of last save
+  const [busy, setBusy] = useState("");
+  const [savedAt, setSavedAt] = useState({});
+  const [err, setErr] = useState("");
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const all = await db.getMachineFacts();
+        const next = {};
+        const snap = {};
+        for (const m of MACHINES) {
+          next[m.key] = withBlankRow(cleanMachineFacts(all[m.key]));
+          snap[m.key] = JSON.stringify(cleanMachineFacts(all[m.key]));
+        }
+        setFacts(next);
+        setSaved(snap);
+      } catch (e) {
+        setErr(e?.message || "Couldn't load the machines.");
+      }
+    })();
+  }, []);
+
+  const set = (k, field, v) => setFacts((f) => ({ ...f, [k]: { ...f[k], [field]: v } }));
+  const setTool = (k, i, field, v) => setFacts((f) => {
+    const tools = f[k].tools.slice();
+    tools[i] = { ...tools[i], [field]: v };
+    // Typing on the last row opens another, so the list never runs out.
+    if (i === tools.length - 1 && String(v).trim()) tools.push({ t: "", what: "" });
+    return { ...f, [k]: { ...f[k], tools } };
+  });
+  const dropTool = (k, i) => setFacts((f) => {
+    const tools = f[k].tools.filter((_, j) => j !== i);
+    return { ...f, [k]: { ...f[k], tools: tools.length ? tools : [{ t: "", what: "" }] } };
+  });
+
+  async function save(k) {
+    setBusy(k);
+    setErr("");
+    try {
+      const clean = cleanMachineFacts(facts[k]);
+      await db.saveMachineFacts(k, clean);
+      setSaved((s) => ({ ...s, [k]: JSON.stringify(clean) }));
+      setSavedAt((s) => ({ ...s, [k]: Date.now() }));
+      onSaved?.();
+    } catch (e) {
+      setErr(/cnc_machine_facts|schema cache|does not exist/i.test(e?.message || "")
+        ? "Machine details need migration 0068 run first."
+        : `Couldn't save${e?.message ? `: ${e.message}` : "."}`);
+    } finally {
+      setBusy("");
+    }
+  }
+
+  return (
+    <div className="cm">
+      <div className="cp-sub" style={{ marginBottom: 4 }}>
+        What's really in each machine. Programs get checked against these tool lists, so fill them in from the tool offset page on the Haas.
+      </div>
+      {err && <div className="cl-err">{err}</div>}
+      {MACHINES.map((m) => {
+        const f = facts[m.key];
+        if (!f) return null;
+        const dirty = JSON.stringify(cleanMachineFacts(f)) !== saved[m.key];
+        return (
+          <section className="cm-card" key={m.key} style={{ "--m": m.color }}>
+            <div className="cm-head">
+              <b>{m.label}</b>
+              <span className="cl-spacer" />
+              {!dirty && savedAt[m.key] && <span className="cl-saved"><Check size={14} /> Saved</span>}
+              <button className="cl-save" onClick={() => save(m.key)} disabled={busy === m.key || !dirty} aria-label={`Save ${m.label}`}>
+                {busy === m.key ? "Saving…" : "Save"}
+              </button>
+            </div>
+
+            <div className="cm-grid">
+              <label className="cl-field">
+                <span className="cl-lab">Model and year</span>
+                <input value={f.model} onChange={(e) => set(m.key, "model", e.target.value)} placeholder="From the nameplate, e.g. ST-10, 2019" />
+              </label>
+              <label className="cl-field">
+                <span className="cl-lab">Largest bar / part size</span>
+                <input value={f.maxBar} onChange={(e) => set(m.key, "maxBar", e.target.value)} placeholder="e.g. 1.75″ through the spindle" />
+              </label>
+              <label className="cl-field cp-long">
+                <span className="cl-lab">How it holds parts</span>
+                <textarea rows={2} value={f.holding} onChange={(e) => set(m.key, "holding", e.target.value)} placeholder="e.g. 8″ 3-jaw chuck with soft jaws, 5C collets, bar feeder" />
+              </label>
+              <label className="cl-field cp-long">
+                <span className="cl-lab">Live tools / extras</span>
+                <textarea rows={2} value={f.liveTools} onChange={(e) => set(m.key, "liveTools", e.target.value)} placeholder="e.g. 2 radial live holders, 1 axial, sub-spindle with 5C collet" />
+              </label>
+              <label className="cl-field cp-long">
+                <span className="cl-lab">Notes</span>
+                <textarea rows={2} value={f.notes} onChange={(e) => set(m.key, "notes", e.target.value)} placeholder="Anything a programmer should know about this machine" />
+              </label>
+            </div>
+
+            <span className="cl-lab">Tool list</span>
+            <div className="cm-tools">
+              {f.tools.map((r, i) => (
+                <div className="cm-tool" key={i}>
+                  <span className="cm-t">T</span>
+                  <input className="cm-tnum" value={r.t} onChange={(e) => setTool(m.key, i, "t", e.target.value)} inputMode="numeric" placeholder="#" aria-label={`${m.short} tool ${i + 1} number`} />
+                  <input value={r.what} onChange={(e) => setTool(m.key, i, "what", e.target.value)} placeholder="What it is, e.g. 1/2″ drill, CNMG 432 turning insert" aria-label={`${m.short} tool ${i + 1} description`} />
+                  <button className="cl-x" onClick={() => dropTool(m.key, i)} title="Remove this tool" aria-label={`Remove ${m.short} tool ${i + 1}`}><Trash2 size={15} /></button>
+                </div>
+              ))}
+            </div>
+            <button className="cl-addstep" onClick={() => setFacts((x) => ({ ...x, [m.key]: { ...x[m.key], tools: [...x[m.key].tools, { t: "", what: "" }] } }))}>
+              <Plus size={15} /> Add tool
+            </button>
+
+            <span className="cl-lab" style={{ marginTop: 10 }}>Photos (nameplate, tool offset page, the setup)</span>
+            <MachinePhotos photos={f.photos} onChange={(photos) => set(m.key, "photos", photos)} machine={m} onErr={setErr} />
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+const withBlankRow = (f) => ({ ...f, tools: [...f.tools, { t: "", what: "" }] });
+
+function MachinePhotos({ photos, onChange, machine, onErr }) {
+  const ref = useRef(null);
+  const [busy, setBusy] = useState(false);
+  async function onFiles(e) {
+    const files = [...(e.target.files || [])].slice(0, 12 - photos.length);
+    e.target.value = "";
+    if (!files.length) return;
+    setBusy(true);
+    try {
+      const urls = [];
+      for (const f of files) urls.push(await db.uploadBlueprint(`machine-${machine.key}`, f));
+      onChange([...photos, ...urls.filter(Boolean)]);
+    } catch (e2) {
+      onErr(`Couldn't upload that picture${e2?.message ? `: ${e2.message}` : "."}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <>
+      {photos.length > 0 && (
+        <div className="cl-photos">
+          {photos.map((u, i) => (
+            <div className="cl-photo" key={u}>
+              <a href={u} target="_blank" rel="noopener noreferrer" title="Open full size"><img src={u} alt={`${machine.short} photo ${i + 1}`} /></a>
+              <div className="cl-photobtns">
+                <button onClick={() => onChange(photos.filter((x) => x !== u))} title="Remove this photo" aria-label="Remove this photo"><Trash2 size={13} /></button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="cl-bpbtns">
+        <button className="cl-btn" onClick={() => ref.current?.click()} disabled={busy || photos.length >= 12}>
+          <Upload size={15} /> {busy ? "Uploading…" : "Add photos"}
+        </button>
+        <input ref={ref} type="file" accept="image/*" multiple hidden onChange={onFiles} />
+      </div>
+    </>
+  );
+}

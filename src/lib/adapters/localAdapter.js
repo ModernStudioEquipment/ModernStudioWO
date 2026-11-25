@@ -5,6 +5,7 @@
 
 import { buildSeed } from "../seed.js";
 import { cleanPhotos } from "../../floor/cncParts.js";
+import { cleanFacts, cleanMachineFacts } from "../../floor/cncPack.js";
 import { noteStamp, addAmounts, amountShort } from "../../theme.js";
 
 const KEY = "mse_orders_v1";
@@ -34,6 +35,14 @@ function read() {
 function write(orders) {
   localStorage.setItem(KEY, JSON.stringify(orders));
   channel?.postMessage("changed");
+}
+
+// Small JSON helpers for the side stores (programs, machine facts).
+function readLS(key, fallback) {
+  try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; }
+}
+function writeLS(key, value) {
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* ignore */ }
 }
 
 const REPAIRS_KEY = "mse_repairs_v1";
@@ -279,7 +288,7 @@ export const localAdapter = {
       steps: (p.steps || []).filter((s) => s && s.trim()),
       blueprintUrl: p.blueprintUrl || null, material: (p.material || "").trim(), notes: (p.notes || "").trim(),
       productNo: (p.productNo || "").trim(), programNo: (p.programNo || "").trim(),
-      photos: cleanPhotos(p.photos), machine: p.machine || "",
+      photos: cleanPhotos(p.photos), machine: p.machine || "", facts: cleanFacts(p.facts),
     };
     const i = list.findIndex((x) => x.id === id);
     if (i >= 0) list[i] = rec; else list.push(rec);
@@ -290,7 +299,40 @@ export const localAdapter = {
   async deleteCncPart(id) {
     const list = (await this.getCncParts()).filter((x) => x.id !== id);
     try { localStorage.setItem("mse_cnc_parts_v1", JSON.stringify(list)); } catch { /* ignore */ }
+    writeLS("mse_cnc_programs_v1", readLS("mse_cnc_programs_v1", []).filter((x) => x.partId !== id));
     channel?.postMessage("changed");
+  },
+
+  // ---- CNC program files + machine facts ----
+  async getCncPrograms(partId) {
+    return readLS("mse_cnc_programs_v1", []).filter((x) => x.partId === partId).sort((a, b) => b.createdAt - a.createdAt);
+  },
+  async addCncProgram({ partId, name, content, note }) {
+    const list = readLS("mse_cnc_programs_v1", []);
+    const id = uid();
+    list.push({ id, partId, name: name || "", content: content || "", note: note || "", status: "unproven", provenBy: "", provenAt: null, createdAt: Date.now() });
+    writeLS("mse_cnc_programs_v1", list);
+    return id;
+  },
+  async setCncProgramProven(id, proven, by) {
+    const list = readLS("mse_cnc_programs_v1", []);
+    const r = list.find((x) => x.id === id);
+    if (r) Object.assign(r, proven ? { status: "proven", provenBy: by || "", provenAt: Date.now() } : { status: "unproven", provenBy: "", provenAt: null });
+    writeLS("mse_cnc_programs_v1", list);
+  },
+  async deleteCncProgram(id) {
+    writeLS("mse_cnc_programs_v1", readLS("mse_cnc_programs_v1", []).filter((x) => x.id !== id));
+  },
+  async getMachineFacts() {
+    const raw = readLS("mse_cnc_machine_facts_v1", {});
+    const out = {};
+    for (const k of Object.keys(raw)) out[k] = cleanMachineFacts(raw[k]);
+    return out;
+  },
+  async saveMachineFacts(machine, facts) {
+    const all = readLS("mse_cnc_machine_facts_v1", {});
+    all[machine] = cleanMachineFacts(facts);
+    writeLS("mse_cnc_machine_facts_v1", all);
   },
   async uploadBlueprint(_partId, file) {
     return await new Promise((res) => {

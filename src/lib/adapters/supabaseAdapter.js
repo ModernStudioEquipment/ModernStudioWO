@@ -5,6 +5,7 @@
 
 import { supabase } from "../supabase.js";
 import { cleanPhotos, shouldWritePhotos, shouldWriteMachine, splitMachines, joinMachines } from "../../floor/cncParts.js";
+import { cleanFacts, shouldWriteFacts, cleanMachineFacts } from "../../floor/cncPack.js";
 import { noteStamp, noteAuthorName, addAmounts, amountShort } from "../../theme.js";
 
 // Who is writing. Read from the session rather than passed down through the
@@ -216,6 +217,9 @@ async function maxOrderNo(table, keep) {
   }
   return max;
 }
+
+// "That table isn't there yet" (a migration hasn't run), as opposed to a real failure.
+const isMissingRelation = (e) => /42P01|PGRST205/.test(String(e?.code || "")) || /schema cache|does not exist/i.test(String(e?.message || ""));
 
 export const supabaseAdapter = {
   needsAuth: true,
@@ -741,6 +745,7 @@ export const supabaseAdapter = {
       productNo: r.product_no || "", programNo: r.program_no || "",
       photos: cleanPhotos(r.photos), photosColumn: "photos" in r,
       machine: r.machine || "", machineColumn: "machine" in r,
+      facts: cleanFacts(r.facts), factsColumn: "facts" in r,
     }));
   },
   async saveCncPart(p) {
@@ -756,6 +761,8 @@ export const supabaseAdapter = {
     if (shouldWritePhotos(p)) row.photos = cleanPhotos(p.photos);
     // Same for the machine column (0066).
     if (shouldWriteMachine(p)) row.machine = joinMachines(splitMachines(p.machine)) || null;
+    // And the facts column (0068).
+    if (shouldWriteFacts(p)) row.facts = cleanFacts(p.facts);
     if (p.id) {
       const { data, error } = await supabase.from("cnc_parts").update(row).eq("id", p.id).select("id").single();
       fail(error); return data?.id;
@@ -765,6 +772,53 @@ export const supabaseAdapter = {
   },
   async deleteCncPart(id) {
     const { error } = await supabase.from("cnc_parts").delete().eq("id", id);
+    fail(error);
+  },
+
+  // ---- CNC program files + machine facts (0068) ----
+  // A missing table reads as "nothing yet" so the catalogue opens before the
+  // migration runs; writing is what reports it.
+  async getCncPrograms(partId) {
+    const { data, error } = await supabase
+      .from("cnc_programs").select("*").eq("part_id", partId).order("created_at", { ascending: false });
+    if (error) { if (isMissingRelation(error)) return []; fail(error); }
+    return (data || []).map((r) => ({
+      id: r.id, partId: r.part_id, name: r.name || "", content: r.content || "",
+      status: r.status || "unproven", provenBy: r.proven_by || "",
+      provenAt: r.proven_at ? new Date(r.proven_at).getTime() : null,
+      note: r.note || "", createdAt: new Date(r.created_at).getTime(),
+    }));
+  },
+  async addCncProgram({ partId, name, content, note }) {
+    const { data, error } = await supabase
+      .from("cnc_programs")
+      .insert({ part_id: partId, name: name || "", content: content || "", note: note || null })
+      .select("id").single();
+    fail(error);
+    return data?.id;
+  },
+  async setCncProgramProven(id, proven, by) {
+    const patch = proven
+      ? { status: "proven", proven_by: by || null, proven_at: new Date().toISOString() }
+      : { status: "unproven", proven_by: null, proven_at: null };
+    const { error } = await supabase.from("cnc_programs").update(patch).eq("id", id);
+    fail(error);
+  },
+  async deleteCncProgram(id) {
+    const { error } = await supabase.from("cnc_programs").delete().eq("id", id);
+    fail(error);
+  },
+  async getMachineFacts() {
+    const { data, error } = await supabase.from("cnc_machine_facts").select("*");
+    if (error) { if (isMissingRelation(error)) return {}; fail(error); }
+    const out = {};
+    for (const r of data || []) out[r.machine] = cleanMachineFacts(r.facts);
+    return out;
+  },
+  async saveMachineFacts(machine, facts) {
+    const { error } = await supabase
+      .from("cnc_machine_facts")
+      .upsert({ machine, facts: cleanMachineFacts(facts), updated_at: new Date().toISOString() }, { onConflict: "machine" });
     fail(error);
   },
   async uploadBlueprint(partId, file) {
