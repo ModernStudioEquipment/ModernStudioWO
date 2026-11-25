@@ -29,16 +29,21 @@ export const CONTROLS = {
     },
   },
 };
+// What the shop picked on the Machines page, or what's known from a photo of the machine.
+export const controlKey = (machine, facts) => (CONTROLS[facts?.control] ? facts.control : CONTROLS[machine?.control] ? machine.control : "");
 export const controlOf = (machine, facts) => {
-  const c = CONTROLS[facts?.control];
-  return c ? { key: facts.control, ...c, manual: c.manual[machine?.kind === "mill" ? "mill" : "lathe"] } : null;
+  const key = controlKey(machine, facts);
+  const c = CONTROLS[key];
+  return c ? { key, ...c, manual: c.manual[machine?.kind === "mill" ? "mill" : "lathe"] } : null;
 };
 
 export const MACHINES = [
-  { key: "vf4", short: "VF-4", label: "Haas VF-4", color: "#FFB224", kind: "mill",
+  // control: known from photos of the controls (2026-11-25): the VF-4 has the NGC,
+  // the DS-30SSY and the ST-10Y the Classic (the ST-10Y from an earlier, less clear photo)
+  { key: "vf4", short: "VF-4", label: "Haas VF-4", color: "#FFB224", kind: "mill", control: "ngc",
     about: "Vertical machining center: a 3-axis mill (X, Y, Z) with a tool changer. Work is held in a vise or a fixture on the table." },
-  { key: "st10", short: "ST-10Y", label: "Haas ST-10Y", color: "#FF8A5C", kind: "lathe",
+  { key: "st10", short: "ST-10Y", label: "Haas ST-10Y", color: "#FF8A5C", kind: "lathe", control: "classic",
     about: "Turning center with one spindle and a turret with live tooling and a Y axis: it can drill, tap and mill off the centre line as well as turn. From a photo it appears to run the older Haas control (the blue screen)." },
-  { key: "ds30ssy", short: "DS-30SSY", label: "Haas DS-30SSY", color: "#F5CE3A", kind: "lathe",
+  { key: "ds30ssy", short: "DS-30SSY", label: "Haas DS-30SSY", color: "#F5CE3A", kind: "lathe", control: "classic",
     about: "Dual-spindle turning center: a main spindle and a sub-spindle that can take the part over to work its back end, plus live tooling and a Y axis." },
 ];

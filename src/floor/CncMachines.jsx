@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Plus, Trash2, Check, Upload, Printer, BookOpen } from "lucide-react";
 import CncToolSheet from "./CncToolSheet.jsx";
 import { db } from "../lib/db.js";
-import { MACHINES, CONTROLS, controlOf } from "./machines.js";
+import { MACHINES, CONTROLS, controlOf, controlKey } from "./machines.js";
 import { cleanMachineFacts, suggestTools } from "./cncPack.js";
 import { shrinkPhoto } from "./cncChat.js";
 
@@ -166,7 +166,7 @@ export default function CncMachines({ onSaved, parts = [], programIndex = [], fo
               <span className="cl-lab">Which control does it have?</span>
               <div className="cm-ctlpick">
                 {Object.entries(CONTROLS).map(([k, c]) => (
-                  <button key={k} className={f.control === k ? "on" : ""} aria-pressed={f.control === k} onClick={() => set(m.key, "control", f.control === k ? "" : k)}>
+                  <button key={k} className={controlKey(m, f) === k ? "on" : ""} aria-pressed={controlKey(m, f) === k} onClick={() => set(m.key, "control", k)}>
                     <b>{c.label}</b><span>{c.looks}</span>
                   </button>
                 ))}

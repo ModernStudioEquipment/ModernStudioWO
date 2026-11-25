@@ -162,7 +162,10 @@ describe("which control a machine has", () => {
     const t = machinesText({ st10: { control: "classic" }, vf4: { control: "ngc" } });
     expect(t).toMatch(/Haas ST-10Y ==[\s\S]*?Control: Classic Haas Control\. Older[\s\S]*?Lathe_Operators_Manual_96-8700U/);
     expect(t).toMatch(/Haas VF-4 ==[\s\S]*?Control: Next Generation Control \(NGC\)[\s\S]*?mill---control-pendant\.html/);
-    expect(t).toMatch(/Haas DS-30SSY ==[\s\S]*?Control: not said yet/);
+    expect(machinesText({ ds30ssy: { control: "bogus" } })).toMatch(/Haas DS-30SSY ==[\s\S]*?Control: Classic Haas Control/);   // known from its photo
+    // the VF-4's is known from a photo of it, without anyone picking it
+    expect(machinesText({})).toMatch(/Haas VF-4 ==[\s\S]*?Control: Next Generation Control \(NGC\)/);
+    expect(machinesText({ st10: { control: "ngc" } })).toMatch(/Haas ST-10Y ==[\s\S]*?Control: Next Generation Control/);   // what the shop picks wins
     const sent = machinePhotosFor({ st10: { photos: ["https://s/a.jpg", "https://s/b.jpg"] } }, ["st10"]);
     expect(machinePhotosLine([{ url: "https://s/q.jpg", label: "q" }, ...sent])).toBe("2 photos of the Haas ST-10Y");
     expect(machinePhotosLine([])).toBe("");
