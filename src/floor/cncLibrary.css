@@ -808,3 +808,13 @@ button.cp-checkrow > span{flex:1; min-width:0; display:flex; flex-direction:colu
 .ov-opsdraft{display:flex; flex-direction:column; gap:4px; border:1px solid rgba(199,146,234,.5); background:rgba(199,146,234,.07); border-radius:10px; padding:10px 12px; font-size:14px; color:#E8EEF4}
 .ov-opsdraft b{display:flex; align-items:center; gap:6px; color:#E9D5FF}
 .ov-opsdraft ul{margin:0; padding-left:20px; color:#FFD58A}
+
+/* ---- which control a machine has ---- */
+.cm-control{display:flex; flex-direction:column; gap:8px; margin:4px 0 14px}
+.cm-ctlpick{display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:8px}
+.cm-ctlpick button{display:flex; flex-direction:column; align-items:flex-start; gap:3px; text-align:left; font:inherit; padding:10px 12px; border-radius:12px; border:1px solid var(--line2); background:transparent; color:#E8EEF4; cursor:pointer}
+.cm-ctlpick button b{font-size:14.5px}
+.cm-ctlpick button span{font-size:13px; color:#AEB8C4}
+.cm-ctlpick button.on{border-color:var(--m, var(--accent)); background:color-mix(in srgb,var(--m, var(--accent)) 14%,transparent)}
+.cm-manual{display:inline-flex; align-items:center; gap:6px; font-size:14px; color:#9CC4FF; text-decoration:underline; text-underline-offset:2px}
+.ch-saw span{color:#9BE8C6}

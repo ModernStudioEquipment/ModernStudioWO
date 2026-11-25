@@ -301,7 +301,7 @@ describe("questions to the assistant", () => {
     expect(blocks[2].text).toBe("(Above: the setup)");
     expect(checkInput("ask", q({ photos: [{ url: "https://evil.example/x.jpg" }] }))).toMatch(/didn't upload properly/);
     expect(checkInput("ask", q({ photos: [{ url: "data:image/png;base64,AAAA" }] }))).toMatch(/didn't upload properly/);
-    expect(checkInput("ask", q({ photos: Array.from({ length: 9 }, () => ({ url: ok })) }))).toMatch(/at most 8/);
+    expect(checkInput("ask", q({ photos: Array.from({ length: 13 }, () => ({ url: ok })) }))).toMatch(/at most 12/);
   });
   it("tells the AI what each machine really is", () => {
     expect(SHOP).toMatch(/ST-10Y: a turning center with one spindle and a turret that has live tooling and a Y axis/);

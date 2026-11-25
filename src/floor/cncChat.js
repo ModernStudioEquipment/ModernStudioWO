@@ -10,14 +10,16 @@
 //   the shop's records the part, its programs and measurements, every
 //                      machine's tool list and notes, from the rest of the app
 
-import { MACHINES } from "./machines.js";
+import { MACHINES, controlOf } from "./machines.js";
 import { splitMachines } from "./cncParts.js";
 import { cleanMachineFacts } from "./cncPack.js";
 import { buildAiPack, baselineOf } from "./cncAi.js";
 
 const MAX_HISTORY = 50_000;       // characters of earlier conversation sent with a question
-export const MAX_PHOTOS = 8;      // photos the AI looks at with one question (new ones first)
-const MACHINE_PHOTOS = 3;         // of those, at most this many from the Machines page
+export const MAX_PHOTOS = 12;     // photos the AI looks at with one question (new ones first)
+export const MAX_ATTACH = 6;      // of those, how many a person can attach to one question
+const MACHINE_PHOTOS = 6;         // the machine's own, from the Machines page: every one of the part's machine, up to this many
+const EACH_IN_SHOP = 2;           // for a question about the whole shop: this many of each machine
 
 // ---- what goes with a question ----------------------------------------------------
 const when = (t) => { const d = new Date(t); return `${d.getMonth() + 1}/${d.getDate()}`; };
@@ -45,7 +47,7 @@ export function historyText(messages = []) {
 // earlier in the conversation, each saying where it came from.
 export function photosFor(messages = [], fresh = [], question = "", machinePhotos = []) {
   const out = fresh.map((url, i) => ({ url, label: `photo ${i + 1} sent with this question${question ? `: "${question.slice(0, 80)}"` : ""}` }));
-  for (const p of machinePhotos.slice(0, MACHINE_PHOTOS)) if (out.length < MAX_PHOTOS) out.push(p);
+  for (const p of machinePhotos) if (out.length < MAX_PHOTOS) out.push(p);
   for (let i = messages.length - 1; i >= 0 && out.length < MAX_PHOTOS; i--) {
     const m = messages[i];
     if (m.role !== "person") continue;
@@ -91,10 +93,18 @@ export const alreadyKept = (memory = [], fact) => memory.some((m) => norm(m.body
 // for a question about the shop, taken in turn so each machine gets a look in.
 export function machinePhotosFor(machineFacts = {}, keys = null) {
   const ms = MACHINES.filter((m) => !keys || keys.includes(m.key));
-  const lists = ms.map((m) => cleanMachineFacts(machineFacts?.[m.key]).photos.map((url, i) => ({ url, label: `photo ${i + 1} of the ${m.label}, from the Machines page (its control, nameplate or setup)` })));
+  const each = keys ? MACHINE_PHOTOS : EACH_IN_SHOP;
+  const lists = ms.map((m) => cleanMachineFacts(machineFacts?.[m.key]).photos.slice(0, each)
+    .map((url, i) => ({ url, machine: m.key, label: `photo ${i + 1} of the ${m.label}, from the Machines page (its control, keypad, nameplate or setup)` })));
   const out = [];
   for (let i = 0; out.length < MACHINE_PHOTOS && lists.some((l) => l[i]); i++) for (const l of lists) if (l[i] && out.length < MACHINE_PHOTOS) out.push(l[i]);
   return out;
+}
+// What an answer says it looked at: "3 photos of the Haas ST-10Y".
+export function machinePhotosLine(sent = []) {
+  const by = new Map();
+  for (const p of sent) if (p.machine) by.set(p.machine, (by.get(p.machine) || 0) + 1);
+  return [...by.entries()].map(([k, n]) => `${n} photo${n === 1 ? "" : "s"} of the ${MACHINES.find((m) => m.key === k)?.label || k}`).join(", ");
 }
 
 // Every machine, as the shop has written it down.
@@ -103,6 +113,7 @@ export function machinesText(machineFacts = {}) {
     const f = cleanMachineFacts(machineFacts?.[m.key]);
     const L = [`== MACHINE: ${m.label} ==`, `What it is: ${m.about}`];
     if (f.model) L.push(`Model / year: ${f.model}`);
+    { const c = controlOf(m, f); if (c) L.push(`Control: ${c.label}. ${c.looks} For which key does what, use Haas's own manual for this control: ${c.manual.name} (${c.manual.url}).`); else L.push("Control: not said yet (Classic or NGC). If it matters, ask, or tell from a photo of the control."); }
     if (f.holding) L.push(`Workholding: ${f.holding}`);
     if (f.maxBar) L.push(`Largest bar: ${f.maxBar}`);
     if (f.liveTools) L.push(`Live tools: ${f.liveTools}`);

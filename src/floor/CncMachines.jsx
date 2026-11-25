@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { Plus, Trash2, Check, Upload, Printer } from "lucide-react";
+import { Plus, Trash2, Check, Upload, Printer, BookOpen } from "lucide-react";
 import CncToolSheet from "./CncToolSheet.jsx";
 import { db } from "../lib/db.js";
-import { MACHINES } from "./machines.js";
+import { MACHINES, CONTROLS, controlOf } from "./machines.js";
 import { cleanMachineFacts, suggestTools } from "./cncPack.js";
 import { shrinkPhoto } from "./cncChat.js";
 
@@ -162,6 +162,22 @@ export default function CncMachines({ onSaved, parts = [], programIndex = [], fo
               {(dirty || busy === m.key) && <span className="cl-saved cm-saving">Saving…</span>}
             </div>
 
+            <div className="cm-control">
+              <span className="cl-lab">Which control does it have?</span>
+              <div className="cm-ctlpick">
+                {Object.entries(CONTROLS).map(([k, c]) => (
+                  <button key={k} className={f.control === k ? "on" : ""} aria-pressed={f.control === k} onClick={() => set(m.key, "control", f.control === k ? "" : k)}>
+                    <b>{c.label}</b><span>{c.looks}</span>
+                  </button>
+                ))}
+              </div>
+              {controlOf(m, f) && (
+                <a className="cm-manual" href={controlOf(m, f).manual.url} target="_blank" rel="noreferrer noopener">
+                  <BookOpen size={14} /> Haas's manual for this control, with pictures of the control panel and keypad
+                </a>
+              )}
+            </div>
+
             {(() => {
               // Every tool the machine's programs call, with what they call it.
               const found = suggestTools(m.key, parts, programIndex, []);
@@ -243,7 +259,8 @@ export default function CncMachines({ onSaved, parts = [], programIndex = [], fo
               </label>
             </div>
 
-            <span className="cl-lab" style={{ marginTop: 10 }}>Photos (nameplate, tool offset page, the setup)</span>
+            <span className="cl-lab" style={{ marginTop: 10 }}>Photos (the control panel, the keypad, the tool offset page, the nameplate)</span>
+            <span className="cp-sub">{f.photos.length ? `The AI looks at ${f.photos.length > 6 ? "the first 6" : f.photos.length === 1 ? "this photo" : `these ${f.photos.length} photos`} with every question about the ${m.short}.` : `The AI will look at these with every question about the ${m.short}.`}</span>
             <MachinePhotos photos={f.photos} onChange={(photos) => set(m.key, "photos", photos)} machine={m} onErr={setErr} />
             </>)}
           </section>

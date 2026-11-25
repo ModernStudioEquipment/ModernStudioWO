@@ -4,7 +4,7 @@ import { db } from "../lib/db.js";
 import { askAi, aiStatus } from "./cncAiClient.js";
 import { splitMachines } from "./cncParts.js";
 import { fmtCost, costOf } from "./cncAi.js";
-import { historyText, photosFor, partPack, shopPack, programFor, parseAnswer, liveText, shrinkPhoto, starters, alreadyKept, MAX_PHOTOS, machinePhotosFor } from "./cncChat.js";
+import { historyText, photosFor, partPack, shopPack, programFor, parseAnswer, liveText, shrinkPhoto, starters, alreadyKept, MAX_ATTACH, machinePhotosFor, machinePhotosLine } from "./cncChat.js";
 
 // The CNC assistant: ask it anything, about one part or about the shop.
 //
@@ -103,7 +103,7 @@ export default function CncChat({ part = null, pp = null, machineFacts = {}, par
       let streamed = "";
       const out = await askAi("ask", input, { signal: stopper.current.signal, onText: (t) => { streamed += t; if (alive.current) setLive(streamed); } });
       if (!alive.current) return;
-      const answer = await save({ role: "assistant", body: out.result.answer, meta: { notes: out.notes || [], cost: costOf(out.usage) + (out.searches || 0) * 0.01, model: out.model || "", sources: out.sources || [], searches: out.searches || 0 } });
+      const answer = await save({ role: "assistant", body: out.result.answer, meta: { machinePhotos: machinePhotosLine(input.photos), notes: out.notes || [], cost: costOf(out.usage) + (out.searches || 0) * 0.01, model: out.model || "", sources: out.sources || [], searches: out.searches || 0 } });
       if (!alive.current) return;
       setMessages((m) => [...(m || []), answer]);
       // what it learned is kept straight away, for every later question
@@ -148,7 +148,7 @@ export default function CncChat({ part = null, pp = null, machineFacts = {}, par
   function pick(e) {
     const files = [...(e.target.files || [])].filter((f) => /^image\//.test(f.type || "image/"));
     e.target.value = "";
-    setPending((p) => [...p, ...files.map((file) => ({ file, preview: URL.createObjectURL(file) }))].slice(0, MAX_PHOTOS));
+    setPending((p) => [...p, ...files.map((file) => ({ file, preview: URL.createObjectURL(file) }))].slice(0, MAX_ATTACH));
     inputRef.current?.focus();
   }
   useEffect(() => () => pending.forEach((p) => URL.revokeObjectURL(p.preview)), []);
@@ -225,7 +225,7 @@ export default function CncChat({ part = null, pp = null, machineFacts = {}, par
           </div>
         )}
         <div className="ch-row">
-          <button type="button" className="ch-cam" onClick={() => fileRef.current?.click()} disabled={!!busy || pending.length >= MAX_PHOTOS} aria-label="Add a photo" title="Add a photo"><Camera size={20} /></button>
+          <button type="button" className="ch-cam" onClick={() => fileRef.current?.click()} disabled={!!busy || pending.length >= MAX_ATTACH} aria-label="Add a photo" title="Add a photo"><Camera size={20} /></button>
           <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={pick} aria-label="Photo to send" />
           <textarea
             ref={inputRef} rows={1} value={text} disabled={!!busy || off}
@@ -261,6 +261,7 @@ function Answer({ m, memory, canRewrite, onRewrite, onPhoto, onForget, fixing, o
         </div>
       )}
       <div className="ch-bubble">{a.body}</div>
+      {m.meta?.machinePhotos && <div className="ch-sources ch-saw"><span>Also looked at {m.meta.machinePhotos}, from the Machines page.</span></div>}
       {m.meta?.sources?.length > 0 && (
         <div className="ch-sources">
           <span>Looked up{m.meta.searches ? ` (${m.meta.searches} search${m.meta.searches === 1 ? "" : "es"})` : ""}:</span>

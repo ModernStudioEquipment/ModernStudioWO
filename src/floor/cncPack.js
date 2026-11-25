@@ -8,7 +8,7 @@
 // knew nothing about the machine, so it guessed the tools and the stock. The
 // pack below is the opposite of guessing.
 
-import { MACHINES } from "./machines.js";
+import { MACHINES, controlOf } from "./machines.js";
 import { splitMachines, splitPrograms } from "./cncParts.js";
 import { programInfo, programLine, looksLikeProgram, checkProgram, checkCounts, diffPrograms, operatorStops, cleanProgramText } from "./cncGcode.js";
 import { toolpath } from "./cncPath.js";
@@ -50,7 +50,7 @@ export function cleanTools(list) {
 export function cleanMachineFacts(f) {
   const text = (k) => String(f?.[k] ?? "").trim();
   return {
-    model: text("model"), holding: text("holding"), maxBar: text("maxBar"), liveTools: text("liveTools"), notes: text("notes"),
+    model: text("model"), control: ["classic", "ngc"].includes(text("control")) ? text("control") : "", holding: text("holding"), maxBar: text("maxBar"), liveTools: text("liveTools"), notes: text("notes"),
     tools: cleanTools(f?.tools),
     photos: (Array.isArray(f?.photos) ? f.photos : []).filter((u) => typeof u === "string" && u),
   };
@@ -301,6 +301,7 @@ export function buildPack(part, programs = [], machineFactsByKey = {}) {
     L.push(`== MACHINE: ${m?.label || k} ==`);
     add("What it is", m?.about);
     add("Model / year", f.model);
+    { const c = controlOf(m, f); if (c) add("Control", `${c.label}. ${c.looks} For which key does what, use Haas's own manual for this control: ${c.manual.name} (${c.manual.url}).`); }
     add("Workholding", f.holding);
     add("Largest bar", f.maxBar);
     add("Live tools", f.liveTools);

@@ -141,15 +141,30 @@ describe("drafting the operator steps", () => {
 });
 
 describe("the machine's own photos go with a question", () => {
-  it("the part's machine, labelled, after the question's own photos, at most three", async () => {
+  it("all of the part's machine's photos (up to six), two of each for the whole shop, after the question's own", async () => {
     const { photosFor, machinePhotosFor } = await import("../floor/cncChat.js");
     const facts = { st10: { photos: ["https://s/st1.jpg", "https://s/st2.jpg"] }, vf4: { photos: ["https://s/vf1.jpg"] }, ds30ssy: { photos: ["https://s/ds1.jpg", "https://s/ds2.jpg"] } };
     const mine = machinePhotosFor(facts, ["st10"]);
     expect(mine.map((p) => p.url)).toEqual(["https://s/st1.jpg", "https://s/st2.jpg"]);
     expect(mine[0].label).toMatch(/photo 1 of the Haas ST-10Y, from the Machines page/);
     // the whole shop: each machine gets a look in before any gets a second
-    expect(machinePhotosFor(facts).map((p) => p.url)).toEqual(["https://s/vf1.jpg", "https://s/st1.jpg", "https://s/ds1.jpg"]);
+    expect(machinePhotosFor(facts).map((p) => p.url)).toEqual(["https://s/vf1.jpg", "https://s/st1.jpg", "https://s/ds1.jpg", "https://s/st2.jpg", "https://s/ds2.jpg"]);
+    const eight = { st10: { photos: Array.from({ length: 8 }, (_, i) => `https://s/st${i}.jpg`) } };
+    expect(machinePhotosFor(eight, ["st10"])).toHaveLength(6);
     const p = photosFor([], ["https://s/new.jpg"], "q", mine);
     expect(p.map((x) => x.url)).toEqual(["https://s/new.jpg", "https://s/st1.jpg", "https://s/st2.jpg"]);
+  });
+});
+
+describe("which control a machine has", () => {
+  it("is told to the AI with Haas's manual for that control, and an answer says which machine photos it saw", async () => {
+    const { machinesText, machinePhotosLine, machinePhotosFor } = await import("../floor/cncChat.js");
+    const t = machinesText({ st10: { control: "classic" }, vf4: { control: "ngc" } });
+    expect(t).toMatch(/Haas ST-10Y ==[\s\S]*?Control: Classic Haas Control\. Older[\s\S]*?Lathe_Operators_Manual_96-8700U/);
+    expect(t).toMatch(/Haas VF-4 ==[\s\S]*?Control: Next Generation Control \(NGC\)[\s\S]*?mill---control-pendant\.html/);
+    expect(t).toMatch(/Haas DS-30SSY ==[\s\S]*?Control: not said yet/);
+    const sent = machinePhotosFor({ st10: { photos: ["https://s/a.jpg", "https://s/b.jpg"] } }, ["st10"]);
+    expect(machinePhotosLine([{ url: "https://s/q.jpg", label: "q" }, ...sent])).toBe("2 photos of the Haas ST-10Y");
+    expect(machinePhotosLine([])).toBe("");
   });
 });
