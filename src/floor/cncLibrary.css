@@ -272,3 +272,28 @@
   .cl-foot{flex-wrap:wrap}
   .cp-progbtns .cl-spacer{display:none}
 }
+
+/* ---- the tool path drawing ---- */
+.pv{display:flex; flex-direction:column; gap:8px; min-width:0}
+.pv-bar{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+.pv-views{display:inline-flex; gap:3px; padding:3px; border:1px solid var(--line2); border-radius:10px; background:var(--rail)}
+.pv-views button{font:inherit; font-size:12.5px; font-weight:700; padding:5px 11px; border-radius:7px; border:none; background:transparent; color:var(--muted); cursor:pointer}
+.pv-views button.on{background:var(--accent); color:#20160a}
+.pv-icon{flex:none; width:32px; height:32px; border-radius:9px; background:var(--panel2); border:1px solid var(--line2); color:#F3F6F8; cursor:pointer; display:inline-flex; align-items:center; justify-content:center}
+.pv-check{display:inline-flex; align-items:center; gap:7px; font-size:12.5px; color:var(--muted); cursor:pointer; margin-left:4px}
+.cl-editor .pv-check input{width:16px; height:16px; padding:0; flex:none; accent-color:var(--accent)}
+.pv-stage{position:relative; border:1px solid var(--line); border-radius:10px; overflow:hidden; background:#07090C; min-width:0}
+.pv-hint{position:absolute; left:10px; bottom:8px; font-size:11px; color:var(--dim); pointer-events:none}
+.pv-scrub{display:flex; align-items:center; gap:10px}
+.cl-editor .pv-scrub input[type=range]{flex:1; min-width:0; padding:0; border:none; background:transparent; accent-color:var(--accent); height:22px}
+.pv-pos{flex:none; min-width:104px; text-align:right; font-size:12.5px; font-weight:700; color:#D6DEE6}
+.pv-line{display:flex; align-items:baseline; gap:10px; font-size:12.5px; color:var(--muted); min-width:0}
+.pv-line b{flex:none; color:#D6DEE6}
+.pv-line code{font:12.5px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace; color:#D6DEE6; overflow-wrap:anywhere; min-width:0}
+.pv-legend{display:flex; flex-wrap:wrap; gap:6px 14px; font-size:12px; color:#D6DEE6}
+.pv-legend span{display:inline-flex; align-items:center; gap:6px}
+.pv-legend i{display:inline-block; width:16px; height:3px; border-radius:2px}
+.pv-legend i.dash{background:repeating-linear-gradient(90deg,#6B7785 0 4px,transparent 4px 8px)}
+.pv-stats{display:flex; flex-wrap:wrap; gap:4px 16px; font-size:12.5px; color:var(--muted)}
+.pv-stats b{color:#F3F6F8}
+.pv-notes{margin:0; padding-left:18px; list-style:disc; font-size:12px; color:var(--dim); display:flex; flex-direction:column; gap:2px}

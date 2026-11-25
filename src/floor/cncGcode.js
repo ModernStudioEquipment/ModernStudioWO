@@ -170,6 +170,20 @@ export function checkProgram(content, { machineKind = "", machineLabel = "", mac
   if (m0.length) add("note", `Stops and waits for the operator ${m0.length} time${m0.length === 1 ? "" : "s"} (M00), on line${m0.length === 1 ? "" : "s"} ${m0.map((l) => l.n).join(", ")}.`);
   if (!codeLines.some((l) => anyM(l, 8, 88))) add("note", "Coolant is never turned on (M08).");
 
+  // A whole number with no decimal point. On a Haas, X1 can mean 0.0001 inch
+  // rather than 1 inch (Setting 162 decides), so a dropped "." moves the tool
+  // almost nowhere, or with the setting flipped, ten thousand times too far.
+  const bare = [];
+  for (const l of codeLines) {
+    for (const w of l.words) {
+      if ("XYZUWIJK".includes(w.l) && w.v !== 0 && !w.raw.includes(".")) bare.push({ word: `${w.l}${w.raw}`, n: l.n });
+    }
+  }
+  if (bare.length) {
+    const first = bare.slice(0, 3).map((b) => `${b.word} on line ${b.n}`).join(", ");
+    add("look", `${bare.length === 1 ? "A position has" : `${bare.length} positions have`} no decimal point (${first}${bare.length > 3 ? ", and more" : ""}). On a Haas, X1 can mean 0.0001 rather than 1. Write X1. with the point.`, bare[0].n);
+  }
+
   // cutter compensation left on
   let comp = null;
   for (const l of codeLines) { if (anyG(l, 41, 42)) comp = l.n; if (anyG(l, 40)) comp = null; }

@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Upload, Trash2, Check, CheckCircle2, Circle, Copy, Download, Eye, EyeOff, ShieldCheck, ShieldAlert, AlertTriangle, GitCompare, FileText } from "lucide-react";
+import { Upload, Trash2, Check, CheckCircle2, Circle, Copy, Download, Eye, EyeOff, ShieldCheck, ShieldAlert, AlertTriangle, GitCompare, FileText, Box } from "lucide-react";
 import { db } from "../lib/db.js";
 import {
   FACT_FIELDS, programInfo, programLine, checkForPart, checkCounts, diffPrograms,
   readiness, readyCount, buildPack, looksLikeProgram, MAX_PROGRAM_BYTES, PROVE_STEPS,
 } from "./cncPack.js";
 import CncRunSheet from "./CncRunSheet.jsx";
+import CncPreview from "./CncPreview.jsx";
+import { MACHINES } from "./machines.js";
+import { splitMachines } from "./cncParts.js";
 
 // "Program & setup" on a catalogue part: the program files the Haas runs, the
 // facts that aren't in any file, a checklist of what's still missing, and one
@@ -27,6 +30,7 @@ export default function CncPrograms({ part, onFact, machineFacts = NO_FACTS, onC
   const [confirmDel, setConfirmDel] = useState(null);
   const [copied, setCopied] = useState(false);
   const [sheetFor, setSheetFor] = useState(null); // program whose run sheet is open
+  const [previewOpen, setPreviewOpen] = useState(null); // program id whose drawing is showing
   const fileRef = useRef(null);
 
   const partId = part?.id || null;
@@ -36,7 +40,7 @@ export default function CncPrograms({ part, onFact, machineFacts = NO_FACTS, onC
     catch (e) { setErr(e?.message || "Couldn't load the programs."); }
   }
   useEffect(() => {
-    setOpen(null); setDiffOpen(null); setChecksOpen(null); setProving(null); setConfirmDel(null); setErr("");
+    setOpen(null); setDiffOpen(null); setChecksOpen(null); setProving(null); setConfirmDel(null); setPreviewOpen(null); setErr("");
     reload();
   }, [partId]);
 
@@ -84,6 +88,8 @@ export default function CncPrograms({ part, onFact, machineFacts = NO_FACTS, onC
   // runs when a program, the machine or a tool list changes, not on every
   // keystroke in the boxes above.
   const machineKey = part?.machine || "";
+  // What the part's machine is, for a program that doesn't make it obvious.
+  const machineKind = MACHINES.find((m) => m.key === splitMachines(machineKey)[0])?.kind || "";
   const derived = useMemo(() => programs.map((p, idx) => {
     const older = programs[idx + 1] || null; // newest first, so the next one is the version before
     const found = checkForPart(p.content, { machine: machineKey }, machineFacts);
@@ -172,6 +178,9 @@ export default function CncPrograms({ part, onFact, machineFacts = NO_FACTS, onC
             )}
 
             <div className="cp-progbtns">
+              <button className="cl-btn" onClick={() => setPreviewOpen(previewOpen === p.id ? null : p.id)} title="A drawing of where this program takes the tool">
+                <Box size={14} /> {previewOpen === p.id ? "Hide preview" : "3D preview"}
+              </button>
               <button className="cl-btn" onClick={() => setOpen(open === p.id ? null : p.id)}>
                 {open === p.id ? <EyeOff size={14} /> : <Eye size={14} />} {open === p.id ? "Hide" : "View"}
               </button>
@@ -221,6 +230,13 @@ export default function CncPrograms({ part, onFact, machineFacts = NO_FACTS, onC
               </div>
             )}
 
+            {previewOpen === p.id && (
+              <CncPreview
+                content={p.content}
+                kind={machineKind}
+                toolNames={Object.fromEntries(info.tools.filter((t) => t.note).map((t) => [t.t, t.note]))}
+              />
+            )}
             {diffOpen === p.id && diff && (
               <pre className="cp-code cp-diff" aria-label="Changes from the previous version">
                 {diff.changes.map((c, i) => (
