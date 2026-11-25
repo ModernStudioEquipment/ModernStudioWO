@@ -203,7 +203,7 @@ describe("the overview's one next step", () => {
   it("everything in: prove it out, three ticks and a name", async () => {
     const pp = ppFor([prog()]);
     show(full, pp);
-    fireEvent.click(screen.getByRole("button", { name: /Test it at the machine/ }));
+    fireEvent.click(screen.getAllByRole("button", { name: /Test it at the machine/ })[0]);   // the big next-step button
     const stamp = screen.getByRole("button", { name: /Mark it as good/ });
     expect(stamp.disabled).toBe(true);
     screen.getAllByRole("checkbox").filter((c) => c.closest(".cp-provebox")).forEach((c) => fireEvent.click(c));

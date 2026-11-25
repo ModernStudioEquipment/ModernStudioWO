@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowRight, FileText, ShieldCheck, ShieldAlert, Upload, AlertTriangle, CheckCircle2, Check, ListChecks, Box, ClipboardList, Pencil, Sparkles, Ruler, Download, Code2, Copy, ChevronDown } from "lucide-react";
+import { ArrowRight, FileText, ShieldCheck, ShieldAlert, Upload, AlertTriangle, CheckCircle2, Check, ListChecks, Box, ClipboardList, Pencil, Sparkles, Ruler, Download, Code2, Copy, ChevronDown, ArrowUp, ArrowDown, Trash2, Plus, X } from "lucide-react";
 import CncPreview from "./CncPreview.jsx";
 import CncProveOut, { proofLine } from "./CncProveOut.jsx";
 import CncRunSheet from "./CncRunSheet.jsx";
@@ -160,7 +160,7 @@ export default function CncPartOverview({ part, pp, machineFacts, onAsk, onDetai
                 <button className="cl-btn" onClick={() => setSheet(true)}><FileText size={14} /> Run sheet</button>
                 <button className="cl-btn" onClick={() => downloadProgram(newest)} title="Save the program file, to put on a USB stick for the machine"><Download size={14} /> Download</button>
                 <button className={`cl-btn${showCode ? " on" : ""}`} onClick={() => setShowCode((v) => !v)} aria-expanded={showCode}><Code2 size={14} /> {showCode ? "Hide the program" : "Show the program"}</button>
-                {!proven && <button className="cl-btn" onClick={() => setProving(true)}><ShieldCheck size={14} /> Mark proven</button>}
+                {!proven && <button className="cl-btn" onClick={() => setProving(true)}><ShieldCheck size={14} /> Test it at the machine</button>}
               </div>
             </>
           ) : (
@@ -199,6 +199,9 @@ export default function CncPartOverview({ part, pp, machineFacts, onAsk, onDetai
       </div>
 
       {showCode && newest && <ProgramText text={newest.content} name={newest.name} />}
+
+      {/* ---- what the operator does, in order ---- */}
+      <OperatorSteps steps={part.steps} onSave={(steps) => onCommit({ field: { steps } })} />
       {!newest && !pp.loading && (
         <div className="ov-ai">
           <b><Sparkles size={15} /> AI</b>
@@ -267,5 +270,59 @@ function ProgramText({ text, name }) {
         {shown.map((x) => <div key={x.n}><i>{String(x.n).padStart(width, " ")}</i>{x.l || " "}</div>)}
       </pre>
     </div>
+  );
+}
+
+// What the operator does at the machine, in order: load the bar, set the
+// offset, run it, check the first part, deburr. One list per part, kept with
+// the part (it's the same list the floor work order, the run sheet and the AI
+// read). Read here, and changed here without going into All details.
+function OperatorSteps({ steps: saved = [], onSave }) {
+  const clean = (list) => (list || []).map((x) => String(x || "").trim()).filter(Boolean);
+  const have = clean(saved);
+  const [editing, setEditing] = useState(false);
+  const [list, setList] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const start = () => { setList(have.length ? have : [""]); setErr(""); setEditing(true); };
+  const set = (i, v) => setList((l) => l.map((x, j) => (j === i ? v : x)));
+  const move = (i, by) => setList((l) => { const n = l.slice(); const [x] = n.splice(i, 1); n.splice(i + by, 0, x); return n; });
+  async function save() {
+    setBusy(true); setErr("");
+    try { await onSave(clean(list)); setEditing(false); }
+    catch (e) { setErr(e?.message || "Couldn't save the steps."); }
+    finally { setBusy(false); }
+  }
+  return (
+    <section className="ov-ops">
+      <div className="ov-opshead">
+        <h3>Operator steps</h3>
+        <span className="ov-sub">What the operator does at the machine, in order. Shows on the work order and the run sheet.</span>
+        {!editing && <button className="cl-btn" onClick={start}>{have.length ? "Edit steps" : <><Plus size={14} /> Add steps</>}</button>}
+      </div>
+      {!editing && (have.length
+        ? <ol className="ov-opslist">{have.map((x, i) => <li key={i}>{x}</li>)}</ol>
+        : <p className="ov-sub">None yet. For example: load the bar with 3.25 inches sticking out, touch off T1, run in single block, check the first part, deburr the edges.</p>)}
+      {editing && (
+        <div className="ov-opsedit">
+          {list.map((x, i) => (
+            <div className="ov-opsrow" key={i}>
+              <b>{i + 1}</b>
+              <textarea rows={1} value={x} onChange={(e) => set(i, e.target.value)} placeholder={i === 0 ? "e.g. Load the bar, 3.25 inches sticking out of the jaws" : "Next step"} aria-label={`Step ${i + 1}`} autoFocus={i === list.length - 1 && !x} />
+              <button className="cl-x" onClick={() => move(i, -1)} disabled={i === 0} aria-label={`Move step ${i + 1} up`}><ArrowUp size={15} /></button>
+              <button className="cl-x" onClick={() => move(i, 1)} disabled={i === list.length - 1} aria-label={`Move step ${i + 1} down`}><ArrowDown size={15} /></button>
+              <button className="cl-x" onClick={() => setList((l) => (l.length > 1 ? l.filter((_, j) => j !== i) : [""]))} aria-label={`Remove step ${i + 1}`}><Trash2 size={15} /></button>
+            </div>
+          ))}
+          <div className="ov-btns">
+            <button className="cl-btn" onClick={() => setList((l) => [...l, ""])}><Plus size={14} /> Add a step</button>
+            <span className="cl-spacer" />
+            <button className="cl-btn ghost" onClick={() => setEditing(false)} disabled={busy}><X size={14} /> Cancel</button>
+            <button className="cl-btn ov-opssave" onClick={save} disabled={busy}><Check size={14} /> {busy ? "Saving…" : "Save steps"}</button>
+          </div>
+          {err && <div className="cl-err">{err}</div>}
+        </div>
+      )}
+    </section>
   );
 }

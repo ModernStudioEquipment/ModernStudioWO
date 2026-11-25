@@ -48,7 +48,7 @@ describe("program files on a part", () => {
   it("stamps a program proven with a name, and can take it back", async () => {
     render(<CncPrograms part={part} onFact={() => {}} />);
     upload("O00017.nc", PROGRAM);
-    fireEvent.click(await screen.findByRole("button", { name: /Mark proven/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /Test it at the machine/ }));
     const stamp = () => screen.getByRole("button", { name: /Mark it as good/ });
     fireEvent.change(screen.getByLabelText("Who proved it out"), { target: { value: "Jesse" } });
     expect(stamp().disabled).toBe(true);                    // a name alone isn't enough

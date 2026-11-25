@@ -75,7 +75,7 @@ export default function FloorSheetView({ sheet, part, onRunSheet = null, onPartC
 
           {steps.length > 0 && (
             <div className="fcs-steps">
-              <div className="fcs-lab">How to make it{!sheet.steps.length && part ? " · from the CNC Catalog" : ""}</div>
+              <div className="fcs-lab">{!sheet.steps.length && part ? "Operator steps · from the CNC Catalog" : "How to make it"}</div>
               <ol>{steps.map((s, i) => <li key={i}>{s}</li>)}</ol>
             </div>
           )}

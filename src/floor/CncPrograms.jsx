@@ -181,7 +181,7 @@ export function ProgramsView({ part, onFact, machineFacts = NO_FACTS, onStep, on
               {proven ? (
                 <button className="cl-btn ghost" onClick={() => prove(p.id, false)}>Not proven after all</button>
               ) : proving?.id !== p.id && (
-                <button className="cl-btn" onClick={() => setProving({ id: p.id })} title="It ran on the machine and the first part measured good"><ShieldCheck size={14} /> Mark proven</button>
+                <button className="cl-btn" onClick={() => setProving({ id: p.id })} title="It ran on the machine and the first part measured good"><ShieldCheck size={14} /> Test it at the machine</button>
               )}
               <span className="cl-spacer" />
               {confirmDel === p.id ? (

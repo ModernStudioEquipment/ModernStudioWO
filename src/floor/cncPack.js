@@ -283,7 +283,7 @@ export function buildPack(part, programs = [], machineFactsByKey = {}) {
   add("Drawing", part?.blueprintUrl);
   (part?.photos || []).forEach((u, i) => add(`Photo ${i + 1}`, u));
   L.push("");
-  L.push("== HOW IT'S MADE NOW ==");
+  L.push("== OPERATOR STEPS (what the operator does at the machine, in order) ==");
   const steps = (part?.steps || []).map((s) => String(s || "").trim()).filter(Boolean);
   if (steps.length) steps.forEach((s, i) => L.push(`${i + 1}. ${s}`));
   else L.push("(no steps written)");

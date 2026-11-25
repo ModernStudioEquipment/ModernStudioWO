@@ -530,7 +530,7 @@ export default function CncLibrary({ onClose, embedded = false, onMakeWorkOrder 
               </div>
 
               <div className="cl-steps">
-                <span className="cl-lab">How to make it — steps</span>
+                <span className="cl-lab">Operator steps: what the operator does at the machine</span>
                 <div className="cl-steplist" ref={attachSteps}>
                   {draft.steps.map((s, i) => (
                     <div className="cl-step" key={i}>

@@ -140,7 +140,7 @@ export default function CncRunSheet({ part, program = null, machineFacts = null,
 
           {s.steps.length > 0 && (
             <>
-              <div className="rs-band">How to make it</div>
+              <div className="rs-band">Operator steps</div>
               <ol className="rs-list num">{s.steps.map((x, i) => <li key={i}>{x}</li>)}</ol>
             </>
           )}

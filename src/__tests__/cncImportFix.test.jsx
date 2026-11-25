@@ -90,3 +90,27 @@ describe("changing a part's machine from under its name", () => {
     await waitFor(() => expect(onCommit).toHaveBeenLastCalledWith({ machine: "" }));
   });
 });
+
+describe("operator steps, under the part", () => {
+  const pp = { loading: false, programs: [], newest: null, stops: [], machineKind: "lathe", step: { at: "Program", tone: "todo", text: "Add the program.", done: {} } };
+  it("are added, put in order and saved from the part, blank ones dropped", async () => {
+    const { default: CncPartOverview } = await import("../floor/CncPartOverview.jsx");
+    const onCommit = vi.fn(async () => "p1");
+    render(<CncPartOverview part={{ id: "p1", name: "Pin", machine: "st10", facts: {}, steps: [] }} pp={pp} machineFacts={{}} onAsk={() => {}} onDetails={() => {}} onCommit={onCommit} />);
+    expect(screen.getByText(/None yet/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Add steps/ }));
+    fireEvent.change(screen.getByLabelText("Step 1"), { target: { value: "Touch off T1" } });
+    fireEvent.click(screen.getByRole("button", { name: /Add a step/ }));
+    fireEvent.change(screen.getByLabelText("Step 2"), { target: { value: "Load the bar, 3.25 out" } });
+    fireEvent.click(screen.getByRole("button", { name: /Add a step/ }));                 // left blank
+    fireEvent.click(screen.getByRole("button", { name: "Move step 2 up" }));
+    fireEvent.click(screen.getByRole("button", { name: /Save steps/ }));
+    await waitFor(() => expect(onCommit).toHaveBeenCalledWith({ field: { steps: ["Load the bar, 3.25 out", "Touch off T1"] } }));
+  });
+  it("show as a numbered list when there are some", async () => {
+    const { default: CncPartOverview } = await import("../floor/CncPartOverview.jsx");
+    render(<CncPartOverview part={{ id: "p1", name: "Pin", machine: "st10", facts: {}, steps: ["Load the bar", "", "Deburr"] }} pp={pp} machineFacts={{}} onAsk={() => {}} onDetails={() => {}} onCommit={vi.fn()} />);
+    expect([...document.querySelectorAll(".ov-opslist li")].map((l) => l.textContent)).toEqual(["Load the bar", "Deburr"]);
+    expect(screen.getByRole("button", { name: "Edit steps" })).toBeTruthy();
+  });
+});

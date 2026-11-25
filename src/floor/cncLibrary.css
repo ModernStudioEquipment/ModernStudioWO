@@ -785,3 +785,21 @@ button.cp-checkrow > span{flex:1; min-width:0; display:flex; flex-direction:colu
 .ov-mpick button.on{border-color:var(--m); background:color-mix(in srgb,var(--m) 16%,transparent); color:#F3F6F8}
 .ov-mpick button:disabled{opacity:.6; cursor:default}
 .ov-mpick .ov-mdone{margin-left:auto; border-color:transparent; color:#AEB8C4}
+
+/* ---- operator steps, under the part ---- */
+.ov-ops{display:flex; flex-direction:column; gap:10px; border:1px solid var(--line2); border-radius:14px; padding:16px 18px; background:var(--rail); margin-top:14px}
+.ov-opshead{display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px}
+.ov-opshead h3{margin:0; font-size:13px; letter-spacing:.08em; text-transform:uppercase; color:#C9D2DC}
+.ov-opshead .ov-sub{flex:1 1 240px}
+.ov-opslist{margin:0; padding-left:24px; display:flex; flex-direction:column; gap:8px}
+.ov-opslist li{font-size:16px; line-height:1.45; color:#F3F6F8}
+.ov-opsedit{display:flex; flex-direction:column; gap:8px}
+.ov-opsrow{display:flex; align-items:flex-start; gap:6px}
+.ov-opsrow b{flex:none; width:22px; padding-top:10px; text-align:right; color:var(--accent); font-size:15px}
+.cl-editor .ov-opsrow textarea{flex:1; min-width:0; resize:vertical; font-size:15px; line-height:1.4; padding:9px 11px; border-radius:10px; field-sizing:content; min-height:42px}
+.ov-opsrow .cl-x{margin-top:6px}
+.ov-opsrow .cl-x:disabled{opacity:.3}
+.ov-opssave{border-color:var(--accent); color:#F3F6F8}
+.ov-ops .ov-opslist{list-style:decimal; padding-left:28px}
+.ov-ops .ov-opslist li{display:list-item; padding-left:4px}
+.ov-ops .ov-opslist li::marker{color:var(--accent); font-weight:800}
