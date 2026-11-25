@@ -205,3 +205,15 @@ body.floor-control-up .print-doc-overlay{z-index:2100 !important}
 .fcs-prog.ok .fcs-progstat{color:#3DDC97}
 .fcs-runbtn{display:inline-flex; align-items:center; gap:7px; font:inherit; font-size:13px; font-weight:700; padding:8px 13px; border-radius:9px; cursor:pointer; background:var(--panel2); border:1px solid var(--line2); color:#F3F6F8}
 .fcs-prog.none{border-color:var(--line2)} .fcs-prog.none .fcs-progstat{color:var(--muted)}
+
+/* The header grew (CNC Catalog, the bug button) until it no longer fitted a
+   1280px laptop: "Back to office" hung 20px off the right edge and the whole
+   screen scrolled sideways. Buttons keep their words on one line, the
+   "FLOOR CONTROL" tag gives way first, and if it still doesn't fit the row
+   wraps instead of overflowing. Below 920px the phone layout takes over. */
+.fc-top{flex-wrap:wrap; row-gap:10px}
+.fc-back, .fc-booktab, .fc-open, .fc-tab{white-space:nowrap}
+@media (max-width:1400px){
+  .fc-top{column-gap:12px}
+  .fc-brandtag{display:none}
+}
