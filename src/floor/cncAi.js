@@ -194,6 +194,42 @@ export function rewriteNeeds(part, programs = [], machineFacts = {}) {
   return readiness(part, programs, machineFacts).filter((r) => NEEDED_FIRST.includes(r.key) && !r.ok).map((r) => ({ key: r.key, label: r.label, how: r.how }));
 }
 
+// ---- the program in plain words, from the app's own measurements ------------------
+//
+// One entry per tool, in order: what it does to the part and the sizes it
+// leaves. True to the program (it's read off it), but only as deep as the
+// measurements go: the AI's review says why and what to watch; this says what.
+const KIND = { face: "cuts square faces and shoulders", turn: "turns the outside", groove: "cuts a groove", thread: "cuts a thread", drill: "drills on the centre line", bore: "bores the inside" };
+export function explainPlainly(content, part = null) {
+  const m = measure(content, part);
+  const u = m.units;
+  const byTool = new Map();
+  for (const s of m.path.segs) {
+    if (!s.tool) continue;
+    const t = byTool.get(s.tool) || { first: s.line, last: s.line, cuts: false };
+    t.first = Math.min(t.first, s.line); t.last = Math.max(t.last, s.line);
+    if (s.type !== "rapid") t.cuts = true;
+    byTool.set(s.tool, t);
+  }
+  const names = Object.fromEntries(m.info.tools.map((t) => [t.t, t.note]));
+  return [...byTool.entries()].sort((a, b) => a[1].first - b[1].first).map(([t, at]) => {
+    const T = m.perTool[t];
+    const kinds = (m.sim?.toolKinds?.[t] || []).map((k) => KIND[k]).filter(Boolean);
+    const bits = [];
+    if (m.kind === "lathe") {
+      if (kinds.length) bits.push(`It ${kinds.length > 1 ? `${kinds.slice(0, -1).join(", ")} and ${kinds.at(-1)}` : kinds[0]}.`);
+      if (kinds.includes("turns the outside") && m.sizes?.steps.length) bits.push(`The outside ends up ${m.sizes.steps.filter((x) => !x.groove).map((x) => `\u00D8${sizeText(x.dia, u)}${x.len != null ? ` for ${sizeText(x.len, u)}` : ""}`).join(", ")}.`);
+      if (kinds.includes("cuts a groove")) { const g = m.sizes?.steps.filter((x) => x.groove) || []; if (g.length) bits.push(`Groove${g.length === 1 ? "" : "s"}: ${g.map((x) => `\u00D8${sizeText(x.dia, u)} at ${zText(x.mid, u)}`).join(", ")}.`); }
+      if (kinds.includes("cuts a thread")) for (const th of m.sim.threads) bits.push(`Thread from ${zText(th.z1, u)} to ${zText(th.z0, u)}, root \u00D8${sizeText(th.minor * 2, u)}${th.pitch ? `, ${Math.round(1 / th.pitch)} threads per inch` : ""}.`);
+    } else if (T?.cuts) {
+      bits.push(`It cuts down to Z${n4(T.zLow)}, over X ${n4(T.box[0])} to ${n4(T.box[1])} and Y ${n4(T.box[2])} to ${n4(T.box[3])}.`);
+    }
+    if (!at.cuts) bits.push("It doesn't cut anything the app can follow.");
+    if (T?.rpm) bits.push(T.rpm >= 99999 ? "No spindle speed limit is set while it cuts." : `The spindle runs up to about ${Math.round(T.rpm)} rpm.`);
+    return { tool: `T${t}${names[t] ? ` (${names[t]})` : ""}`, lines: at.first === at.last ? `${at.first}` : `${at.first}-${at.last}`, what: bits.join(" ") };
+  });
+}
+
 // ---- which program a rewrite starts from, and is measured against ---------------
 //
 // The proven one if there is one, otherwise the newest that a person put there.

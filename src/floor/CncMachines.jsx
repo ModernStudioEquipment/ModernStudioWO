@@ -162,7 +162,7 @@ export default function CncMachines({ onSaved, parts = [], programIndex = [], fo
             <div className="cm-grid">
               <label className="cl-field">
                 <span className="cl-lab">Model and year</span>
-                <input value={f.model} onChange={(e) => set(m.key, "model", e.target.value)} placeholder="From the nameplate, e.g. ST-10, 2019" />
+                <input value={f.model} onChange={(e) => set(m.key, "model", e.target.value)} placeholder="From the nameplate, e.g. ST-10Y, 2019" />
               </label>
               <label className="cl-field">
                 <span className="cl-lab">Largest bar / part size</span>

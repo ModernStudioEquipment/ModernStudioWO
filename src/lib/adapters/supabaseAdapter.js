@@ -219,6 +219,10 @@ async function maxOrderNo(table, keep) {
 }
 
 // "That table isn't there yet" (a migration hasn't run), as opposed to a real failure.
+const chatRow = (r) => ({
+  id: r.id, partId: r.part_id || null, role: r.role, body: r.body || "", photos: Array.isArray(r.photos) ? r.photos : [],
+  author: r.author || "", meta: r.meta || {}, at: new Date(r.created_at).getTime(),
+});
 const isMissingRelation = (e) => /42P01|PGRST205/.test(String(e?.code || "")) || /schema cache|does not exist/i.test(String(e?.message || ""));
 
 export const supabaseAdapter = {
@@ -713,7 +717,7 @@ export const supabaseAdapter = {
     return data ? { id: data.id, body: data.body, author: data.author || null, at: data.created_at || null } : null;
   },
 
-  // ---- CNC machine assignment (VF-4 / ST-10 / DS-30SSY) ----
+  // ---- CNC machine assignment (VF-4 / ST-10Y / DS-30SSY) ----
   async getCncMachines() {
     const { data, error } = await supabase.from("cnc_machine").select("item_id, machine");
     if (error) return {};
@@ -857,6 +861,36 @@ export const supabaseAdapter = {
       .upsert({ machine, facts: cleanMachineFacts(facts), updated_at: new Date().toISOString() }, { onConflict: "machine" });
     fail(error);
   },
+  // ---- the CNC assistant's conversations (0069) ----
+  // null back means the table isn't there yet: the screen still works, and says
+  // that nothing is being kept until the migration is run.
+  async getCncChat(partId) {
+    let q = supabase.from("cnc_chat").select("*").neq("role", "memory").order("created_at", { ascending: true }).limit(400);
+    q = partId ? q.eq("part_id", partId) : q.is("part_id", null);
+    const { data, error } = await q;
+    if (error) { if (isMissingRelation(error)) return null; fail(error); }
+    return (data || []).map(chatRow);
+  },
+  // What the assistant has been asked to remember: the whole shop's, and this part's.
+  async getCncMemory(partId) {
+    let q = supabase.from("cnc_chat").select("*").eq("role", "memory").order("created_at", { ascending: true }).limit(200);
+    q = partId ? q.or(`part_id.is.null,part_id.eq.${partId}`) : q.is("part_id", null);
+    const { data, error } = await q;
+    if (error) { if (isMissingRelation(error)) return null; fail(error); }
+    return (data || []).map(chatRow);
+  },
+  async addCncChat({ partId, role, body, photos = [], author = "", meta = {} }) {
+    const { data, error } = await supabase.from("cnc_chat")
+      .insert({ part_id: partId || null, role, body: body || "", photos, author: author || null, meta })
+      .select("*").single();
+    fail(error);
+    return chatRow(data);
+  },
+  async deleteCncChat(id) {
+    const { error } = await supabase.from("cnc_chat").delete().eq("id", id);
+    fail(error);
+  },
+
   async uploadBlueprint(partId, file) {
     const ext = (file.name && file.name.split(".").pop() || "png").toLowerCase().replace(/[^a-z0-9]/g, "") || "png";
     const path = `cnc/${partId || "new"}/${Date.now()}.${ext}`;

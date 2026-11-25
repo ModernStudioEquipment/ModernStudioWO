@@ -99,7 +99,7 @@ describe("checking the form", () => {
     const b = base(); b.thread = { tpi: "16", len: "0.75" }; b.tools.thread = { t: "1", name: "Thread" };
     expect(checkSpec(b, { machineFacts: tools }).errors.find((x) => x.field === "tool_thread").text).toMatch(/can't both be in pocket 1/);
     const c = base(); c.tools.turn = { t: "9", name: "Turn" };
-    expect(warns(c)).toMatch(/Pocket 9 isn't on the ST-10's tool list/);
+    expect(warns(c)).toMatch(/Pocket 9 isn't on the ST-10Y's tool list/);
     expect(warns(base(), {})).toMatch(/tool list isn't filled in/);
   });
 

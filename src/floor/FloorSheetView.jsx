@@ -11,7 +11,7 @@ import FloorPartProgram from "./FloorPartProgram.jsx";
 //
 // When the part number matches a CNC Catalog part, the catalogue's own steps
 // and blueprint come along — that's the "how to make it" the sheet points at.
-export default function FloorSheetView({ sheet, part, onRunSheet = null, onPartChanged = null, onClose }) {
+export default function FloorSheetView({ sheet, part, onRunSheet = null, onPartChanged = null, onAsk = null, onClose }) {
   useEffect(() => {
     const onKey = (e) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
@@ -52,7 +52,7 @@ export default function FloorSheetView({ sheet, part, onRunSheet = null, onPartC
 
           {/* The CNC program for this part: is it proven, and the page that says
               how to set the job up. Only when the part is in the catalogue. */}
-          {part && onRunSheet && <FloorPartProgram part={part} onRunSheet={onRunSheet} onPartChanged={onPartChanged} />}
+          {part && onRunSheet && <FloorPartProgram part={part} onRunSheet={onRunSheet} onPartChanged={onPartChanged} onAsk={onAsk} />}
 
           {rows.length > 0 && (
             <dl className="fcs-facts">

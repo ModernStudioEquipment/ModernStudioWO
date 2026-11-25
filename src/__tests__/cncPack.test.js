@@ -152,7 +152,7 @@ describe("ready to hand off", () => {
     const text = buildPack(part, programs, machines);
     expect(text).toContain("CNC PART PACK: 3in Baby Pin");
     expect(text).toContain("Finished by hand after the machine: deburr");
-    expect(text).toContain("== MACHINE: Haas ST-10 ==");
+    expect(text).toContain("== MACHINE: Haas ST-10Y ==");
     expect(text).toContain("T5  thread");
     expect(text).toContain("Status: NOT PROVEN");
     expect(text).toContain("G76 X0.3 Z-1. K0.04 D0.01 F0.0625");

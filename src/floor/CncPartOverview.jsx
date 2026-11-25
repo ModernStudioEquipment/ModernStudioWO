@@ -4,6 +4,7 @@ import CncPreview from "./CncPreview.jsx";
 import CncProveOut, { proofLine } from "./CncProveOut.jsx";
 import CncRunSheet from "./CncRunSheet.jsx";
 import CncAi from "./CncAi.jsx";
+import CncChat from "./CncChat.jsx";
 import CncNewProgram from "./CncNewProgram.jsx";
 import { downloadProgram } from "./FloorPartProgram.jsx";
 import { PART_STEPS, FACT_FIELDS, neededLeft, programLine, finishedSizes } from "./cncPack.js";
@@ -14,7 +15,7 @@ import { splitMachines } from "./cncParts.js";
 // A part at a glance. What it looks like, where it stands, and one button for
 // the next thing to do. Everything else is a tap away ("All details"), not on
 // the screen competing for attention.
-export default function CncPartOverview({ part, pp, machineFacts, onAsk, onDetails, onMakeWorkOrder, onOpenMachines, onCommit }) {
+export default function CncPartOverview({ part, pp, machineFacts, onAsk, onDetails, onMakeWorkOrder, onOpenMachines, onCommit, allParts = [] }) {
   const [proving, setProving] = useState(false);
   const [showChecks, setShowChecks] = useState(false);
   const [sheet, setSheet] = useState(false);
@@ -42,6 +43,9 @@ export default function CncPartOverview({ part, pp, machineFacts, onAsk, onDetai
 
   if (writing) return <CncNewProgram part={part} pp={pp} machineFacts={machineFacts} onCommit={onCommit} onClose={() => setWriting(false)} />;
   // The AI takes the whole screen while it's open: one thing at a time.
+  if (ai === "chat") {
+    return <CncChat part={part} pp={pp} machineFacts={machineFacts} parts={allParts} onClose={() => setAi(null)} onRewrite={(instruction) => setAi({ rewrite: instruction })} />;
+  }
   if (ai) {
     return (
       <CncAi
@@ -156,6 +160,13 @@ export default function CncPartOverview({ part, pp, machineFacts, onAsk, onDetai
         </section>
       </div>
 
+      {!newest && !pp.loading && (
+        <div className="ov-ai">
+          <b><Sparkles size={15} /> AI</b>
+          <span>No program yet. You can still ask about this part, its setup or its machine.</span>
+          <button className="cl-btn ov-askbtn" onClick={() => setAi("chat")}><Sparkles size={14} /> Ask a question</button>
+        </div>
+      )}
       {/* ---- the AI: a second pair of eyes, and a rewrite ---- */}
       {newest && (
         <div className="ov-ai">
@@ -167,6 +178,7 @@ export default function CncPartOverview({ part, pp, machineFacts, onAsk, onDetai
               : "Have it read this program, or write a better version."}
           </span>
           {newest.ai?.kind === "rewrite" && <button className="cl-btn" onClick={() => setAi({ report: newest.ai })}>How it was written</button>}
+          <button className="cl-btn ov-askbtn" onClick={() => setAi("chat")}><Sparkles size={14} /> Ask a question</button>
           <button className="cl-btn" onClick={() => setAi("review")}>{newest.review ? "See the AI's check" : "Check this program"}</button>
           <button className="cl-btn" onClick={() => setAi("rewrite")}>Rewrite it</button>
         </div>

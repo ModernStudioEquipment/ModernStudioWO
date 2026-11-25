@@ -28,10 +28,11 @@ const VERDICT = {
 };
 
 export default function CncAi({ part, pp, machineFacts, open, onClose, onFill }) {
-  const mode = typeof open === "string" ? open : open?.report ? "report" : "reviewed";
+  // open: "review" | "rewrite" | { rewrite: "instruction" } from the assistant | { report } | { review }
+  const mode = typeof open === "string" ? open : open?.rewrite != null ? "rewrite" : open?.report ? "report" : "reviewed";
   const [status, setStatus] = useState(null);          // { ready, demo }
   const [phase, setPhase] = useState(mode === "rewrite" ? "ask" : mode === "review" ? "start" : "result");
-  const [instruction, setInstruction] = useState("");
+  const [instruction, setInstruction] = useState(() => (typeof open === "object" && open?.rewrite) || "");
   const [sizesMayChange, setSizesMayChange] = useState(false);
   const [speedsMayRise, setSpeedsMayRise] = useState(false);
   const [steps, setSteps] = useState([]);
@@ -274,11 +275,23 @@ export default function CncAi({ part, pp, machineFacts, open, onClose, onFill })
             {shown.findings.some((f) => f.level === "stop") ? <AlertTriangle size={26} /> : <CheckCircle2 size={26} />}
             <div>
               <b>{headline(shown.findings)}</b>
-              <span>{shown.summary}</span>
+              <span>{shown.findings.length ? "Each is listed below, with the line and how to fix it." : "That is one reader's opinion, not a proven program."}</span>
             </div>
           </div>
 
-          <Findings title="What it found" list={shown.findings} clean="Nothing. That is one reader's opinion, not a proven program." />
+          {shown.summary && <p className="ai-sum">{shown.summary}</p>}
+          {shown.walkthrough?.length > 0 && (
+            <div className="ai-block">
+              <h3>What it does, step by step</h3>
+              <ol className="ai-steps-plain">
+                {shown.walkthrough.map((w, i) => (
+                  <li key={i}><b>{w.tool || `Lines ${w.lines}`}</b><span>{w.what}</span>{w.tool && w.lines ? <i>Lines {w.lines}</i> : null}</li>
+                ))}
+              </ol>
+            </div>
+          )}
+
+          <Findings title="What it found" list={shown.findings} clean="Nothing." />
           {shown.rejected?.length > 0 && (
             <div className="ai-block">
               <h3>Raised, then thrown out by the second pass</h3>
@@ -287,7 +300,6 @@ export default function CncAi({ part, pp, machineFacts, open, onClose, onFill })
           )}
           <Block title="Hand work the machine could do" items={shown.handWork} render={(h) => <><b>{h.job}: {h.canTheMachineDoIt === "yes" ? "yes" : h.canTheMachineDoIt === "no" ? "no" : "maybe"}</b><span>{h.how}</span></>} />
           <Block title="What it would need to know to be sure" tone="ask" icon={HelpCircle} items={shown.questions} render={(q) => <span>{q}</span>} />
-          <Block title="What the program does, step by step" items={shown.walkthrough} render={(w) => <><b>Lines {w.lines}</b><span>{w.what}</span></>} />
 
           <p className="ai-quiet">
             {shown.checked ? "Each finding was checked by a second pass. " : ""}

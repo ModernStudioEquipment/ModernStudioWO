@@ -68,7 +68,7 @@ describe("program files on a part", () => {
     render(<CncPrograms part={part} onFact={() => {}} machineFacts={{ st10: { tools: [{ t: "2", what: "drill" }] } }} />);
     upload("O00017.nc", PROGRAM);
     fireEvent.click(await screen.findByRole("button", { name: /to check/ }));
-    expect(screen.getByText(/T1 isn't on the ST-10 tool list/)).toBeTruthy();
+    expect(screen.getByText(/T1 isn't on the ST-10Y tool list/)).toBeTruthy();
   });
 
   it("won't take the same file twice, and shows what changed in a new version", async () => {
@@ -275,10 +275,10 @@ describe("the Machines page", () => {
     const parts = [{ id: "a", machine: "st10" }];
     const index = [{ partId: "a", createdAt: 1, info: { tools: [{ t: 3, note: "CNMG ROUGH" }] } }];
     render(<CncMachines parts={parts} programIndex={index} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Add T3 to the ST-10 tool list" }));
-    expect(screen.getByLabelText("ST-10 tool 1 number").value).toBe("3");
-    expect(screen.getByLabelText("ST-10 tool 1 description").value).toBe("CNMG ROUGH");
-    expect(screen.queryByRole("button", { name: "Add T3 to the ST-10 tool list" })).toBeNull(); // it's listed now
+    fireEvent.click(await screen.findByRole("button", { name: "Add T3 to the ST-10Y tool list" }));
+    expect(screen.getByLabelText("ST-10Y tool 1 number").value).toBe("3");
+    expect(screen.getByLabelText("ST-10Y tool 1 description").value).toBe("CNMG ROUGH");
+    expect(screen.queryByRole("button", { name: "Add T3 to the ST-10Y tool list" })).toBeNull(); // it's listed now
   });
 
   it("saves a machine's tool list and reads it back", async () => {
@@ -286,11 +286,11 @@ describe("the Machines page", () => {
     // one machine on screen at a time: pick the ST-10
     fireEvent.click(await screen.findByRole("tab", { name: /ST-10/ }));
     expect(screen.queryByLabelText("VF-4 tool 1 number")).toBeNull();
-    const num = await screen.findByLabelText("ST-10 tool 1 number");
+    const num = await screen.findByLabelText("ST-10Y tool 1 number");
     fireEvent.change(num, { target: { value: "T1" } });
-    fireEvent.change(screen.getByLabelText("ST-10 tool 1 description"), { target: { value: "CNMG rougher" } });
-    expect(screen.getByLabelText("ST-10 tool 2 number")).toBeTruthy(); // a fresh row opened
-    fireEvent.click(screen.getByRole("button", { name: "Save Haas ST-10" }));
+    fireEvent.change(screen.getByLabelText("ST-10Y tool 1 description"), { target: { value: "CNMG rougher" } });
+    expect(screen.getByLabelText("ST-10Y tool 2 number")).toBeTruthy(); // a fresh row opened
+    fireEvent.click(screen.getByRole("button", { name: "Save Haas ST-10Y" }));
     await waitFor(async () => expect((await db.getMachineFacts()).st10.tools).toEqual([{ t: "1", what: "CNMG rougher" }]));
   });
 });

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Download, FileText, ShieldCheck, ShieldAlert, MessageSquareWarning, Check } from "lucide-react";
+import { Download, FileText, ShieldCheck, ShieldAlert, MessageSquareWarning, Check, Sparkles } from "lucide-react";
 import { db } from "../lib/db.js";
 import CncPreview from "./CncPreview.jsx";
 import { MACHINES } from "./machines.js";
@@ -17,7 +17,7 @@ import "./cncLibrary.css";
 // The work order itself stays read-only. The one thing that can be written
 // here is a problem with the program, which goes on the catalogue part.
 
-export default function FloorPartProgram({ part, onRunSheet, onPartChanged }) {
+export default function FloorPartProgram({ part, onRunSheet, onPartChanged, onAsk = null }) {
   const [programs, setPrograms] = useState(null);   // null while loading
   const [telling, setTelling] = useState(false);
   const [text, setText] = useState("");
@@ -67,6 +67,7 @@ export default function FloorPartProgram({ part, onRunSheet, onPartChanged }) {
         </span>
         {program && <button className="fcs-runbtn" onClick={() => downloadProgram(program)} title="Save the program file, to put on a USB stick for the machine"><Download size={14} /> Download</button>}
         <button className="fcs-runbtn" onClick={onRunSheet}><FileText size={14} /> Run sheet</button>
+        {onAsk && <button className="fcs-runbtn fcs-ask" onClick={onAsk}><Sparkles size={14} /> Ask</button>}
       </div>
 
       {program && (

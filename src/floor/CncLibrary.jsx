@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ArrowLeft, Plus, Trash2, Upload, ImageOff, Check, Copy, GripVertical, ChevronLeft, ChevronRight, ClipboardList, FolderInput, Box } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Upload, ImageOff, Check, Copy, GripVertical, ChevronLeft, ChevronRight, ClipboardList, FolderInput, Box, Sparkles } from "lucide-react";
 import Sortable from "sortablejs";
 import { db } from "../lib/db.js";
 import { duplicatePart, isSkuTaken, cleanPhotos, MAX_PHOTOS, moveStep, splitPrograms, joinPrograms, splitMachines, joinMachines } from "./cncParts.js";
@@ -14,6 +14,7 @@ import CncPartOverview from "./CncPartOverview.jsx";
 import { usePartPrograms } from "./usePartPrograms.js";
 import { recall, remember } from "./remember.js";
 import { PART_STEPS, rankParts, wizardSteps } from "./cncPack.js";
+import CncChat from "./CncChat.jsx";
 import "./cncLibrary.css";
 
 const BLANK = { id: null, sku: "", name: "", material: "", notes: "", blueprintUrl: null, photos: [], steps: [""], productNo: "", programNo: "", machine: "", facts: {} };
@@ -46,7 +47,7 @@ export default function CncLibrary({ onClose, embedded = false, onMakeWorkOrder 
   const [photoBusy, setPhotoBusy] = useState(false);
   // "parts" is the catalogue; "machines" is each Haas's tool list and setup;
   // "priorities" ranks parts by hand work; "import" takes a USB stick of programs.
-  const [view, setView] = useState(() => recall("mse_cl_view", ["parts", "machines", "priorities"], "parts"));
+  const [view, setView] = useState(() => recall("mse_cl_view", ["parts", "machines", "priorities", "ask"], "parts"));
   useEffect(() => { remember("mse_cl_view", view === "import" ? "parts" : view); }, [view]);
   // Every program file without its text: who has one, and is it proven.
   const [programIndex, setProgramIndex] = useState([]);
@@ -281,6 +282,7 @@ export default function CncLibrary({ onClose, embedded = false, onMakeWorkOrder 
             <button role="tab" aria-selected={view === "parts"} className={view === "parts" ? "on" : ""} onClick={() => setView("parts")}>Parts</button>
             <button role="tab" aria-selected={view === "machines"} className={view === "machines" ? "on" : ""} onClick={() => setView("machines")}>Machines</button>
             <button role="tab" aria-selected={view === "priorities"} className={view === "priorities" ? "on" : ""} onClick={() => setView("priorities")}>Fix first</button>
+            <button role="tab" aria-selected={view === "ask"} className={view === "ask" ? "on cl-asktab" : "cl-asktab"} onClick={() => setView("ask")}><Sparkles size={13} /> Ask</button>
           </div>
           <div className="cl-spacer" />
           {!embedded && (
@@ -297,6 +299,11 @@ export default function CncLibrary({ onClose, embedded = false, onMakeWorkOrder 
         </div>
         {view === "priorities" && (
           <CncPriorities parts={parts} programIndex={programIndex} onOpen={(p) => { edit(p); setView("parts"); }} />
+        )}
+        {view === "ask" && (
+          <div className="cl-editor cl-askpage">
+            <CncChat part={null} machineFacts={machineFacts} parts={parts} onClose={() => setView("parts")} />
+          </div>
         )}
         {view === "import" && (
           <CncImport parts={parts} onDone={() => { reload(); loadProgramIndex(); }} onClose={() => setView("parts")} />
@@ -373,6 +380,7 @@ export default function CncLibrary({ onClose, embedded = false, onMakeWorkOrder 
                 onMakeWorkOrder={onMakeWorkOrder ? makeWorkOrder : null}
                 onOpenMachines={() => goField("tools")}
                 onCommit={commit}
+                allParts={parts}
               />
             )}
             {!wizard && (draft.copiedFrom || (draft.id && tab === "details")) && (<>

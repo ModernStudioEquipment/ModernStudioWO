@@ -299,6 +299,7 @@ export function buildPack(part, programs = [], machineFactsByKey = {}) {
     const f = cleanMachineFacts(machineFactsByKey?.[k]);
     L.push("");
     L.push(`== MACHINE: ${m?.label || k} ==`);
+    add("What it is", m?.about);
     add("Model / year", f.model);
     add("Workholding", f.holding);
     add("Largest bar", f.maxBar);

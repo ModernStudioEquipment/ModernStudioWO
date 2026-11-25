@@ -277,3 +277,46 @@ describe("the route", () => {
     expect(got.at(-1).error).not.toMatch(/slow down/);
   });
 });
+
+describe("questions to the assistant", () => {
+  beforeEach(() => { process.env.VITE_SUPABASE_URL = "https://db.example.co"; });
+  afterEach(() => { delete process.env.VITE_SUPABASE_URL; });
+  const q = (more = {}) => ({ pack: "SHOP", program: "", question: "How do I set a tool offset?", history: "", ...more });
+
+  it("can be about the shop, with no program", () => {
+    expect(checkInput("ask", q())).toBe("");
+    const r = buildRequest("ask", q());
+    expect(r.messages[0].content[0].text).toMatch(/^SHOP PACK/);
+    expect(r.messages[0].content.at(-1).text).not.toMatch(/CURRENT PROGRAM/);
+    expect(r.output_config.format).toBeUndefined();          // answered in its own words
+    expect(r.messages[0].content.at(-1).text).toMatch(/PHOTO:[\s\S]*REWRITE:[\s\S]*REMEMBER:/);
+  });
+  it("sends photos from the app's own storage, labelled, and refuses any other link", () => {
+    const ok = "https://db.example.co/storage/v1/object/public/item-photos/cnc/p1/1.jpg";
+    const r = buildRequest("ask", q({ photos: [{ url: ok, label: "the setup" }] }));
+    const blocks = r.messages[0].content;
+    expect(blocks[1]).toEqual({ type: "image", source: { type: "url", url: ok } });
+    expect(blocks[2].text).toBe("(Above: the setup)");
+    expect(checkInput("ask", q({ photos: [{ url: "https://evil.example/x.jpg" }] }))).toMatch(/didn't upload properly/);
+    expect(checkInput("ask", q({ photos: [{ url: "data:image/png;base64,AAAA" }] }))).toMatch(/didn't upload properly/);
+    expect(checkInput("ask", q({ photos: Array.from({ length: 7 }, () => ({ url: ok })) }))).toMatch(/at most 6/);
+  });
+  it("tells the AI what each machine really is", () => {
+    expect(SHOP).toMatch(/ST-10Y: a turning center with one spindle and a turret that has live tooling and a Y axis/);
+    expect(SHOP).toMatch(/DS-30SSY: a turning center with a main spindle and a sub-spindle/);
+  });
+  it("a plain-text answer comes back as the answer, and streams as it's written", async () => {
+    const pieces = [];
+    const c = fakeClient(() => streamOf({ ...reply({}), content: [{ type: "text", text: "Press OFFSET, then…\nPHOTO: the screen" }] }, { text: "Press OFFSET" }));
+    const out = await runJob(c, "ask", q(), { onText: (t) => pieces.push(t) });
+    expect(out.result.answer).toBe("Press OFFSET, then…\nPHOTO: the screen");
+    expect(pieces).toEqual(["Press OFFSET"]);
+  });
+  it("photos that can't be fetched: asked again without them, and the answer says so", async () => {
+    const ok = "https://db.example.co/storage/v1/object/public/item-photos/a.jpg";
+    const c = fakeClient((n) => (n <= 2 ? { on() { return this; }, async finalMessage() { throw bad400(); } } : streamOf({ ...reply({}), content: [{ type: "text", text: "ok" }] })));
+    const out = await runJob(c, "ask", q({ photos: [{ url: ok, label: "x" }] }));
+    expect(c.calls.map((k) => k.body.messages[0].content.some((b) => b.type === "image"))).toEqual([true, true, false]);
+    expect(out.notes.join(" ")).toMatch(/photos couldn't be read/);
+  });
+});

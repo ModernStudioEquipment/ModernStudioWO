@@ -5,6 +5,7 @@ import { db } from "../lib/db.js";
 import CncLibrary from "./CncLibrary.jsx";
 import FloorSheetView from "./FloorSheetView.jsx";
 import CncRunSheet from "./CncRunSheet.jsx";
+import FloorAsk from "./FloorAsk.jsx";
 import { recall, remember } from "./remember.js";
 import { sheetFromItem, sheetFromWorkOrder } from "./floorSheet.js";
 import { FeedbackModal } from "../components/modals/FeedbackModal.jsx";
@@ -153,6 +154,7 @@ export default function FloorControl({ orders, workOrders = [], onClose, cncOnly
   // The CNC run sheet opened from a work order. (The work order view loads the
   // part's program itself: FloorPartProgram.)
   const [runSheetPart, setRunSheetPart] = useState(null);
+  const [askPart, setAskPart] = useState(null);   // the assistant, opened on a work order's part
   // The catalogue is edited from inside this screen (the CNC Catalog tab), so
   // the copy held here goes stale: a part given its SKU a minute ago wouldn't
   // match its work order until Floor Control was closed and reopened. Re-read
@@ -435,12 +437,14 @@ export default function FloorControl({ orders, workOrders = [], onClose, cncOnly
               sheet={viewing}
               part={part}
               onRunSheet={part ? () => setRunSheetPart(part) : null}
+              onAsk={part ? () => setAskPart(part) : null}
               onPartChanged={() => db.getCncParts().then((p) => setParts(Array.isArray(p) ? p : [])).catch(() => {})}
               onClose={() => setViewing(null)}
             />
           );
         })()}
         {runSheetPart && <CncRunSheet part={runSheetPart} onClose={() => setRunSheetPart(null)} />}
+        {askPart && <FloorAsk part={askPart} onClose={() => setAskPart(null)} />}
         {newWo && woApi && (
             <CustomWorkOrderDoc
               wo={newWo}

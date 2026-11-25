@@ -551,3 +551,24 @@ describe("only one outcome is a pass", () => {
     expect((await go(macro, macro.replace("T0101 (CNMG ROUGH)", "(NOTE)\nT0101 (CNMG ROUGH)"))).verdict).toBe("passed");
   });
 });
+
+describe("breaking the edges", () => {
+  // the same pin written twice by the app's own writer: sharp corners, then broken ones
+  it("is told apart from a change of size, and is something to check, not a stop", async () => {
+    const { writeLathe, specFromPart } = await import("../floor/cncWrite.js");
+    const spec = (chamfer, edge) => ({ ...specFromPart({ ...part, programNo: "O00017", facts: { ...part.facts, holding: "3-jaw chuck, 4 inch stick-out" } }, tools), steps: [{ dia: "0.625", len: "1" }, { dia: "1.125", len: "2" }], chamfer, edgeBreak: edge, cut: { sfm: "350", rough: "0.01", finish: "0.004", depth: "0.06", maxRpm: "2500" } });
+    const sharp = writeLathe(spec("0", "0"));
+    const broken = writeLathe(spec("0.03", "0.01"));
+    const found = draftChecks(sharp, broken, { part, machineFacts: tools });
+    expect(found.filter((f) => f.level === "stop").map((f) => f.text)).toEqual([]);
+    expect(found.find((f) => /Only the corners change/.test(f.text))).toMatchObject({ level: "look" });
+    expect(found.find((f) => /Only the corners change/.test(f.text)).text).toMatch(/the most any corner moves is 0\.02/);
+    expect(found.sameMachine).toBe(false);                  // it's a change: a lead reads it
+    // a chamfer far too big to be an edge break is still a change of shape
+    const big = draftChecks(sharp, writeLathe(spec("0.2", "0.01")), { part, machineFacts: tools });
+    expect(big.filter((f) => f.level === "stop").map((f) => f.text).join(" ")).toMatch(/Ø0\.625/);
+    // and a diameter changed along with the corners is still a stop
+    const bigger = writeLathe({ ...spec("0.03", "0.01"), steps: [{ dia: "0.62", len: "1" }, { dia: "1.125", len: "2" }] });
+    expect(draftChecks(sharp, bigger, { part, machineFacts: tools }).filter((f) => f.level === "stop").length).toBeGreaterThan(0);
+  });
+});

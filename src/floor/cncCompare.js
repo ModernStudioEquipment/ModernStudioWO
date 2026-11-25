@@ -427,13 +427,23 @@ export function draftChecks(oldContent, newContent, { part = null, machineFacts 
       notMeasured.push("Rapid moves inside the hole: the app doesn't know how big the hole is.");
     } else {
       const steps = sizeChanges(a.sizes, b.sizes, tol, u);
-      for (const text of steps) add(changed, text);
       // the whole outline, so a taper, a radius or a chamfer can't change unnoticed
       const shape = profileDifference(a.sim, b.sim);
-      if (shape.worst > tol && !steps.length) {
-        add(changed, `The finished shape is different by ${sz(shape.worst)} near ${zText(shape.z, u)}: the current program leaves Ø${sz(shape.was * 2)} there and this leaves Ø${sz(shape.now * 2)}.`);
+      // Breaking the edges (the commonest thing a rewrite is asked for: no more
+      // deburring by hand) changes the outline, but only at the corners. That's
+      // told apart from a real change of size and said for what it is, as
+      // something to check against the drawing rather than a stop.
+      const corner = u === "mm" ? 1.5 : 0.06;
+      const edges = shape.worst > tol && shape.worst <= corner && cornersOnly(a.sizes, b.sizes, tol, corner) && removesOnly(a.sim, b.sim, tol) && atSharpCorners(a.sim, b.sim, tol, corner);
+      if (edges) {
+        add("look", `Only the corners change: every diameter and every length is the same, and the most any corner moves is ${sz(shape.worst)} (edge breaks or chamfers). Check the drawing allows them.`);
+      } else {
+        for (const text of steps) add(changed, text);
+        if (shape.worst > tol && !steps.length) {
+          add(changed, `The finished shape is different by ${sz(shape.worst)} near ${zText(shape.z, u)}: the current program leaves Ø${sz(shape.was * 2)} there and this leaves Ø${sz(shape.now * 2)}.`);
+        }
       }
-      measured.push(`The finished outside shape, end to end, to within ${sz(tol)}.`);
+      measured.push(`The finished outside shape, end to end, to within ${sz(tol)}${edges ? ", apart from the corners" : ""}.`);
     }
     const th = (t) => `${n4(t.z0)}|${n4(t.z1)}|${n4(t.minor)}|${n4(t.pitch)}`;
     const thA = a.sim.threads.map(th).sort().join(";");
@@ -532,6 +542,58 @@ export function draftChecks(oldContent, newContent, { part = null, machineFacts 
   if (kept.same) measured.unshift("Every line of code is the same as the current program's, word for word. Only comments changed, or a speed or feed came down.");
   measured.unshift("Program number, units, work offset, each tool's offset number, and that every tool is on the machine's list.");
   return finish({ measured, notMeasured });
+}
+
+// Are the two parts the same apart from their corners? Every straight
+// diameter is still there, the same size, and its straight part is the same or
+// shorter by no more than `corner` at each end (a chamfer eats into it from
+// the corner). Nothing new appears, and no straight part gets longer.
+function cornersOnly(a, b, tol, corner) {
+  if (!a || !b) return false;
+  const flat = (x) => x.steps.filter((s) => !s.groove);
+  const A = flat(a), B = flat(b);
+  if (A.length !== B.length) return false;
+  if (a.steps.filter((s) => s.groove).length !== b.steps.filter((s) => s.groove).length) return false;
+  return A.every((s, i) => {
+    const t = B[i];
+    // the straight part can only get shorter, from its ends (a chamfer eats into it); never longer, which is a shoulder that moved
+    return Math.abs(s.dia - t.dia) <= tol
+      && t.z1 <= s.z1 + tol && t.z0 >= s.z0 - tol
+      && s.z1 - t.z1 <= corner + tol && t.z0 - s.z0 <= corner + tol;
+  });
+}
+// ...and the draft only takes metal away there, never leaves more.
+function removesOnly(simA, simB, tol) {
+  const lo = Math.max(simA.face - simA.length, simB.face - simB.length);
+  const hi = Math.min(simA.face, simB.face);
+  for (const z of simA.zs) if (z > lo && z < hi && simB.radiusAt(simB.final, z) > simA.radiusAt(simA.final, z) + tol) return false;
+  return true;
+}
+
+// ...and only at corners that were sharp. Breaking a square shoulder or the
+// edge of the face is an edge break; making an existing chamfer bigger or a
+// fillet smaller is a change to a size on the drawing, and isn't excused here.
+function atSharpCorners(simA, simB, tol, corner) {
+  // (the outline as cut, not as drawn: a thread is drawn as teeth, and every tooth is a sharp corner)
+  const pts = simplifyOutline([[simA.back, 0], ...Array.from(simA.zs, (z, i) => [z, simA.final[i]]), [simA.face, 0]]);
+  const sharp = [];
+  for (let i = 1; i < pts.length - 1; i++) {
+    const v1 = [pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]];
+    const v2 = [pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]];
+    const l1 = Math.hypot(...v1), l2 = Math.hypot(...v2);
+    if (l1 < 1e-9 || l2 < 1e-9) continue;
+    const turn = Math.acos(Math.max(-1, Math.min(1, (v1[0] * v2[0] + v1[1] * v2[1]) / (l1 * l2))));
+    if (turn >= Math.PI / 3 && pts[i][1] > tol) sharp.push(pts[i]);   // 60 degrees or more, and not on the centre line
+  }
+  const lo = Math.max(simA.face - simA.length, simB.face - simB.length);
+  const hi = Math.min(simA.face, simB.face);
+  for (const z of simA.zs) {
+    if (z < lo || z > hi) continue;
+    const ra = simA.radiusAt(simA.final, z);
+    if (Math.abs(ra - simB.radiusAt(simB.final, z)) <= tol) continue;
+    if (!sharp.some((c) => Math.hypot(c[0] - z, c[1] - ra) <= corner * 1.5 + tol)) return false;
+  }
+  return true;
 }
 
 // Each diameter the current program cuts, looked for in the draft.

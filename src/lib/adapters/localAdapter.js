@@ -351,6 +351,24 @@ export const localAdapter = {
     all[machine] = cleanMachineFacts(facts);
     writeLS("mse_cnc_machine_facts_v1", all);
   },
+  // ---- the CNC assistant's conversations ----
+  async getCncChat(partId) {
+    return readLS("mse_cnc_chat_v1", []).filter((x) => x.role !== "memory" && (x.partId || null) === (partId || null)).sort((a, b) => a.at - b.at);
+  },
+  async getCncMemory(partId) {
+    return readLS("mse_cnc_chat_v1", []).filter((x) => x.role === "memory" && (!x.partId || x.partId === partId)).sort((a, b) => a.at - b.at);
+  },
+  async addCncChat({ partId, role, body, photos = [], author = "", meta = {} }) {
+    const list = readLS("mse_cnc_chat_v1", []);
+    const row = { id: uid(), partId: partId || null, role, body: body || "", photos, author: author || "", meta, at: Date.now() + list.length * 1e-3 };
+    list.push(row);
+    writeLS("mse_cnc_chat_v1", list);
+    return row;
+  },
+  async deleteCncChat(id) {
+    writeLS("mse_cnc_chat_v1", readLS("mse_cnc_chat_v1", []).filter((x) => x.id !== id));
+  },
+
   async uploadBlueprint(_partId, file) {
     return await new Promise((res) => {
       const r = new FileReader();

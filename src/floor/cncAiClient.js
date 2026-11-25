@@ -7,6 +7,7 @@
 
 import { apiFetch } from "../lib/apiFetch.js";
 import { backendMode } from "../lib/db.js";
+import { explainPlainly } from "./cncAi.js";
 
 export class AiError extends Error {
   constructor(message, kind = "error") { super(message); this.kind = kind; }
@@ -94,9 +95,15 @@ const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
 async function demoAnswer(task, input, signal, onText) {
   if (task === "ask") {
     // a canned answer that shows the conversation is carried: it says how many questions came before
-    const before = (String(input.history || "").match(/^Q: /gm) || []).length;
-    const tools = (String(input.program || "").match(/^\s*(?:N\d+\s*)?T\d+[^\n]*/gm) || []).length;
-    const answer = `Demo answer, not from the AI. You asked: "${String(input.question).trim().slice(0, 120)}". ${before ? `That's question ${before + 1} about this part, and the ${before} before it were sent along with it. ` : "This is the first question about this part. "}The program calls ${tools} tool${tools === 1 ? "" : "s"}. The real AI answers from the part's details and its program.`;
+    const before = (String(input.history || "").match(/^Q \(/gm) || []).length;
+    const steps = input.program ? explainPlainly(input.program) : [];
+    const answer = [
+      `Demo answer, not from the AI. You asked: "${String(input.question).trim().slice(0, 120)}".`,
+      before ? `That's question ${before + 1} here, and the ${before} before it were sent along with it, so the real assistant would answer with all of them in mind.` : "This is the first question here.",
+      steps.length ? `From the app's own measurements, the program does this:\n${steps.map((s, i) => `${i + 1}. ${s.tool}: ${s.what}`).join("\n")}` : "The real assistant answers from every machine's tool list and notes, and what the shop has asked it to remember.",
+      "PHOTO: the part as it sits in the chuck",
+      "REMEMBER: This is what a remembered fact looks like. Press the button to keep it.",
+    ].join("\n\n");
     for (const word of answer.split(/(?<= )/)) { await wait(18, signal); onText?.(word); }
     return { result: { answer }, usage, notes: [DEMO_NOTE] };
   }
@@ -141,9 +148,10 @@ async function demoAnswer(task, input, signal, onText) {
   // review: point at the first rapid move, which is always worth a look
   const at = lines.findIndex((l) => /\bG0?0\b/i.test(l) && /[XZ]/i.test(l));
   const tools = lines.map((l, i) => ({ l, i })).filter((x) => /^\s*(N\d+\s*)?T\d+/i.test(x.l));
+  const steps = explainPlainly(input.program);
   return { result: {
-    summary: "A canned summary for the demo: the real review explains what the program makes and how.",
-    walkthrough: tools.map((t, k) => ({ lines: `${t.i + 1}-${(tools[k + 1]?.i ?? lines.length)}`, what: `Loads a tool (${t.l.trim()}) and cuts with it.` })),
+    summary: `Demo: written from the app's own measurements, not by the AI. This program uses ${steps.length} tool${steps.length === 1 ? "" : "s"}; what each one does is below. The real review also says why, and what to watch.`,
+    walkthrough: steps,
     findings: at >= 0 ? [{ level: "look", line: at + 1, quote: lines[at].trim(), problem: "This is the first rapid move toward the part. Check it starts in clear air.", fix: "Run it in single block with the rapids turned down." }] : [],
     handWork: [],
     questions: ["How far does the part stick out of the jaws?"],
