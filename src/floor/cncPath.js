@@ -14,7 +14,7 @@
 //          diameter on a lathe, so radius = X / 2. The viewer spins this
 //          profile round the Z axis to show the turned shape.
 
-import { parseLines, programInfo } from "./cncGcode.js";
+import { parseLines, programInfo, followCalls } from "./cncGcode.js";
 
 const TAU = Math.PI * 2;
 const MAX_SEGS = 150000;
@@ -61,7 +61,8 @@ export function arcPoints(s, e, c, cw) {
 
 // ---- the walk ---------------------------------------------------------------
 export function toolpath(content, { kind: machineKind = "" } = {}) {
-  const lines = parseLines(content);
+  // in the order it runs: local sub-program calls (M97) followed
+  const { lines, followed: callsFollowed, missing: callsMissing } = followCalls(parseLines(content));
   const info = programInfo(content);
   const kind = info.kind || machineKind || "mill";
   const segs = [];
@@ -133,7 +134,8 @@ export function toolpath(content, { kind: machineKind = "" } = {}) {
   if (kind === "lathe") walkLathe(); else walkMill();
 
   if (full) notes.add(`Only the first ${MAX_SEGS.toLocaleString()} moves are drawn.`);
-  return { kind, segs, notes: [...notes], tools: toolsUsed, units, events, cycles, arrivals, opaque, offsets, taps, shifts, homeVia, homes, profileRapids, unhomed, bounds: boundsOf(segs), stats: statsOf(kind, segs) };
+  if (callsFollowed) notes.add(`Sub-program calls (M97) are followed, ${callsFollowed === 1 ? "once" : `${callsFollowed} of them`}. A repeat count (L) is drawn as one part.`);
+  return { kind, segs, notes: [...notes], tools: toolsUsed, units, events, cycles, arrivals, opaque, offsets, taps, shifts, homeVia, homes, profileRapids, unhomed, calls: callsFollowed, bounds: boundsOf(segs), stats: statsOf(kind, segs) };
 
   // -- mill -------------------------------------------------------------------
   function walkMill() {
@@ -157,7 +159,7 @@ export function toolpath(content, { kind: machineKind = "" } = {}) {
       let startedCycle = false;
       readModal(line, G, M);
       if (M.includes(30) || M.includes(2)) ended = true;
-      if (M.some((m) => m === 97 || m === 98) || G.some((g) => g === 65 || g === 66)) { opaque.push(line.code.replace(/\s+/g, "")); notes.add("Sub-programs aren't followed."); }
+      if ((M.includes(97) && !line.called) || M.includes(98) || G.some((g) => g === 65 || g === 66)) { opaque.push(line.code.replace(/\s+/g, "")); notes.add(M.includes(97) ? "A sub-program call (M97) whose N number isn't in the file isn't followed." : "Sub-programs in other files (M98, G65) aren't followed."); }
       if (G.some((g) => g === 52 || g === 92 || g === 10 || g === 51 || g === 68)) shifts.push(line.code.replace(/\s+/g, ""));
       if (G.includes(94)) modal.perRev = false;
       if (G.includes(95)) modal.perRev = true;
@@ -297,7 +299,7 @@ export function toolpath(content, { kind: machineKind = "" } = {}) {
       const n = line.n;
       const N = val(line, "N");
       if (M.includes(30) || M.includes(2)) ended = true;
-      if (M.some((m) => m === 97 || m === 98) || G.some((g) => g === 65 || g === 66)) { opaque.push(line.code.replace(/\s+/g, "")); notes.add("Sub-programs aren't followed."); }
+      if ((M.includes(97) && !line.called) || M.includes(98) || G.some((g) => g === 65 || g === 66)) { opaque.push(line.code.replace(/\s+/g, "")); notes.add(M.includes(97) ? "A sub-program call (M97) whose N number isn't in the file isn't followed." : "Sub-programs in other files (M98, G65) aren't followed."); }
 
       if (G.includes(20)) units = "in";
       if (G.includes(21)) units = "mm";

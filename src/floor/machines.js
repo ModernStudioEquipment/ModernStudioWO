@@ -39,7 +39,7 @@ export const controlOf = (machine, facts) => {
 
 export const MACHINES = [
   // control: known from photos of the controls (2026-11-25): the VF-4 has the NGC,
-  // the DS-30SSY and the ST-10Y the Classic (the ST-10Y from an earlier, less clear photo)
+  // the DS-30SSY and the ST-10Y the Classic
   { key: "vf4", short: "VF-4", label: "Haas VF-4", color: "#FFB224", kind: "mill", control: "ngc",
     about: "Vertical machining center: a 3-axis mill (X, Y, Z) with a tool changer. Work is held in a vise or a fixture on the table." },
   { key: "st10", short: "ST-10Y", label: "Haas ST-10Y", color: "#FF8A5C", kind: "lathe", control: "classic",

@@ -30,6 +30,46 @@ export function parseLines(content) {
   return out;
 }
 
+// The program in the order the machine runs it, with each local sub-program
+// call (M97 P1000) followed: the lines from N1000 down to its M99 are put in
+// where the call is, once (an L count repeats the same moves, so once is what
+// a part looks like). The shop's programs are often written this way:
+//   M97 P1000 L21 (call the real program 21 times)
+//   M30
+//   N1000 ... M99
+// and without following the call, everything after the M30 would be unread.
+// Lines keep their own numbers. M98 (another program in memory) can't be
+// followed from one file and is left as it is. `called` marks a followed call.
+export function followCalls(lines) {
+  const at = new Map();
+  lines.forEach((l, i) => { const N = l.words.find((w) => w.l === "N"); if (N && !at.has(N.v)) at.set(N.v, i); });
+  const out = [];
+  let followed = 0;
+  const missing = [];
+  const MAX = 100_000;
+  const Ms = (l) => (l.macro ? [] : l.words.filter((w) => w.l === "M").map((w) => w.v));
+  const walk = (start, depth, inSub) => {
+    for (let i = start; i < lines.length && out.length < MAX; i++) {
+      const l = lines[i];
+      const M = Ms(l);
+      if (M.includes(97)) {
+        const P = l.words.find((w) => w.l === "P")?.v;
+        const target = at.get(P);
+        const ok = target != null && depth < 4;
+        out.push(ok ? { ...l, called: true } : l);
+        if (ok) { followed += 1; walk(target, depth + 1, true); } else if (P != null) missing.push(P);
+        if (M.includes(30) || M.includes(2)) return;
+        continue;
+      }
+      if (inSub && M.includes(99)) return;           // back to where it was called from
+      out.push(l);
+      if (!inSub && (M.includes(30) || M.includes(2) || M.includes(99))) return;   // the end of the program
+    }
+  };
+  walk(0, 0, false);
+  return { lines: out, followed, missing };
+}
+
 const has = (line, l, v) => line.words.some((w) => w.l === l && w.v === v);
 const word = (line, l) => line.words.find((w) => w.l === l);
 const anyG = (line, ...vs) => line.words.some((w) => w.l === "G" && vs.includes(w.v));
