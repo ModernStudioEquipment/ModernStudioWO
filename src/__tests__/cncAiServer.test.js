@@ -43,7 +43,7 @@ describe("what gets sent", () => {
       expect(r.thinking).toEqual({ type: "adaptive" });
       if (task !== "ask") {   // (a question is the one job answered in its own words: see below)
         // reading and checking a program is quicker; writing one thinks hardest
-        expect(r.output_config.effort).toBe(task === "review" || task === "challenge" ? "medium" : "high");
+        expect(r.output_config.effort).toBe(["review", "challenge", "steps"].includes(task) ? "medium" : "high");
         expect(r.output_config.format.type).toBe("json_schema");
         expect(r.output_config.format.schema.additionalProperties).toBe(false);
       }
@@ -301,7 +301,7 @@ describe("questions to the assistant", () => {
     expect(blocks[2].text).toBe("(Above: the setup)");
     expect(checkInput("ask", q({ photos: [{ url: "https://evil.example/x.jpg" }] }))).toMatch(/didn't upload properly/);
     expect(checkInput("ask", q({ photos: [{ url: "data:image/png;base64,AAAA" }] }))).toMatch(/didn't upload properly/);
-    expect(checkInput("ask", q({ photos: Array.from({ length: 7 }, () => ({ url: ok })) }))).toMatch(/at most 6/);
+    expect(checkInput("ask", q({ photos: Array.from({ length: 9 }, () => ({ url: ok })) }))).toMatch(/at most 8/);
   });
   it("tells the AI what each machine really is", () => {
     expect(SHOP).toMatch(/ST-10Y: a turning center with one spindle and a turret that has live tooling and a Y axis/);
@@ -370,5 +370,22 @@ describe("an answer it has to look up", () => {
     const out = await runJob(c, "ask", q);
     expect(out.result.answer).toBe("answer");
     expect(out.notes.join(" ")).toMatch(/Web search isn't switched on/);
+  });
+});
+
+describe("drafting operator steps", () => {
+  it("asks for steps in order, keeping what people wrote, and a list of what to check", () => {
+    const r = buildRequest("steps", input());
+    const t = r.messages[0].content.at(-1).text;
+    expect(t).toMatch(/OPERATOR STEPS/);
+    expect(t).toMatch(/keep everything they say/);
+    expect(t).toMatch(/Every stop in the program \(M00, M01\)/);
+    expect(r.output_config.effort).toBe("medium");
+    expect(r.output_config.format.schema.required).toEqual(["steps", "unsure"]);
+    expect(checkInput("steps", input({ program: "" }))).toMatch(/no program/);
+  });
+  it("an answer with no steps isn't taken as one", () => {
+    expect(shapeProblem("steps", { steps: [" "], unsure: [] })).toBe("the steps");
+    expect(shapeProblem("steps", { steps: ["Load the bar"], unsure: [] })).toBe("");
   });
 });

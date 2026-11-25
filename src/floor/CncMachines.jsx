@@ -4,6 +4,7 @@ import CncToolSheet from "./CncToolSheet.jsx";
 import { db } from "../lib/db.js";
 import { MACHINES } from "./machines.js";
 import { cleanMachineFacts, suggestTools } from "./cncPack.js";
+import { shrinkPhoto } from "./cncChat.js";
 
 // The Machines page of the CNC Catalog: what each Haas actually has in it.
 // A program is only as good as the tool list it was written against, so this
@@ -265,7 +266,7 @@ function MachinePhotos({ photos, onChange, machine, onErr }) {
     setBusy(true);
     try {
       const urls = [];
-      for (const f of files) urls.push(await db.uploadBlueprint(`machine-${machine.key}`, f));
+      for (const f of files) urls.push(await db.uploadBlueprint(`machine-${machine.key}`, await shrinkPhoto(f)));   // (the AI looks at these: phone photos are shrunk first)
       onChange([...photos, ...urls.filter(Boolean)]);
     } catch (e2) {
       onErr(`Couldn't upload that picture${e2?.message ? `: ${e2.message}` : "."}`);

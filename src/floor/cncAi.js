@@ -425,3 +425,16 @@ export function reportToKeep(run) {
     fixes: run.fixes, reads: run.reads, cost: run.cost, basedOn: run.basedOn, demo: !!run.demo,
   };
 }
+
+// ---- the operator steps, drafted ------------------------------------------------
+//
+// The AI drafts a part's operator steps from its program (the one a rewrite
+// would start from), its setup and its machine's tool list. They come back
+// for a person to correct; nothing is saved here.
+export async function draftSteps({ ask, part, programs = [], machineFacts = {} }) {
+  const base = baselineOf(programs) || programs[0];
+  if (!base) throw new Error("There's no program to work the steps out from.");
+  const r = await ask("steps", { pack: buildAiPack(part, programs, machineFacts), program: base.content, drawingUrl: part?.blueprintUrl || "" });
+  const clean = (list) => (Array.isArray(list) ? list : []).map((x) => String(x || "").replace(/^\s*\d+[.)]\s*/, "").trim()).filter(Boolean);
+  return { steps: clean(r.result?.steps), unsure: clean(r.result?.unsure), usage: r.usage, notes: r.notes || [] };
+}

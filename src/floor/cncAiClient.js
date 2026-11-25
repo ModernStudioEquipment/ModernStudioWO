@@ -108,6 +108,15 @@ async function demoAnswer(task, input, signal, onText) {
     for (const word of answer.split(/(?<= )/)) { await wait(18, signal); onText?.(word); }
     return { result: { answer }, usage, notes: [DEMO_NOTE] };
   }
+  if (task === "steps") {
+    await wait(700, signal);
+    const steps = ["Check the stock and how it's held against the setup on the part."];
+    for (const s of explainPlainly(input.program)) steps.push(`Check ${s.tool} is in its pocket.`);
+    steps.push("Run it in Graphics, then single block with the rapids turned down.");
+    String(input.program || "").split(/\r?\n/).forEach((l, i) => { if (/\bM0?0\b|\bM0?1\b/.test(l.replace(/\(.*?\)/g, ""))) steps.push(`At the stop on line ${i + 1}, do what the comment says${/\((.*?)\)/.test(l) ? `: ${/\((.*?)\)/.exec(l)[1].toLowerCase()}` : ""}.`); });
+    steps.push("Take the part out and measure the first one against the drawing.");
+    return { result: { steps, unsure: ["Demo: written from the program alone, not by the AI. Check the stick-out and the jaws."] }, usage, notes: [DEMO_NOTE] };
+  }
   await wait(task === "write" ? 1400 : 900, signal);
   const lines = String(input.program || "").replace(/\r\n?/g, "\n").split("\n");
   if (task === "write" || task === "fix") {

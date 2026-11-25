@@ -2,8 +2,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, X, Send, Camera, Square, Sparkles, Brain, Trash2, Wand2, ImagePlus, Loader2, Check, ThumbsDown } from "lucide-react";
 import { db } from "../lib/db.js";
 import { askAi, aiStatus } from "./cncAiClient.js";
+import { splitMachines } from "./cncParts.js";
 import { fmtCost, costOf } from "./cncAi.js";
-import { historyText, photosFor, partPack, shopPack, programFor, parseAnswer, liveText, shrinkPhoto, starters, alreadyKept, MAX_PHOTOS } from "./cncChat.js";
+import { historyText, photosFor, partPack, shopPack, programFor, parseAnswer, liveText, shrinkPhoto, starters, alreadyKept, MAX_PHOTOS, machinePhotosFor } from "./cncChat.js";
 
 // The CNC assistant: ask it anything, about one part or about the shop.
 //
@@ -96,7 +97,7 @@ export default function CncChat({ part = null, pp = null, machineFacts = {}, par
         question,
         history: historyText(history),
         // (only links the server can fetch: in the demo, photos stay on this computer)
-        photos: photosFor(history, mine.photos || [], question).filter((p) => /^https:/.test(p.url)),
+        photos: photosFor(history, mine.photos || [], question, machinePhotosFor(machineFacts, part ? splitMachines(part.machine) : null)).filter((p) => /^https:/.test(p.url)),
         drawingUrl: part?.blueprintUrl || "",
       };
       let streamed = "";

@@ -32,13 +32,13 @@ describe("what goes with a question", () => {
     expect(h).toMatch(/^\(\d+ earlier messages left out to keep this short\.\)/);
     expect(h).toContain("199 xxx");
   });
-  it("the photos: new ones first, then the latest from earlier, each saying where it came from, at most six", () => {
+  it("the photos: new ones first, then the latest from earlier, each saying where it came from, at most eight", () => {
     const p = photosFor(msgs, ["https://x/new.jpg"], "Is this held right?");
     expect(p.map((x) => x.url)).toEqual(["https://x/new.jpg", "https://x/a.jpg"]);
     expect(p[0].label).toMatch(/sent with this question: "Is this held right\?"/);
     expect(p[1].label).toMatch(/Moe sent on 11\/25 with "What does line 7 do\?"/);
     const many = [{ role: "person", photos: Array.from({ length: 9 }, (_, i) => `https://x/${i}.jpg`), at: 1 }];
-    expect(photosFor(many, ["https://x/n.jpg"])).toHaveLength(6);
+    expect(photosFor(many, ["https://x/n.jpg"])).toHaveLength(8);
   });
   it("a question about the shop carries every machine, the parts and what's remembered", () => {
     const pack = shopPack(tools, [part], [{ body: "T3 on the VF-4 is really a 3/8 endmill", partId: null }]);

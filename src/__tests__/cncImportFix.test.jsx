@@ -114,3 +114,42 @@ describe("operator steps, under the part", () => {
     expect(screen.getByRole("button", { name: "Edit steps" })).toBeTruthy();
   });
 });
+
+describe("drafting the operator steps", () => {
+  const PROG = "%\nO00636 (006-1596)\nG20\nT0505 (TURN)\nG96 S400 M03\nG54 G00 X1.35 Z0.1\nG01 X0.625 F0.006\nM00 (FLIP PART)\nG28 U0. W0.\nM30\n%\n";
+  const pp = { loading: false, programs: [{ id: "v", name: "x.nc", content: PROG, status: "unproven" }], newest: null, stops: [], machineKind: "lathe", step: { at: "Setup", tone: "todo", text: "Setup.", done: {} } };
+  it("fills the editor for a person to correct, and nothing is saved until they do", async () => {
+    const { default: CncPartOverview } = await import("../floor/CncPartOverview.jsx");
+    const onCommit = vi.fn(async () => "p1");
+    render(<CncPartOverview part={{ id: "p1", name: "Pin", machine: "st10", facts: {}, steps: [] }} pp={pp} machineFacts={{}} onAsk={() => {}} onDetails={() => {}} onCommit={onCommit} />);
+    fireEvent.click(screen.getByRole("button", { name: /Draft the steps with AI/ }));
+    expect(await screen.findByText(/Drafted by the AI\. Read every step/, {}, { timeout: 4000 })).toBeTruthy();
+    expect(screen.getByLabelText("Step 1").value).toMatch(/stock/);
+    const all = [...document.querySelectorAll(".ov-opsrow textarea")].map((t) => t.value);
+    expect(all.some((v) => /line 8.*flip part/i.test(v))).toBe(true);           // the stop, from its comment
+    expect(screen.getByText(/Check these first/)).toBeTruthy();
+    expect(onCommit).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: /Save steps/ }));
+    await waitFor(() => expect(onCommit).toHaveBeenCalled());
+    expect(onCommit.mock.calls[0][0].field.steps.length).toBe(all.length);
+  });
+  it("isn't offered without a program to work from", async () => {
+    const { default: CncPartOverview } = await import("../floor/CncPartOverview.jsx");
+    render(<CncPartOverview part={{ id: "p1", name: "Pin", machine: "st10", facts: {}, steps: [] }} pp={{ ...pp, programs: [], newest: null }} machineFacts={{}} onAsk={() => {}} onDetails={() => {}} onCommit={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: /Draft the steps/ })).toBeNull();
+  });
+});
+
+describe("the machine's own photos go with a question", () => {
+  it("the part's machine, labelled, after the question's own photos, at most three", async () => {
+    const { photosFor, machinePhotosFor } = await import("../floor/cncChat.js");
+    const facts = { st10: { photos: ["https://s/st1.jpg", "https://s/st2.jpg"] }, vf4: { photos: ["https://s/vf1.jpg"] }, ds30ssy: { photos: ["https://s/ds1.jpg", "https://s/ds2.jpg"] } };
+    const mine = machinePhotosFor(facts, ["st10"]);
+    expect(mine.map((p) => p.url)).toEqual(["https://s/st1.jpg", "https://s/st2.jpg"]);
+    expect(mine[0].label).toMatch(/photo 1 of the Haas ST-10Y, from the Machines page/);
+    // the whole shop: each machine gets a look in before any gets a second
+    expect(machinePhotosFor(facts).map((p) => p.url)).toEqual(["https://s/vf1.jpg", "https://s/st1.jpg", "https://s/ds1.jpg"]);
+    const p = photosFor([], ["https://s/new.jpg"], "q", mine);
+    expect(p.map((x) => x.url)).toEqual(["https://s/new.jpg", "https://s/st1.jpg", "https://s/st2.jpg"]);
+  });
+});

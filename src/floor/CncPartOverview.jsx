@@ -1,9 +1,11 @@
-import { useState } from "react";
-import { ArrowRight, FileText, ShieldCheck, ShieldAlert, Upload, AlertTriangle, CheckCircle2, Check, ListChecks, Box, ClipboardList, Pencil, Sparkles, Ruler, Download, Code2, Copy, ChevronDown, ArrowUp, ArrowDown, Trash2, Plus, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ArrowRight, FileText, ShieldCheck, ShieldAlert, Upload, AlertTriangle, CheckCircle2, Check, ListChecks, Box, ClipboardList, Pencil, Sparkles, Ruler, Download, Code2, Copy, ChevronDown, ArrowUp, ArrowDown, Trash2, Plus, X, Loader2, Square } from "lucide-react";
 import CncPreview from "./CncPreview.jsx";
 import CncProveOut, { proofLine } from "./CncProveOut.jsx";
 import CncRunSheet from "./CncRunSheet.jsx";
 import CncAi from "./CncAi.jsx";
+import { draftSteps } from "./cncAi.js";
+import { askAi } from "./cncAiClient.js";
 import CncChat from "./CncChat.jsx";
 import CncNewProgram from "./CncNewProgram.jsx";
 import { downloadProgram } from "./FloorPartProgram.jsx";
@@ -201,7 +203,7 @@ export default function CncPartOverview({ part, pp, machineFacts, onAsk, onDetai
       {showCode && newest && <ProgramText text={newest.content} name={newest.name} />}
 
       {/* ---- what the operator does, in order ---- */}
-      <OperatorSteps steps={part.steps} onSave={(steps) => onCommit({ field: { steps } })} />
+      <OperatorSteps steps={part.steps} onSave={(steps) => onCommit({ field: { steps } })} part={part} programs={pp.programs || []} machineFacts={machineFacts} />
       {!newest && !pp.loading && (
         <div className="ov-ai">
           <b><Sparkles size={15} /> AI</b>
@@ -277,19 +279,47 @@ function ProgramText({ text, name }) {
 // offset, run it, check the first part, deburr. One list per part, kept with
 // the part (it's the same list the floor work order, the run sheet and the AI
 // read). Read here, and changed here without going into All details.
-function OperatorSteps({ steps: saved = [], onSave }) {
+function OperatorSteps({ steps: saved = [], onSave, part = null, programs = [], machineFacts = {} }) {
   const clean = (list) => (list || []).map((x) => String(x || "").trim()).filter(Boolean);
   const have = clean(saved);
   const [editing, setEditing] = useState(false);
   const [list, setList] = useState([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  // drafting with the AI: the steps come back into the editor, for a person to fix before saving
+  const [drafting, setDrafting] = useState(false);
+  const [drafted, setDrafted] = useState(null);   // { unsure, notes } once a draft is in the editor
+  const [began, setBegan] = useState(0);
+  const [, tick] = useState(0);
+  const stopper = useRef(null);
+  useEffect(() => {
+    if (!drafting) return undefined;
+    const t = setInterval(() => tick((n) => n + 1), 1000);
+    return () => clearInterval(t);
+  }, [drafting]);
+  useEffect(() => () => stopper.current?.abort(), []);
+  async function draft() {
+    const ctl = new AbortController();
+    stopper.current = ctl;
+    setDrafting(true); setErr(""); setBegan(Date.now());
+    try {
+      const out = await draftSteps({ ask: (task, input) => askAi(task, input, { signal: ctl.signal }), part, programs, machineFacts });
+      setList(out.steps.length ? out.steps : [""]);
+      setDrafted({ unsure: out.unsure, notes: out.notes });
+      setEditing(true);
+    } catch (e) {
+      if (e?.kind !== "stopped") setErr(e?.message || "The AI couldn't draft the steps. Try again.");
+    } finally {
+      setDrafting(false);
+    }
+  }
+  const canDraft = programs.length > 0;
   const start = () => { setList(have.length ? have : [""]); setErr(""); setEditing(true); };
   const set = (i, v) => setList((l) => l.map((x, j) => (j === i ? v : x)));
   const move = (i, by) => setList((l) => { const n = l.slice(); const [x] = n.splice(i, 1); n.splice(i + by, 0, x); return n; });
   async function save() {
     setBusy(true); setErr("");
-    try { await onSave(clean(list)); setEditing(false); }
+    try { await onSave(clean(list)); setEditing(false); setDrafted(null); }
     catch (e) { setErr(e?.message || "Couldn't save the steps."); }
     finally { setBusy(false); }
   }
@@ -298,13 +328,29 @@ function OperatorSteps({ steps: saved = [], onSave }) {
       <div className="ov-opshead">
         <h3>Operator steps</h3>
         <span className="ov-sub">What the operator does at the machine, in order. Shows on the work order and the run sheet.</span>
-        {!editing && <button className="cl-btn" onClick={start}>{have.length ? "Edit steps" : <><Plus size={14} /> Add steps</>}</button>}
+        {!editing && !drafting && <button className="cl-btn" onClick={start}>{have.length ? "Edit steps" : <><Plus size={14} /> Add steps</>}</button>}
+        {!editing && !drafting && canDraft && <button className="cl-btn ov-askbtn" onClick={draft}><Sparkles size={14} /> {have.length ? "Improve them with AI" : "Draft the steps with AI"}</button>}
       </div>
+      {drafting && (
+        <div className="ov-opsbusy" aria-live="polite">
+          <Loader2 size={16} className="ai-spin" />
+          <span>Working out the steps from the program and the setup… <b>{Math.floor((Date.now() - began) / 60000)}:{String(Math.floor(((Date.now() - began) / 1000) % 60)).padStart(2, "0")}</b></span>
+          <button className="cl-btn" onClick={() => stopper.current?.abort()}><Square size={13} /> Stop</button>
+        </div>
+      )}
+      {!editing && err && <div className="cl-err">{err}</div>}
       {!editing && (have.length
         ? <ol className="ov-opslist">{have.map((x, i) => <li key={i}>{x}</li>)}</ol>
         : <p className="ov-sub">None yet. For example: load the bar with 3.25 inches sticking out, touch off T1, run in single block, check the first part, deburr the edges.</p>)}
       {editing && (
         <div className="ov-opsedit">
+          {drafted && (
+            <div className="ov-opsdraft">
+              <b><Sparkles size={14} /> Drafted by the AI. Read every step and fix anything that isn't how it's really done, then save.</b>
+              {drafted.unsure.length > 0 && <><span>Check these first:</span><ul>{drafted.unsure.map((u, i) => <li key={i}>{u}</li>)}</ul></>}
+              {drafted.notes.map((n, i) => <span key={i} className="ai-quiet">{n}</span>)}
+            </div>
+          )}
           {list.map((x, i) => (
             <div className="ov-opsrow" key={i}>
               <b>{i + 1}</b>
@@ -317,7 +363,7 @@ function OperatorSteps({ steps: saved = [], onSave }) {
           <div className="ov-btns">
             <button className="cl-btn" onClick={() => setList((l) => [...l, ""])}><Plus size={14} /> Add a step</button>
             <span className="cl-spacer" />
-            <button className="cl-btn ghost" onClick={() => setEditing(false)} disabled={busy}><X size={14} /> Cancel</button>
+            <button className="cl-btn ghost" onClick={() => { setEditing(false); setDrafted(null); }} disabled={busy}><X size={14} /> Cancel</button>
             <button className="cl-btn ov-opssave" onClick={save} disabled={busy}><Check size={14} /> {busy ? "Saving…" : "Save steps"}</button>
           </div>
           {err && <div className="cl-err">{err}</div>}

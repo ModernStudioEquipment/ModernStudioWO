@@ -16,7 +16,8 @@ import { cleanMachineFacts } from "./cncPack.js";
 import { buildAiPack, baselineOf } from "./cncAi.js";
 
 const MAX_HISTORY = 50_000;       // characters of earlier conversation sent with a question
-export const MAX_PHOTOS = 6;      // photos the AI looks at with one question (new ones first)
+export const MAX_PHOTOS = 8;      // photos the AI looks at with one question (new ones first)
+const MACHINE_PHOTOS = 3;         // of those, at most this many from the Machines page
 
 // ---- what goes with a question ----------------------------------------------------
 const when = (t) => { const d = new Date(t); return `${d.getMonth() + 1}/${d.getDate()}`; };
@@ -39,10 +40,12 @@ export function historyText(messages = []) {
   return (dropped ? `(${dropped} earlier message${dropped === 1 ? "" : "s"} left out to keep this short.)\n\n` : "") + kept.join("\n\n");
 }
 
-// The photos the AI looks at: the ones sent now, then the most recent from
+// The photos the AI looks at: the ones sent now, then the machine's own (from
+// the Machines page: its control, nameplate, setup), then the most recent from
 // earlier in the conversation, each saying where it came from.
-export function photosFor(messages = [], fresh = [], question = "") {
+export function photosFor(messages = [], fresh = [], question = "", machinePhotos = []) {
   const out = fresh.map((url, i) => ({ url, label: `photo ${i + 1} sent with this question${question ? `: "${question.slice(0, 80)}"` : ""}` }));
+  for (const p of machinePhotos.slice(0, MACHINE_PHOTOS)) if (out.length < MAX_PHOTOS) out.push(p);
   for (let i = messages.length - 1; i >= 0 && out.length < MAX_PHOTOS; i--) {
     const m = messages[i];
     if (m.role !== "person") continue;
@@ -84,6 +87,16 @@ export function memoryText(memory = [], parts = []) {
 const norm = (t) => String(t || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 export const alreadyKept = (memory = [], fact) => memory.some((m) => norm(m.body) === norm(fact));
 
+// The Machines page photos to send: the part's own machines, or every machine
+// for a question about the shop, taken in turn so each machine gets a look in.
+export function machinePhotosFor(machineFacts = {}, keys = null) {
+  const ms = MACHINES.filter((m) => !keys || keys.includes(m.key));
+  const lists = ms.map((m) => cleanMachineFacts(machineFacts?.[m.key]).photos.map((url, i) => ({ url, label: `photo ${i + 1} of the ${m.label}, from the Machines page (its control, nameplate or setup)` })));
+  const out = [];
+  for (let i = 0; out.length < MACHINE_PHOTOS && lists.some((l) => l[i]); i++) for (const l of lists) if (l[i] && out.length < MACHINE_PHOTOS) out.push(l[i]);
+  return out;
+}
+
 // Every machine, as the shop has written it down.
 export function machinesText(machineFacts = {}) {
   return MACHINES.map((m) => {
@@ -94,6 +107,7 @@ export function machinesText(machineFacts = {}) {
     if (f.maxBar) L.push(`Largest bar: ${f.maxBar}`);
     if (f.liveTools) L.push(`Live tools: ${f.liveTools}`);
     if (f.notes) L.push(`Notes: ${f.notes}`);
+    if (f.photos.length) L.push(`Photos on file: ${f.photos.length} (some may be attached above)`);
     L.push(f.tools.length ? `Tool list:\n${f.tools.map((r) => `  T${r.t}  ${r.what}`).join("\n")}` : "Tool list: NOT FILLED IN. Do not assume tools.");
     return L.join("\n");
   }).join("\n\n");
