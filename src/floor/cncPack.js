@@ -223,7 +223,7 @@ export function nextStep(part, programs = [], machineFactsByKey = {}, stops = 0)
     return { at: "Setup", done, tone: "todo", text };
   }
   if (newest.status !== "proven") {
-    return { at: "Proven", done, tone: "todo", text: proven ? "The newest version isn't proven yet. Prove it out at the machine, then stamp it." : "Prove it out at the machine, then stamp it proven." };
+    return { at: "Proven", done, tone: "todo", text: proven ? "This newer version hasn't been tested at the machine yet. Test it, and if the first part comes out right, mark it as good." : "Last step: test it at the machine. If the first part comes out right, mark it as good." };
   }
   return { at: "", done, tone: "done", text: `Ready to run. Proven${newest.provenBy ? ` by ${newest.provenBy}` : ""}.` };
 }
@@ -249,7 +249,7 @@ export function catalogProgress(parts = [], programIndex = [], machineFactsByKey
     { key: "setup", title: "Add the setup for each part", done: setUp.length, of: parts.length,
       what: "Machine, stock size, how it's held, and what's finished by hand." },
     { key: "prove", title: "Prove each program out", done: proven.length, of: parts.length,
-      what: "Run it in Graphics, then single block, measure the first part, and stamp it." },
+      what: "Test each one at the machine: run it in Graphics, then single block, measure the first part, and mark it as good." },
   ];
   const total = steps.reduce((n, s) => n + s.of, 0);
   const got = steps.reduce((n, s) => n + Math.min(s.done, s.of), 0);

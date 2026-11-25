@@ -42,7 +42,7 @@ describe("proving out, with what the first part measured", () => {
     fireEvent.change(screen.getByLabelText("Measured Ø0.625"), { target: { value: "0.6248" } });
     fireEvent.change(screen.getByLabelText("Measured Ø1.125"), { target: { value: "about right" } });   // not a number: left out
     fireEvent.change(screen.getByLabelText("Who proved it out"), { target: { value: "Jesse" } });
-    fireEvent.click(screen.getByRole("button", { name: /Stamp it proven/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Mark it as good/ }));
     await waitFor(() => expect(onStamp).toHaveBeenCalled());
     const [by, record] = onStamp.mock.calls[0];
     expect(by).toBe("Jesse");
@@ -54,7 +54,7 @@ describe("proving out, with what the first part measured", () => {
     render(<CncProveOut sizes={sizes} onStamp={plain} onCancel={() => {}} />);
     tick();
     fireEvent.change(screen.getByLabelText("Who proved it out"), { target: { value: "Moe" } });
-    fireEvent.click(screen.getByRole("button", { name: /Stamp it proven/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Mark it as good/ }));
     await waitFor(() => expect(plain).toHaveBeenCalledWith("Moe", null));
   });
 

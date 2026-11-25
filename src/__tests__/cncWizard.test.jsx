@@ -20,7 +20,7 @@ const ppFor = (programs = [], over = {}) => ({
   partId: "p1", programs, newest: programs[0] || null,
   newestInfo: programs[0] ? { info: { number: "O00017", title: "PIN", tools: [{ t: 1, note: "ROUGH" }], offsets: ["G54"], stops: 0, lines: 14 }, found: [], n: { stop: 0, look: 0, note: 0 }, time: { seconds: 91, stops: 0, unknown: 0 } } : null,
   derived: [], loading: false, busy: false, err: "", stops: 0, machineKind: "lathe",
-  step: { at: "Proven", tone: "todo", text: "Prove it out at the machine, then stamp it proven.", done: { Program: true, Checks: true, Setup: true, Proven: false } },
+  step: { at: "Proven", tone: "todo", text: "Last step: test it at the machine. If the first part comes out right, mark it as good.", done: { Program: true, Checks: true, Setup: true, Proven: false } },
   addFiles: vi.fn(async () => 1), prove: vi.fn(async () => true), remove: vi.fn(async () => true),
   ...over,
 });
@@ -203,8 +203,8 @@ describe("the overview's one next step", () => {
   it("everything in: prove it out, three ticks and a name", async () => {
     const pp = ppFor([prog()]);
     show(full, pp);
-    fireEvent.click(screen.getByRole("button", { name: /Prove it out/ }));
-    const stamp = screen.getByRole("button", { name: /Stamp it proven/ });
+    fireEvent.click(screen.getByRole("button", { name: /Test it at the machine/ }));
+    const stamp = screen.getByRole("button", { name: /Mark it as good/ });
     expect(stamp.disabled).toBe(true);
     screen.getAllByRole("checkbox").filter((c) => c.closest(".cp-provebox")).forEach((c) => fireEvent.click(c));
     fireEvent.change(screen.getByLabelText("Who proved it out"), { target: { value: "Jesse" } });

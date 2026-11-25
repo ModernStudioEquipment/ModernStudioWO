@@ -29,12 +29,12 @@ describe("what a part needs next", () => {
     expect(nextStep({ ...part, facts: { ...part.facts, holding: "" } }, unproven, tools, 0).text).toBe("One thing left to fill in: how it's held.");
     // no drawing never holds a part up
     expect(nextStep({ ...part, blueprintUrl: null }, unproven, tools, 0).at).toBe("Proven");
-    expect(nextStep(part, unproven, tools, 0)).toMatchObject({ at: "Proven", text: "Prove it out at the machine, then stamp it proven." });
+    expect(nextStep(part, unproven, tools, 0)).toMatchObject({ at: "Proven", text: "Last step: test it at the machine. If the first part comes out right, mark it as good." });
     expect(nextStep(part, [{ content: GOOD, status: "proven", provenBy: "Jesse" }], tools, 0)).toMatchObject({ tone: "done", text: "Ready to run. Proven by Jesse." });
   });
   it("a new unproven version over a proven one says so", () => {
     const s = nextStep(part, [{ content: GOOD, status: "unproven" }, { content: GOOD, status: "proven" }], tools, 0);
-    expect(s.text).toMatch(/newest version isn't proven yet/);
+    expect(s.text).toMatch(/newer version hasn't been tested at the machine yet/);
     expect(s.done.Proven).toBe(false);
   });
   it("ticks off what's done so far", () => {

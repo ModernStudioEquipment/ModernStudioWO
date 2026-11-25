@@ -29,7 +29,7 @@ export default function CncProveOut({ stops = 0, sizes = null, onStamp, onCancel
   };
   return (
     <div className="cp-provebox">
-      <b>Prove it out at the machine, in this order:</b>
+      <b>Test it at the machine, in this order:</b>
       {PROVE_STEPS.map((s, i) => (
         <label key={i} className="cp-provestep">
           <input type="checkbox" checked={done[i]} onChange={(e) => setDone((d) => d.map((v, j) => (j === i ? e.target.checked : v)))} />
@@ -59,7 +59,7 @@ export default function CncProveOut({ stops = 0, sizes = null, onStamp, onCancel
           onChange={(e) => setBy(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") stamp(); if (e.key === "Escape") onCancel?.(); }}
         />
-        <button className="cl-btn" disabled={!ready} onClick={stamp}><Check size={14} /> Stamp it proven</button>
+        <button className="cl-btn" disabled={!ready} onClick={stamp}><Check size={14} /> Mark it as good</button>
         <button className="cl-btn ghost" onClick={onCancel}>Cancel</button>
       </div>
     </div>

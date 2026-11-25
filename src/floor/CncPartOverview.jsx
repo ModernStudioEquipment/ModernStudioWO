@@ -49,7 +49,7 @@ export default function CncPartOverview({ part, pp, machineFacts, onAsk, onDetai
     : pp.stops > 0 ? { label: `See what to fix`, icon: AlertTriangle, go: () => setShowChecks(true) }
     : left > 0 ? { label: `Answer ${left} question${left === 1 ? "" : "s"}`, icon: ListChecks, go: () => onAsk({}) }
     : noTools.length ? { label: `List the ${noTools[0].short}'s tools`, icon: ListChecks, go: onOpenMachines }
-    : !proven ? { label: "Prove it out", icon: ShieldCheck, go: () => setProving(true) }
+    : !proven ? { label: "Test it at the machine", icon: ShieldCheck, go: () => setProving(true) }
     : { label: "Print the run sheet", icon: FileText, go: () => setSheet(true) };
 
   if (writing) return <CncNewProgram part={part} pp={pp} machineFacts={machineFacts} onCommit={onCommit} onClose={() => setWriting(false)} />;
