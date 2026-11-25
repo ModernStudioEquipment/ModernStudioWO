@@ -37,6 +37,14 @@ export default function CncAi({ part, pp, machineFacts, open, onClose, onFill })
   const [speedsMayRise, setSpeedsMayRise] = useState(false);
   const [steps, setSteps] = useState([]);
   const [chars, setChars] = useState(0);
+  // how long it's been at it, so a long think never looks like it's stuck
+  const [began, setBegan] = useState(0);
+  const [, tick] = useState(0);
+  useEffect(() => {
+    if (phase !== "working") return undefined;
+    const t = setInterval(() => tick((n) => n + 1), 1000);
+    return () => clearInterval(t);
+  }, [phase]);
   const [run, setRun] = useState(null);                // what came back
   const [err, setErr] = useState("");
   const [saving, setSaving] = useState(false);
@@ -58,6 +66,7 @@ export default function CncAi({ part, pp, machineFacts, open, onClose, onFill })
   async function go(kind) {
     setErr(""); setRun(null); setSteps([]); setChars(0); setSure(false); setShow("");
     setPhase("working");
+    setBegan(Date.now());
     stopper.current = new AbortController();
     const onStep = (s) => { if (alive.current) { setChars(0); setSteps((list) => [...list, { kind: s.kind, text: s.text }]); } };
     try {
@@ -171,7 +180,10 @@ export default function CncAi({ part, pp, machineFacts, open, onClose, onFill })
       {phase === "working" && (
         <div className="wz-card">
           <h2 className="wz-ask">{mode === "review" ? "Checking it" : "Working on it"}</h2>
-          <p className="wz-why">{mode === "review" ? "Usually about a minute." : "Usually one to five minutes. You can leave this open and come back."}</p>
+          <p className="wz-why">
+            {mode === "review" ? "Usually one to three minutes." : "Usually two to eight minutes."} It thinks before it writes anything, so the count below can sit at nothing for a while. You can leave this open and come back.
+            {began > 0 && <b className="ai-elapsed"> {Math.floor((Date.now() - began) / 60000)}:{String(Math.floor(((Date.now() - began) / 1000) % 60)).padStart(2, "0")} so far</b>}
+          </p>
           <ol className="ai-steps" aria-live="polite">
             {steps.map((s, i) => {
               const last = i === steps.length - 1;

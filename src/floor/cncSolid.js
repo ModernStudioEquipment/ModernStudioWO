@@ -36,7 +36,7 @@ export function parseStock(text) {
   return { dia: nums[0], len: nums[1] ?? null, mm: /mm\b|millim/i.test(t) };
 }
 
-const isCut = (s) => s.type === "feed" || s.type === "profile" || s.type === "groove";
+const isCut = (s) => !s.live && (s.type === "feed" || s.type === "profile" || s.type === "groove");
 
 // ---- cutting the bar --------------------------------------------------------
 //
@@ -199,6 +199,7 @@ export function simulateLathe(path, stock = null) {
   const landing = (index) => {
     for (; nextArrival < arrivals.length && arrivals[nextArrival].index <= index; nextArrival++) {
       const a = arrivals[nextArrival];
+      if (segs[a.index]?.live) continue;                  // a live tool landing beside a flat or a hole
       const z = a.at[0], r = Math.abs(a.at[2]);
       if (z >= face - tight * 2) continue;                 // in front of the part: clear
       const depth = surfaceAt(env, z) - r;
@@ -233,7 +234,7 @@ export function simulateLathe(path, stock = null) {
       cut(env, s, index);
       return;
     }
-    if (s.type !== "rapid") return;
+    if (s.type !== "rapid" || s.live) return;
     const za = s.a[0], ra = s.a[2], zb = s.b[0], rb = s.b[2];
     const z0 = Math.min(za, zb), z1 = Math.max(za, zb);
     let worst = null;
@@ -306,7 +307,10 @@ export function simulateLathe(path, stock = null) {
   return {
     zs, face, back, stockR, length, guessed, bore, unsure, notes, threads, grooves, grooveW, corners, tight,
     toolKinds, deepest, deepestPlunge, deepestThread, threadInMetal, lowestZ,
-    collisions: [...hits.values()].sort((a, b) => a.line - b.line),
+    // Against a guessed bar there's nothing true to check a rapid against (the
+    // guess is the biggest diameter any cut starts from, which is often an
+    // approach well outside the real bar), so nothing is called a collision.
+    collisions: guessed ? [] : [...hits.values()].sort((a, b) => a.line - b.line),
     final: Float64Array.from(env),
     outlineAt,
     radiusAt,

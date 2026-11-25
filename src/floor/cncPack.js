@@ -503,3 +503,19 @@ export function rankParts(parts = [], programIndex = []) {
     };
   }).sort((a, b) => b.score - a.score || String(a.part.name).localeCompare(String(b.part.name)));
 }
+
+// What a program file's name says. The shop names its files like
+// "CNC-0240 - STACK 6.nc": the CNC number, then what the part is. Read here
+// so it can be shown and searched without anyone typing it in again.
+//   cnc      "CNC-0240", or "" when the name doesn't carry one
+//   title    "STACK 6", what follows the number
+//   program  the O-number inside the program ("O00636"), when it's known
+export function fileLabel(name, info = {}) {
+  const base = String(name || "").replace(/\.[a-z0-9]{1,4}$/i, "").trim();
+  const m = /\bCNC[\s_-]*(\d+)/i.exec(base);
+  return {
+    cnc: m ? `CNC-${m[1]}` : "",
+    title: m ? base.slice(m.index + m[0].length).replace(/^[\s_\-\u2013\u2014]+/, "").trim() : "",
+    program: info?.number || "",
+  };
+}

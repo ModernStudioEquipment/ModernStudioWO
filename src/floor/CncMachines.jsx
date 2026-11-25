@@ -86,6 +86,29 @@ export default function CncMachines({ onSaved, parts = [], programIndex = [], fo
     return { ...f, [k]: { ...f[k], tools: tools.length ? tools : [{ t: "", what: "" }] } };
   });
 
+  // Changes save by themselves, a moment after typing stops (and anything
+  // still waiting is saved on leaving the page). No Save button to forget.
+  useEffect(() => {
+    const timers = [];
+    for (const m of MACHINES) {
+      const f = facts[m.key];
+      if (!f || saved[m.key] === undefined) continue;
+      if (JSON.stringify(cleanMachineFacts(f)) === saved[m.key]) continue;
+      timers.push(setTimeout(() => save(m.key), 900));
+    }
+    return () => timers.forEach(clearTimeout);
+  }, [facts, saved]); // eslint-disable-line react-hooks/exhaustive-deps
+  const latest = useRef({ facts, saved });
+  latest.current = { facts, saved };
+  useEffect(() => () => {
+    const { facts: F, saved: S } = latest.current;
+    for (const m of MACHINES) {
+      if (!F[m.key] || S[m.key] === undefined) continue;
+      const clean = cleanMachineFacts(F[m.key]);
+      if (JSON.stringify(clean) !== S[m.key]) db.saveMachineFacts(m.key, clean).catch(() => {});
+    }
+  }, []);
+
   async function save(k) {
     setBusy(k);
     setErr("");
@@ -135,27 +158,64 @@ export default function CncMachines({ onSaved, parts = [], programIndex = [], fo
               {!dirty && savedAt[m.key] && <span className="cl-saved"><Check size={14} /> Saved</span>}
               {/* prints what's saved, so the paper matches what programs are checked against */}
               <button className="cl-btn" onClick={() => setSheet(m.key)} disabled={dirty || !(f.tools || []).some((t) => String(t.t || "").trim())} title={dirty ? "Save first, then print" : "One page to tape up beside the machine"} aria-label={`Print the ${m.short} tool list`}><Printer size={14} /> Print</button>
-              <button className="cl-save" onClick={() => save(m.key)} disabled={busy === m.key || !dirty} aria-label={`Save ${m.label}`}>
-                {busy === m.key ? "Saving…" : "Save"}
-              </button>
+              {(dirty || busy === m.key) && <span className="cl-saved cm-saving">Saving…</span>}
             </div>
 
-            <ToolSuggestions machine={m} found={suggestTools(m.key, parts, programIndex, f.tools)} onUse={(t, what) => useTool(m.key, t, what)} />
-
-            <div className="cp-h2">What's in each pocket <span>From the tool offset page on the Haas.</span></div>
-            <div className="cm-tools">
-              {f.tools.map((r, i) => (
-                <div className="cm-tool" key={i}>
-                  <span className="cm-t">T</span>
-                  <input className="cm-tnum" value={r.t} onChange={(e) => setTool(m.key, i, "t", e.target.value)} inputMode="numeric" placeholder="#" aria-label={`${m.short} tool ${i + 1} number`} />
-                  <input value={r.what} onChange={(e) => setTool(m.key, i, "what", e.target.value)} placeholder="What it is, e.g. 1/2″ drill, CNMG 432 turning insert" aria-label={`${m.short} tool ${i + 1} description`} />
-                  <button className="cl-x" onClick={() => dropTool(m.key, i)} title="Remove this tool" aria-label={`Remove ${m.short} tool ${i + 1}`}><Trash2 size={15} /></button>
+            {(() => {
+              // Every tool the machine's programs call, with what they call it.
+              const found = suggestTools(m.key, parts, programIndex, []);
+              const byNum = new Map(found.map((x) => [x.t, x]));
+              const num = (r) => Number(String(r.t).replace(/\D/g, ""));
+              const listedNums = new Set(f.tools.filter((r) => String(r.t).trim()).map(num));
+              const missing = found.filter((x) => !listedNums.has(x.t));
+              const empty = !f.tools.some((r) => String(r.t).trim() || String(r.what).trim());
+              const addAll = (list) => list.forEach((x) => useTool(m.key, x.t, x.names[0]?.name || ""));
+              return (<>
+                <div className="cp-h2">Tools in this machine <span>The pocket number and what's in it. Changes save by themselves.</span></div>
+                {empty && found.length > 0 && (
+                  <div className="cm-start">
+                    <b>The {m.short}'s programs call {found.length} tool{found.length === 1 ? "" : "s"}.</b>
+                    <span>Start from those, then fix anything that's not what's really in the pocket.</span>
+                    <button className="cl-btn cm-fill" onClick={() => addAll(found)}><Plus size={15} /> Fill in {found.length} tool{found.length === 1 ? "" : "s"} from the programs</button>
+                  </div>
+                )}
+                <div className="cm-tools">
+                  {f.tools.map((r, i) => {
+                    const alts = (byNum.get(num(r))?.names || []).map((x) => x.name).filter((n) => n.toLowerCase() !== String(r.what).trim().toLowerCase()).slice(0, 3);
+                    return (
+                      <div className="cm-toolwrap" key={i}>
+                        <div className="cm-tool">
+                          <span className="cm-t">T</span>
+                          <input className="cm-tnum" value={r.t} onChange={(e) => setTool(m.key, i, "t", e.target.value)} inputMode="numeric" placeholder="#" aria-label={`${m.short} tool ${i + 1} number`} />
+                          <input value={r.what} onChange={(e) => setTool(m.key, i, "what", e.target.value)} placeholder="What it is, e.g. 1/2″ drill, CNMG 432 turning insert" aria-label={`${m.short} tool ${i + 1} description`} />
+                          <button className="cl-x" onClick={() => dropTool(m.key, i)} title="Remove this tool" aria-label={`Remove ${m.short} tool ${i + 1}`}><Trash2 size={15} /></button>
+                        </div>
+                        {String(r.t).trim() && alts.length > 0 && (
+                          <div className="cm-alt">
+                            <span>{r.what ? "Programs also call it" : "Programs call it"}:</span>
+                            {alts.map((n) => <button key={n} onClick={() => setTool(m.key, i, "what", n)} title="Use this name">{n}</button>)}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-              ))}
-            </div>
-            <button className="cl-addstep" onClick={() => setFacts((x) => ({ ...x, [m.key]: { ...x[m.key], tools: [...x[m.key].tools, { t: "", what: "" }] } }))}>
-              <Plus size={15} /> Add tool
-            </button>
+                <button className="cl-addstep" onClick={() => setFacts((x) => ({ ...x, [m.key]: { ...x[m.key], tools: [...x[m.key].tools, { t: "", what: "" }] } }))}>
+                  <Plus size={15} /> Add a tool
+                </button>
+                {missing.length > 0 && (
+                  <div className="cm-missing">
+                    <span>In the programs, not on the list:</span>
+                    {missing.map((x) => (
+                      <button key={x.t} onClick={() => useTool(m.key, x.t, x.names[0]?.name || "")} aria-label={`Add T${x.t} to the ${m.short} tool list`} title={x.names[0]?.name || "no name in the programs"}>
+                        <Plus size={12} /> T{x.t}
+                      </button>
+                    ))}
+                    {missing.length > 1 && <button className="all" onClick={() => addAll(missing)}>Add all {missing.length}</button>}
+                  </div>
+                )}
+              </>);
+            })()}
 
             <button className="cm-more" onClick={() => setMore((v) => !v)} aria-expanded={more}>{more ? "Hide" : "More about this machine"}</button>
             {more && (<>
@@ -189,43 +249,6 @@ export default function CncMachines({ onSaved, parts = [], programIndex = [], fo
         );
       })}
       {sheet && <CncToolSheet machine={MACHINES.find((m) => m.key === sheet)} facts={facts[sheet]} onClose={() => setSheet("")} />}
-    </div>
-  );
-}
-
-// Tools the uploaded programs call that the list doesn't have yet, with the
-// names the programs give them. One click puts a tool on the list.
-function ToolSuggestions({ machine, found, onUse }) {
-  if (!found.length) return null;
-  return (
-    <div className="cm-suggest">
-      <div className="cm-sughead">
-        <span className="cl-lab">Found in this machine's programs</span>
-        <span className="cl-spacer" />
-        {found.filter((s) => !s.listed).length > 1 && (
-          <button className="cl-btn" onClick={() => found.filter((s) => !s.listed).forEach((s) => onUse(s.t, s.names[0]?.name || ""))}>
-            <Plus size={14} /> Add all {found.filter((s) => !s.listed).length}
-          </button>
-        )}
-      </div>
-      {found.map((s) => (
-        <div className="cm-sug" key={s.t}>
-          <b>T{s.t}</b>
-          <span className="cm-sugnames">
-            {s.names.length
-              ? s.names.map((n) => `${n.name}${s.names.length > 1 ? ` (${n.count})` : ""}`).join(" / ")
-              : "no description in the programs"}
-            {s.listed && s.listedAs && s.disagree ? ` · listed as ${s.listedAs}` : ""}
-            <em> · {s.programs} program{s.programs === 1 ? "" : "s"}</em>
-          </span>
-          {s.disagree && <span className="cm-sugflag">programs disagree</span>}
-          {(!s.listed || !s.listedAs) && (
-            <button className="cl-btn" onClick={() => onUse(s.t, s.names[0]?.name || "")} aria-label={`Add T${s.t} to the ${machine.short} tool list`}>
-              <Plus size={14} /> {s.listed ? "Use this name" : "Add"}
-            </button>
-          )}
-        </div>
-      ))}
     </div>
   );
 }

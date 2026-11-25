@@ -747,3 +747,30 @@ button.cp-checkrow > span{flex:1; min-width:0; display:flex; flex-direction:colu
 .cl-editor .ch-fix textarea{font-size:14.5px; padding:8px 10px; border-radius:8px}
 .ch-fix div{display:flex; gap:8px}
 .ch-memory li.fix b{color:#FF8A8A}
+
+/* ---- the shop's numbers, and the program itself ---- */
+.cl-num{display:block; font-family:var(--mono, ui-monospace, Menlo, monospace); font-size:12px; color:#C9D2DC; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.cl-item.on .cl-num{color:#F3F6F8}
+.ov-nums{font-family:var(--mono, ui-monospace, Menlo, monospace); font-size:14px; color:#C9D2DC; margin-top:2px; overflow-wrap:anywhere}
+.pv-unchecked{margin:6px 0 2px; color:#AEB8C4}
+.ov-code{display:flex; flex-direction:column; gap:8px; margin-top:10px; width:100%; min-width:0}
+.ov-codebar{display:flex; gap:8px}
+.cl-editor .ov-codebar input{flex:1; min-width:0; font-size:14px; padding:7px 10px; border-radius:9px}
+.ov-code pre{margin:0; max-height:min(60vh, 560px); overflow:auto; background:#0B0E11; border:1px solid var(--line2); border-radius:10px; padding:10px 0; font-family:var(--mono, ui-monospace, Menlo, monospace); font-size:13px; line-height:1.5; color:#E8EEF4; white-space:pre}
+.ov-code pre div{padding:0 12px 0 0}
+.ov-code pre i{font-style:normal; color:#5D6873; padding:0 12px; user-select:none; white-space:pre}
+
+/* ---- the tool list, simpler ---- */
+.cm-start{display:flex; flex-direction:column; align-items:flex-start; gap:6px; border:1px dashed color-mix(in srgb,var(--m, var(--accent)) 60%,transparent); border-radius:12px; padding:14px 16px; margin-bottom:10px}
+.cm-start b{font-size:16px; color:#F3F6F8}
+.cm-start span{font-size:14px; color:#AEB8C4}
+.cm-fill{margin-top:4px; border-color:var(--m, var(--accent)); color:#F3F6F8; font-size:15px; padding:9px 14px}
+.cm-toolwrap{display:flex; flex-direction:column; gap:4px}
+.cm-alt{display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding-left:34px; font-size:12.5px; color:#8F9AA6}
+.cm-alt button{font:inherit; font-size:12.5px; padding:3px 9px; border-radius:999px; border:1px solid var(--line2); background:transparent; color:#C9D2DC; cursor:pointer}
+.cm-alt button:hover{border-color:var(--m, var(--accent)); color:#F3F6F8}
+.cm-missing{display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-top:12px; font-size:13px; color:#AEB8C4}
+.cm-missing button{display:inline-flex; align-items:center; gap:3px; font:inherit; font-size:13px; font-weight:700; padding:4px 10px; border-radius:999px; border:1px solid var(--line2); background:transparent; color:#E8EEF4; cursor:pointer}
+.cm-missing button.all{border-color:var(--m, var(--accent))}
+.cm-saving{color:#AEB8C4}
+.ai-elapsed{display:block; margin-top:6px; color:#F3F6F8; font-variant-numeric:tabular-nums}

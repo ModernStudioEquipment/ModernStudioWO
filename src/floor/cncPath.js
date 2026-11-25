@@ -104,10 +104,16 @@ export function toolpath(content, { kind: machineKind = "" } = {}) {
   let unhomed = 0;
   let awayFromHome = false;   // has the tool moved since it was last sent home (or the program began)?
   let ended = false;          // M30 or M02 has been read: nothing after it runs
+  // Moves made with a live tool (milling, cross drilling, C and Y axis) or with
+  // the part in the sub-spindle. The part isn't turning under a live tool, and
+  // in the sub-spindle it's somewhere else, so on a lathe these moves are
+  // marked `live`: they neither turn the bar down nor get checked against it.
+  let liveTool = false;       // until the next tool change
+  let inSub = false;          // between G14 and G15
   const push = (a, b, type, tool, n, extra) => {
     if (segs.length >= MAX_SEGS) { full = true; return; }
     if (a[0] === b[0] && a[1] === b[1] && a[2] === b[2]) return;
-    segs.push({ a, b, type, tool, line: n, f: modal.f, perRev: modal.perRev, s: modal.s, css: modal.css, clamp: modal.clamp, ...extra });
+    segs.push({ a, b, type, tool, line: n, f: modal.f, perRev: modal.perRev, s: modal.s, css: modal.css, clamp: modal.clamp, ...((liveTool || inSub) ? { live: true } : {}), ...extra });
   };
   // Words every line can carry, whatever the machine.
   const readModal = (line, G, M) => {
@@ -308,6 +314,7 @@ export function toolpath(content, { kind: machineKind = "" } = {}) {
         if (num) {
           if (tool !== num) {
             events.toolChanges += 1;
+            liveTool = false;
             // The turret swings every tool round when it indexes. Doing that
             // with the last tool still beside the part is how tools get broken.
             if (awayFromHome) unhomed += 1;
@@ -319,6 +326,9 @@ export function toolpath(content, { kind: machineKind = "" } = {}) {
       }
       if (G.includes(4)) continue; // a dwell's X or U is seconds, not a place
       if (val(line, "Y") != null || val(line, "C") != null || M.some((m) => [19, 133, 134, 143, 144, 154].includes(m)) || G.some((g) => g === 14 || g === 15 || g === 112)) {
+        if (G.includes(14)) inSub = true;
+        if (G.includes(15)) inSub = false;
+        if (val(line, "Y") != null || val(line, "C") != null || M.some((m) => [19, 133, 134, 143, 144, 154].includes(m)) || G.includes(112)) liveTool = true;
         notes.add("Live tooling, C/Y axis and sub-spindle moves aren't drawn.");
         opaque.push(line.code.replace(/\s+/g, ""));
       }

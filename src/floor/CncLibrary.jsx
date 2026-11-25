@@ -13,7 +13,7 @@ import CncWizard from "./CncWizard.jsx";
 import CncPartOverview from "./CncPartOverview.jsx";
 import { usePartPrograms } from "./usePartPrograms.js";
 import { recall, remember } from "./remember.js";
-import { PART_STEPS, rankParts, wizardSteps } from "./cncPack.js";
+import { PART_STEPS, rankParts, wizardSteps, fileLabel } from "./cncPack.js";
 import CncChat from "./CncChat.jsx";
 import "./cncLibrary.css";
 
@@ -55,6 +55,12 @@ export default function CncLibrary({ onClose, embedded = false, onMakeWorkOrder 
     try { setProgramIndex(await db.getCncProgramIndex()); } catch { /* badges just stay empty */ }
   }, []);
   useEffect(() => { loadProgramIndex(); }, [loadProgramIndex]);
+  // The newest program file's name, read for its CNC number and title.
+  const labelOf = useMemo(() => {
+    const m = new Map();
+    for (const x of programIndex) if (!m.has(x.partId)) m.set(x.partId, fileLabel(x.name, x.info));   // newest first already
+    return m;
+  }, [programIndex]);
   const programStatus = (partId) => {
     const mine = programIndex.filter((x) => x.partId === partId);
     if (!mine.length) return "";
@@ -334,6 +340,11 @@ export default function CncLibrary({ onClose, embedded = false, onMakeWorkOrder 
               {filtered.map((p) => (
                 <button key={p.id} className={`cl-item${draft.id === p.id ? " on" : ""}`} onClick={() => edit(p)}>
                   <span className="nm">{p.name || "Untitled part"}</span>
+                  {(labelOf.get(p.id)?.cnc || labelOf.get(p.id)?.program || p.programNo) && (
+                    <span className="cl-num">
+                      {[labelOf.get(p.id)?.cnc, labelOf.get(p.id)?.title, labelOf.get(p.id)?.program || p.programNo].filter(Boolean).join(" · ")}
+                    </span>
+                  )}
                   {/* one quiet line: where it runs and where its program stands */}
                   <span className={`cl-stat ${programStatus(p.id) || "none"}`}>
                     <i />

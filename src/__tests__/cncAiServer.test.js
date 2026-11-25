@@ -42,7 +42,8 @@ describe("what gets sent", () => {
       expect(r.system[0].text).toBe(SHOP);
       expect(r.thinking).toEqual({ type: "adaptive" });
       if (task !== "ask") {   // (a question is the one job answered in its own words: see below)
-        expect(r.output_config.effort).toBe("high");
+        // reading and checking a program is quicker; writing one thinks hardest
+        expect(r.output_config.effort).toBe(task === "review" || task === "challenge" ? "medium" : "high");
         expect(r.output_config.format.type).toBe("json_schema");
         expect(r.output_config.format.schema.additionalProperties).toBe(false);
       }
@@ -174,7 +175,8 @@ describe("asking", () => {
     expect(r.model).toBe("claude-opus-5-5");
     expect(r.output_config.effort).toBe("xhigh");
     process.env.CNC_AI_EFFORT = "ludicrous";
-    expect(buildRequest("review", input()).output_config.effort).toBe("high");
+    expect(buildRequest("review", input()).output_config.effort).toBe("medium");
+    expect(buildRequest("write", input({ instruction: "x" })).output_config.effort).toBe("high");
     delete process.env.CNC_AI_MODEL; delete process.env.CNC_AI_EFFORT;
   });
 

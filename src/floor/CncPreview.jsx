@@ -217,10 +217,13 @@ export default function CncPreview({ content, kind = "", toolNames = {}, stockTe
         </div>
       )}
 
+      {sim?.guessed && (
+        <div className="pv-more pv-unchecked">Rapid moves aren't checked against the bar yet: the stock size isn't on this part. Add it in the part's setup and they will be.</div>
+      )}
       {/* a rapid through the bar: the reason this view exists */}
       {hits.length > 0 && (
         <div className="pv-hits" role="alert">
-          <div className="pv-hitshead"><AlertOctagon size={15} /> {hits.length === 1 ? (sim.unsure ? "A rapid move may go" : "A rapid move goes") : `${hits.length} rapid moves ${sim.unsure ? "may go" : "go"}`} through the bar{sim.guessed ? " (bar size guessed)" : ""}</div>
+          <div className="pv-hitshead"><AlertOctagon size={15} /> {hits.length === 1 ? (sim.unsure ? "A rapid move may go" : "A rapid move goes") : `${hits.length} rapid moves ${sim.unsure ? "may go" : "go"}`} through the bar</div>
           {sim.unsure && <div className="pv-more">Check these: {sim.unsure}.</div>}
           {hits.slice(0, 6).map((h) => (
             <button key={h.line} className="pv-hit" onClick={() => { if (sim && !noGl) setMode("part"); jump(h.index + 1); }}>

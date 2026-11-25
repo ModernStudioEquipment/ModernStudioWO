@@ -271,6 +271,24 @@ describe("fix first", () => {
 });
 
 describe("the Machines page", () => {
+  it("an empty list fills from the programs in one press, and other names the programs use are one tap away", async () => {
+    const parts = [{ id: "a", machine: "st10" }, { id: "b", machine: "st10" }, { id: "c", machine: "st10" }];
+    const index = [
+      { partId: "a", createdAt: 1, info: { tools: [{ t: 5, note: "TURN" }, { t: 11, note: "DRILL 1/4" }] } },
+      { partId: "b", createdAt: 1, info: { tools: [{ t: 5, note: "TURN" }] } },
+      { partId: "c", createdAt: 1, info: { tools: [{ t: 5, note: "VNMG FINISH" }] } },
+    ];
+    render(<CncMachines parts={parts} programIndex={index} />);
+    fireEvent.click(await screen.findByRole("button", { name: /Fill in 2 tools from the programs/ }));
+    expect(screen.getByLabelText("ST-10Y tool 1 number").value).toBe("5");
+    expect(screen.getByLabelText("ST-10Y tool 1 description").value).toBe("TURN");
+    expect(screen.getByLabelText("ST-10Y tool 2 description").value).toBe("DRILL 1/4");
+    expect(screen.queryByRole("button", { name: /Fill in/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "VNMG FINISH" }));
+    expect(screen.getByLabelText("ST-10Y tool 1 description").value).toBe("VNMG FINISH");
+    await waitFor(async () => expect((await db.getMachineFacts()).st10.tools).toEqual([{ t: "5", what: "VNMG FINISH" }, { t: "11", what: "DRILL 1/4" }]), { timeout: 4000 });
+  });
+
   it("offers the tools the programs call, and one click lists them", async () => {
     const parts = [{ id: "a", machine: "st10" }];
     const index = [{ partId: "a", createdAt: 1, info: { tools: [{ t: 3, note: "CNMG ROUGH" }] } }];
@@ -290,7 +308,7 @@ describe("the Machines page", () => {
     fireEvent.change(num, { target: { value: "T1" } });
     fireEvent.change(screen.getByLabelText("ST-10Y tool 1 description"), { target: { value: "CNMG rougher" } });
     expect(screen.getByLabelText("ST-10Y tool 2 number")).toBeTruthy(); // a fresh row opened
-    fireEvent.click(screen.getByRole("button", { name: "Save Haas ST-10Y" }));
-    await waitFor(async () => expect((await db.getMachineFacts()).st10.tools).toEqual([{ t: "1", what: "CNMG rougher" }]));
+    // saved by itself, a moment after typing stops
+    await waitFor(async () => expect((await db.getMachineFacts()).st10.tools).toEqual([{ t: "1", what: "CNMG rougher" }]), { timeout: 4000 });
   });
 });

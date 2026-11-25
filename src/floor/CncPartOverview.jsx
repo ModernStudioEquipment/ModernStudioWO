@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowRight, FileText, ShieldCheck, ShieldAlert, Upload, AlertTriangle, CheckCircle2, Check, ListChecks, Box, ClipboardList, Pencil, Sparkles, Ruler, Download } from "lucide-react";
+import { ArrowRight, FileText, ShieldCheck, ShieldAlert, Upload, AlertTriangle, CheckCircle2, Check, ListChecks, Box, ClipboardList, Pencil, Sparkles, Ruler, Download, Code2, Copy } from "lucide-react";
 import CncPreview from "./CncPreview.jsx";
 import CncProveOut, { proofLine } from "./CncProveOut.jsx";
 import CncRunSheet from "./CncRunSheet.jsx";
@@ -7,7 +7,7 @@ import CncAi from "./CncAi.jsx";
 import CncChat from "./CncChat.jsx";
 import CncNewProgram from "./CncNewProgram.jsx";
 import { downloadProgram } from "./FloorPartProgram.jsx";
-import { PART_STEPS, FACT_FIELDS, neededLeft, programLine, finishedSizes } from "./cncPack.js";
+import { PART_STEPS, FACT_FIELDS, neededLeft, programLine, finishedSizes, fileLabel } from "./cncPack.js";
 import { fmtDuration } from "./cncTime.js";
 import { MACHINES } from "./machines.js";
 import { splitMachines } from "./cncParts.js";
@@ -22,6 +22,7 @@ export default function CncPartOverview({ part, pp, machineFacts, onAsk, onDetai
   const [ai, setAi] = useState(null);   // "review" | "rewrite" | { report } while the AI screen is up
   const [writing, setWriting] = useState(false);   // the "write one from sizes" screens are up
   const newest = pp.newest;
+  const [showCode, setShowCode] = useState(false);
   const d = pp.newestInfo;
   const step = pp.step;
   const machines = splitMachines(part.machine).map((k) => MACHINES.find((m) => m.key === k)).filter(Boolean);
@@ -80,6 +81,11 @@ export default function CncPartOverview({ part, pp, machineFacts, onAsk, onDetai
       {/* ---- what it is ---- */}
       <div className="ov-id">
         <h2>{part.name || "Untitled part"}</h2>
+        {newest && (() => {
+          const l = fileLabel(newest.name, d?.info);
+          const bits = [l.cnc, l.title, l.program || part.programNo].filter(Boolean);
+          return bits.length ? <div className="ov-nums">{bits.join(" · ")}</div> : null;
+        })()}
         <div className="ov-chips">
           {machines.map((m) => <span key={m.key} className="m" style={{ "--m": m.color }}>{m.label}</span>)}
           {part.sku && <span>SKU {part.sku}</span>}
@@ -122,6 +128,7 @@ export default function CncPartOverview({ part, pp, machineFacts, onAsk, onDetai
               <div className="ov-btns">
                 <button className="cl-btn" onClick={() => setSheet(true)}><FileText size={14} /> Run sheet</button>
                 <button className="cl-btn" onClick={() => downloadProgram(newest)} title="Save the program file, to put on a USB stick for the machine"><Download size={14} /> Download</button>
+                <button className={`cl-btn${showCode ? " on" : ""}`} onClick={() => setShowCode((v) => !v)} aria-expanded={showCode}><Code2 size={14} /> {showCode ? "Hide the program" : "Show the program"}</button>
                 {!proven && <button className="cl-btn" onClick={() => setProving(true)}><ShieldCheck size={14} /> Mark proven</button>}
               </div>
             </>
@@ -160,6 +167,7 @@ export default function CncPartOverview({ part, pp, machineFacts, onAsk, onDetai
         </section>
       </div>
 
+      {showCode && newest && <ProgramText text={newest.content} name={newest.name} />}
       {!newest && !pp.loading && (
         <div className="ov-ai">
           <b><Sparkles size={15} /> AI</b>
@@ -202,6 +210,31 @@ export default function CncPartOverview({ part, pp, machineFacts, onAsk, onDetai
       </div>
 
       {sheet && <CncRunSheet part={part} program={newest} machineFacts={machineFacts} onClose={() => setSheet(false)} />}
+    </div>
+  );
+}
+
+// The program as it is, numbered the way the Haas shows it, with a box to find
+// a line or a word in it and a button to copy it all.
+function ProgramText({ text, name }) {
+  const [find, setFind] = useState("");
+  const [copied, setCopied] = useState(false);
+  const lines = String(text || "").replace(/\r\n?/g, "\n").split("\n");
+  const f = find.trim().toLowerCase();
+  const width = String(lines.length).length;
+  const shown = lines.map((l, i) => ({ l, n: i + 1 })).filter((x) => !f || x.l.toLowerCase().includes(f) || String(x.n) === f);
+  return (
+    <div className="ov-code">
+      <div className="ov-codebar">
+        <input value={find} onChange={(e) => setFind(e.target.value)} placeholder="Find a word, code or line number" aria-label={`Find in ${name || "the program"}`} />
+        <button className="cl-btn" onClick={async () => { try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* nothing to copy to */ } }}>
+          {copied ? <Check size={14} /> : <Copy size={14} />} {copied ? "Copied" : "Copy"}
+        </button>
+      </div>
+      {f && <span className="ov-sub">{shown.length} line{shown.length === 1 ? "" : "s"} with "{find.trim()}"</span>}
+      <pre aria-label={`The program ${name || ""}`}>
+        {shown.map((x) => <div key={x.n}><i>{String(x.n).padStart(width, " ")}</i>{x.l || " "}</div>)}
+      </pre>
     </div>
   );
 }
