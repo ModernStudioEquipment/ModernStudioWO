@@ -1,17 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, X, Send, Camera, Square, Sparkles, Brain, Trash2, Wand2, ImagePlus, Loader2, Check } from "lucide-react";
+import { ArrowLeft, X, Send, Camera, Square, Sparkles, Brain, Trash2, Wand2, ImagePlus, Loader2, Check, ThumbsDown } from "lucide-react";
 import { db } from "../lib/db.js";
 import { askAi, aiStatus } from "./cncAiClient.js";
 import { fmtCost, costOf } from "./cncAi.js";
-import { historyText, photosFor, partPack, shopPack, programFor, parseAnswer, liveText, shrinkPhoto, starters, MAX_PHOTOS } from "./cncChat.js";
+import { historyText, photosFor, partPack, shopPack, programFor, parseAnswer, liveText, shrinkPhoto, starters, alreadyKept, MAX_PHOTOS } from "./cncChat.js";
 
 // The CNC assistant: ask it anything, about one part or about the shop.
 //
 // Everything said is kept (with who asked and when), so the next person picks
 // up where the last left off and the assistant answers with all of it in mind.
-// Photos go with a question: the setup, the part, an alarm on the screen. When
-// an answer turns up something worth keeping, "Remember this" adds it to what
-// every later question is sent with.
+// Photos go with a question: the setup, the part, an alarm on the screen.
+//
+// It remembers by itself: every fact an answer turns up is kept for the whole
+// shop and sent with every later question, marked as learned rather than
+// confirmed. "This was wrong" on an answer keeps a correction, which outranks
+// everything else it knows. Anything kept can be forgotten.
 //
 // It explains and advises. It doesn't hand out programs: a change to a program
 // comes back as "Rewrite with this", which goes through the measured rewrite.
@@ -35,7 +38,7 @@ export default function CncChat({ part = null, pp = null, machineFacts = {}, par
   const [err, setErr] = useState("");
   const [retry, setRetry] = useState(null);           // the question to ask again after a failure
   const [showMemory, setShowMemory] = useState(false);
-  const [remembered, setRemembered] = useState({});   // fact -> true, for the button's tick
+  const [fixing, setFixing] = useState(null);         // the answer being corrected: its id
   const listRef = useRef(null);
   const fileRef = useRef(null);
   const inputRef = useRef(null);
@@ -102,6 +105,13 @@ export default function CncChat({ part = null, pp = null, machineFacts = {}, par
       const answer = await save({ role: "assistant", body: out.result.answer, meta: { notes: out.notes || [], cost: costOf(out.usage) + (out.searches || 0) * 0.01, model: out.model || "", sources: out.sources || [], searches: out.searches || 0 } });
       if (!alive.current) return;
       setMessages((m) => [...(m || []), answer]);
+      // what it learned is kept straight away, for every later question
+      const learned = [];
+      for (const fact of parseAnswer(out.result.answer).remember) {
+        if (alreadyKept([...memory, ...learned], fact)) continue;
+        try { learned.push(await save({ partId: null, role: "memory", body: fact, author: "", meta: { auto: true, ...(part ? { from: part.name || "" } : {}) } })); } catch { /* the answer still stands; the fact just isn't kept */ }
+      }
+      if (learned.length && alive.current) setMemory((m) => [...m, ...learned]);
     } catch (e) {
       if (!alive.current) return;
       if (e?.kind !== "stopped") setErr(e?.message || "Something went wrong. Try again.");
@@ -112,12 +122,21 @@ export default function CncChat({ part = null, pp = null, machineFacts = {}, par
     }
   }
 
-  async function keep(fact) {
+  // "This was wrong": the correction is kept (it outranks everything), and said
+  // in the conversation too, so the next answer here sees it.
+  async function correct(answerMsg, right) {
+    const fix = String(right || "").trim();
+    if (!fix) return;
     try {
-      const row = await save({ partId: null, role: "memory", body: fact, author: name.trim(), meta: part ? { from: part.name || "" } : {} });
-      // (kept for the whole shop: what's learned about a machine or a habit isn't only about this part)
-      setMemory((m) => [...m, { ...row, partId: null }]);
-      setRemembered((r) => ({ ...r, [fact]: true }));
+      const list = messages || [];
+      const i = list.findIndex((m) => m.id === answerMsg.id);
+      const asked = [...list.slice(0, i)].reverse().find((m) => m.role === "person")?.body || "";
+      const row = await save({ partId: null, role: "memory", body: `${fix}${asked ? ` (about: "${asked.slice(0, 120)}")` : ""}`, author: name.trim(), meta: { correction: true, ...(part ? { from: part.name || "" } : {}) } });
+      const said = await save({ role: "person", body: `That answer was wrong. What's right: ${fix}`, author: name.trim() });
+      if (!alive.current) return;
+      setMemory((m) => [...m, row]);
+      setMessages((m) => [...(m || []), said]);
+      setFixing(null);
     } catch (e) { setErr(`Couldn't keep that: ${e?.message || "try again"}`); }
   }
   async function forget(id) {
@@ -150,10 +169,10 @@ export default function CncChat({ part = null, pp = null, machineFacts = {}, par
       {showMemory && (
         <div className="ch-memory">
           <b>What it remembers</b>
-          <span className="ai-quiet">Sent with every question, along with each machine's tool list and notes. Add to it from an answer with "Remember this".</span>
+          <span className="ai-quiet">Kept by itself from every conversation, and sent with every question along with each machine's tool list and notes. Corrections come first and outrank the rest. Forget anything that's wrong.</span>
           {memory.length === 0 ? <span className="ai-quiet">Nothing yet.</span> : (
             <ul>{memory.map((m) => (
-              <li key={m.id}><span>{m.body}{m.meta?.from ? <i> · from {m.meta.from}</i> : null}{m.author ? <i> · {m.author}</i> : null}</span>
+              <li key={m.id} className={m.meta?.correction ? "fix" : ""}><span>{m.meta?.correction ? <b>Correction: </b> : null}{m.body}{m.meta?.from ? <i> · from {m.meta.from}</i> : null}<i> · {m.meta?.correction ? m.author || "someone" : m.meta?.auto ? "learned, not confirmed" : m.author || "kept"}</i></span>
                 <button className="cl-x" onClick={() => forget(m.id)} aria-label={`Forget: ${m.body}`} title="Forget this"><Trash2 size={14} /></button></li>
             ))}</ul>
           )}
@@ -179,7 +198,8 @@ export default function CncChat({ part = null, pp = null, machineFacts = {}, par
             {m.photos?.length > 0 && <div className="ch-photos">{m.photos.map((u) => <a key={u} href={u} target="_blank" rel="noreferrer"><img src={u} alt="sent with the question" /></a>)}</div>}
           </div>
         ) : (
-          <Answer key={m.id} m={m} canRewrite={!!onRewrite} onRewrite={onRewrite} onKeep={keep} remembered={remembered} onPhoto={() => fileRef.current?.click()} />
+          <Answer key={m.id} m={m} memory={memory} canRewrite={!!onRewrite} onRewrite={onRewrite} onPhoto={() => fileRef.current?.click()}
+            onForget={forget} fixing={fixing === m.id} onFix={() => setFixing(fixing === m.id ? null : m.id)} onCorrect={(t) => correct(m, t)} />
         )))}
         {busy === "answering" && (
           <div className="ch-a">
@@ -225,8 +245,11 @@ export default function CncChat({ part = null, pp = null, machineFacts = {}, par
   );
 }
 
-function Answer({ m, canRewrite, onRewrite, onKeep, remembered, onPhoto }) {
+function Answer({ m, memory, canRewrite, onRewrite, onPhoto, onForget, fixing, onFix, onCorrect }) {
   const a = parseAnswer(m.body);
+  const [right, setRight] = useState("");
+  const norm = (t) => String(t || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const keptRow = (f) => memory.find((x) => norm(x.body) === norm(f));
   return (
     <div className="ch-a">
       <div className="ch-who"><Sparkles size={12} /> Assistant · {new Date(m.at).toLocaleString([], { month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" })}</div>
@@ -247,12 +270,25 @@ function Answer({ m, canRewrite, onRewrite, onKeep, remembered, onPhoto }) {
         <div className="ch-acts">
           {a.photo && <button className="ch-act" onClick={onPhoto}><ImagePlus size={14} /> Add a photo of {a.photo.replace(/^(a |an |the )/i, "the ").replace(/\.$/, "")}</button>}
           {a.rewrite && canRewrite && <button className="ch-act" onClick={() => onRewrite(a.rewrite)} title={a.rewrite}><Wand2 size={14} /> Rewrite with this: {a.rewrite.length > 70 ? `${a.rewrite.slice(0, 70)}…` : a.rewrite}</button>}
-          {a.remember.map((f) => (
-            <button key={f} className={`ch-act${remembered[f] ? " done" : ""}`} onClick={() => !remembered[f] && onKeep(f)} disabled={!!remembered[f]}>
-              {remembered[f] ? <Check size={14} /> : <Brain size={14} />} {remembered[f] ? "Remembered" : "Remember this"}: {f}
-            </button>
-          ))}
+          {a.remember.map((f) => {
+            const row = keptRow(f);
+            return (
+              <span key={f} className={`ch-kept${row ? "" : " gone"}`}>
+                {row ? <Check size={14} /> : <Brain size={14} />}
+                <span>{row ? "Remembered" : "Forgotten"}: {f}</span>
+                {row && <button onClick={() => onForget(row.id)} aria-label={`Forget: ${f}`} title="Forget this: it's wrong"><X size={13} /></button>}
+              </span>
+            );
+          })}
         </div>
+      )}
+      {fixing ? (
+        <form className="ch-fix" onSubmit={(e) => { e.preventDefault(); onCorrect(right); }}>
+          <textarea rows={2} value={right} onChange={(e) => setRight(e.target.value)} placeholder="What's actually right?" aria-label="What's actually right" autoFocus />
+          <div><button type="submit" className="cl-btn" disabled={!right.trim()}><Check size={14} /> Keep the correction</button><button type="button" className="cl-btn ghost" onClick={onFix}>Cancel</button></div>
+        </form>
+      ) : (
+        <button className="ch-wrong" onClick={onFix}><ThumbsDown size={13} /> This was wrong</button>
       )}
       {m.meta?.notes?.length > 0 && <div className="ai-quiet ch-note">{m.meta.notes.join(" ")}</div>}
     </div>

@@ -105,17 +105,57 @@ describe("the conversation on screen", () => {
     expect(await screen.findByText(/That's question 2 here, and the 1 before it were sent along with it/, {}, { timeout: 8000 })).toBeTruthy();
   }, 15000);
 
-  it("'Remember this' keeps the fact for every later question, and it can be forgotten", async () => {
-    await db.addCncChat({ partId: "p1", role: "assistant", body: "Fine.\nREMEMBER: The ST-10Y has a 6 inch chuck." });
+  it("what it learns is kept by itself, for every later question, labelled as not confirmed, and can be forgotten", async () => {
     open();
-    fireEvent.click(await screen.findByRole("button", { name: /Remember this: The ST-10Y has a 6 inch chuck/ }));
-    expect(await screen.findByRole("button", { name: /Remembered: The ST-10Y has a 6 inch chuck/ })).toBeTruthy();
-    const mem = await db.getCncMemory("p1");
-    expect(mem.map((m) => [m.body, m.partId, m.meta.from])).toEqual([["The ST-10Y has a 6 inch chuck.", null, "Baby Pin"]]);
+    fireEvent.change(await screen.findByLabelText("Your question"), { target: { value: "Anything to know?" } });
+    fireEvent.click(screen.getByLabelText("Send"));
+    // the demo answer ends with a REMEMBER line: no button to press, it's kept
+    expect(await screen.findByText(/Remembered: This is what a remembered fact looks like/, {}, { timeout: 8000 })).toBeTruthy();
+    await waitFor(async () => expect((await db.getCncMemory("p1")).length).toBe(1));
+    const [kept] = await db.getCncMemory("p1");
+    expect(kept).toMatchObject({ partId: null, meta: { auto: true, from: "Baby Pin" } });
+    expect(memoryText([kept], [part])).toMatch(/\[learned, not confirmed\]/);
     expect((await db.getCncMemory(null)).length).toBe(1);   // the whole shop's, not just this part's
-    fireEvent.click(screen.getByTitle("What it's been asked to remember"));
-    fireEvent.click(screen.getByRole("button", { name: "Forget: The ST-10Y has a 6 inch chuck." }));
+    // asked again, the same fact isn't kept twice
+    fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "And again?" } });
+    fireEvent.click(screen.getByLabelText("Send"));
+    await waitFor(async () => expect((await db.getCncChat("p1")).length).toBe(4), { timeout: 8000 });
+    expect((await db.getCncMemory("p1")).length).toBe(1);
+    // forgotten from the answer itself
+    fireEvent.click(screen.getAllByRole("button", { name: /Forget: This is what a remembered fact looks like/ })[0]);
     await waitFor(async () => expect((await db.getCncMemory("p1")).length).toBe(0));
+    expect(screen.getAllByText(/Forgotten: This is what a remembered fact looks like/).length).toBeGreaterThan(0);
+  }, 20000);
+
+  it("'This was wrong' keeps a correction that outranks everything, and says it in the conversation", async () => {
+    await db.addCncChat({ partId: "p1", role: "person", body: "What insert is in T1?", author: "Moe" });
+    const ans = await db.addCncChat({ partId: "p1", role: "assistant", body: "A CNMG 432.\nSURE: medium - from the program comment" });
+    open();
+    fireEvent.change(await screen.findByLabelText("Your name"), { target: { value: "Jesse" } });
+    fireEvent.click(screen.getByRole("button", { name: /This was wrong/ }));
+    expect(screen.getByRole("button", { name: /Keep the correction/ }).disabled).toBe(true);
+    fireEvent.change(screen.getByLabelText("What's actually right"), { target: { value: "T1 is a DNMG 431 now" } });
+    fireEvent.click(screen.getByRole("button", { name: /Keep the correction/ }));
+    expect(await screen.findByText("That answer was wrong. What's right: T1 is a DNMG 431 now")).toBeTruthy();
+    const mem = await db.getCncMemory("p1");
+    expect(mem).toHaveLength(1);
+    expect(mem[0]).toMatchObject({ body: 'T1 is a DNMG 431 now (about: "What insert is in T1?")', author: "Jesse", meta: { correction: true } });
+    // corrections come first, under their own heading, ahead of any fact however new
+    const text = memoryText([{ body: "Newer fact", meta: { auto: true }, at: 9 }, ...mem], [part]);
+    expect(text.indexOf("CORRECTIONS")).toBe(0);
+    expect(text.indexOf("T1 is a DNMG 431 now")).toBeLessThan(text.indexOf("Newer fact"));
+    expect(text).toMatch(/\[correction from Jesse\]/);
+    expect(ans.id).toBeTruthy();
+  });
+
+  it("a very long memory keeps every correction and the newest facts, and says how many were left out", () => {
+    const facts = Array.from({ length: 600 }, (_, i) => ({ body: `fact ${i} ${"x".repeat(80)}`, meta: { auto: true } }));
+    const text = memoryText([{ body: "the one correction", meta: { correction: true }, author: "J" }, ...facts]);
+    expect(text).toMatch(/the one correction/);
+    expect(text).toMatch(/fact 599/);
+    expect(text).not.toMatch(/fact 0 /);
+    expect(text).toMatch(/older facts left out to keep this short/);
+    expect(text.length).toBeLessThan(31_000);
   });
 
   it("'Rewrite with this' hands the instruction to the measured rewrite", async () => {

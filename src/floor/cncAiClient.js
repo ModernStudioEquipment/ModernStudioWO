@@ -103,7 +103,7 @@ async function demoAnswer(task, input, signal, onText) {
       steps.length ? `From the app's own measurements, the program does this:\n${steps.map((s, i) => `${i + 1}. ${s.tool}: ${s.what}`).join("\n")}` : "The real assistant answers from every machine's tool list and notes, and what the shop has asked it to remember.",
       "PHOTO: the part as it sits in the chuck",
       "SURE: medium - this is the demo, so nothing was looked up",
-      "REMEMBER: This is what a remembered fact looks like. Press the button to keep it.",
+      "REMEMBER: This is what a remembered fact looks like: kept by itself, and it can be forgotten.",
     ].join("\n\n");
     for (const word of answer.split(/(?<= )/)) { await wait(18, signal); onText?.(word); }
     return { result: { answer }, usage, notes: [DEMO_NOTE] };

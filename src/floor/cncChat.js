@@ -54,11 +54,35 @@ export function photosFor(messages = [], fresh = [], question = "") {
   return out;
 }
 
+// Corrections first (they outrank everything), then the newest facts, up to a
+// size that keeps every question quick and cheap. Each says where it came from.
+const MAX_MEMORY = 30_000;
 export function memoryText(memory = [], parts = []) {
   if (!memory.length) return "";
   const name = (id) => parts.find((p) => p.id === id)?.name || "this part";
-  return memory.map((m) => `- ${m.partId ? `(${name(m.partId)}) ` : ""}${m.body}`).join("\n");
+  const line = (m) => {
+    const about = m.partId ? `(${name(m.partId)}) ` : m.meta?.from ? `(from ${m.meta.from}) ` : "";
+    const who = m.meta?.correction ? `correction from ${m.author || "someone"}` : m.meta?.auto ? "learned, not confirmed" : m.author ? `kept by ${m.author}` : "";
+    return `- ${about}${m.body}${who ? ` [${who}]` : ""}`;
+  };
+  const fixes = memory.filter((m) => m.meta?.correction);
+  const facts = memory.filter((m) => !m.meta?.correction).slice().reverse();   // newest first, so the oldest are what's left out
+  const out = [];
+  let size = 0;
+  const take = (m) => { const l = line(m); if (size + l.length > MAX_MEMORY) return false; out.push(l); size += l.length + 1; return true; };
+  const keptFixes = fixes.filter(take);
+  const keptFacts = facts.filter(take);
+  const left = memory.length - keptFixes.length - keptFacts.length;
+  const L = [];
+  if (keptFixes.length) L.push("CORRECTIONS (an earlier answer was wrong; these outrank everything):", ...out.slice(0, keptFixes.length));
+  if (keptFacts.length) L.push(...(keptFixes.length ? ["", "FACTS:"] : []), ...out.slice(keptFixes.length));
+  if (left > 0) L.push(`(${left} older fact${left === 1 ? "" : "s"} left out to keep this short.)`);
+  return L.join("\n");
 }
+
+// Is this fact already kept? (Same words, give or take case and spacing.)
+const norm = (t) => String(t || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+export const alreadyKept = (memory = [], fact) => memory.some((m) => norm(m.body) === norm(fact));
 
 // Every machine, as the shop has written it down.
 export function machinesText(machineFacts = {}) {
