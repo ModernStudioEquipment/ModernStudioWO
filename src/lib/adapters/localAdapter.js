@@ -5,7 +5,7 @@
 
 import { buildSeed } from "../seed.js";
 import { cleanPhotos } from "../../floor/cncParts.js";
-import { cleanFacts, cleanMachineFacts } from "../../floor/cncPack.js";
+import { cleanFacts, cleanMachineFacts, programInfo } from "../../floor/cncPack.js";
 import { noteStamp, addAmounts, amountShort } from "../../theme.js";
 
 const KEY = "mse_orders_v1";
@@ -282,7 +282,9 @@ export const localAdapter = {
   },
   async saveCncPart(p) {
     const list = await this.getCncParts();
-    const id = p.id || `cnc_${Date.now()}`;
+    // A real unique id, not the clock: an import makes several parts in the
+    // same millisecond, and clock ids made them overwrite each other.
+    const id = p.id || uid();
     const rec = {
       id, sku: (p.sku || "").trim(), name: (p.name || "").trim(),
       steps: (p.steps || []).filter((s) => s && s.trim()),
@@ -310,10 +312,17 @@ export const localAdapter = {
   async addCncProgram({ partId, name, content, note }) {
     const list = readLS("mse_cnc_programs_v1", []);
     const id = uid();
-    list.push({ id, partId, name: name || "", content: content || "", note: note || "", status: "unproven", provenBy: "", provenAt: null, createdAt: Date.now() });
+    // +index so two files added in the same millisecond still sort in upload order
+    list.push({ id, partId, name: name || "", content: content || "", note: note || "", info: programInfo(content), status: "unproven", provenBy: "", provenAt: null, createdAt: Date.now() + list.length * 1e-3 });
     writeLS("mse_cnc_programs_v1", list);
     return id;
   },
+  async getCncProgramIndex() {
+    return readLS("mse_cnc_programs_v1", [])
+      .map(({ content: _c, ...rest }) => ({ ...rest, info: rest.info || {} }))
+      .sort((a, b) => b.createdAt - a.createdAt);
+  },
+  async cncProgramsReady() { return true; },
   async setCncProgramProven(id, proven, by) {
     const list = readLS("mse_cnc_programs_v1", []);
     const r = list.find((x) => x.id === id);

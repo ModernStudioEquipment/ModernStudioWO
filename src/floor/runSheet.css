@@ -1,0 +1,48 @@
+/* The CNC run sheet: one page for whoever is at the machine. Paper on screen
+   and on paper (white, black ink), printed through the same #wo path as the
+   work-order sheets. */
+.rs-sheet{
+  background:#fff; color:#111; font-family:Arial, Helvetica, sans-serif; font-size:14px; line-height:1.35;
+  padding:26px 30px 20px; border:1px solid #d5d8dc; box-shadow:0 6px 24px rgba(0,0,0,.18);
+}
+.rs-top{display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:10px}
+.rs-title{font-size:22px; font-weight:800; margin:8px 0 0; line-height:1.15}
+.rs-sub{font-size:13px; color:#333}
+.rs-stamp{flex:none; text-align:center; border:2.5px solid #111; padding:7px 12px; font-weight:800; letter-spacing:.6px; font-size:15px; text-transform:uppercase; max-width:230px;
+  -webkit-print-color-adjust:exact; print-color-adjust:exact}
+.rs-stamp small{display:block; font-weight:400; letter-spacing:0; font-size:11.5px; text-transform:none; margin-top:2px}
+.rs-stamp.no{background:#111; color:#fff}
+.rs-band{background:#4a4a4a; color:#fff; font-weight:700; letter-spacing:.6px; font-size:13px; text-transform:uppercase; padding:3px 8px; margin:12px 0 6px;
+  -webkit-print-color-adjust:exact; print-color-adjust:exact}
+.rs-facts{display:grid; grid-template-columns:1fr 1fr; gap:4px 22px}
+.rs-fact{display:flex; gap:8px; border-bottom:1px solid #bbb; padding:3px 0}
+.rs-fact b{flex:none; min-width:92px}
+.rs-fact.wide{grid-column:1 / -1}
+.rs-table{width:100%; border-collapse:collapse}
+.rs-table th{text-align:left; font-size:12px; text-transform:uppercase; letter-spacing:.4px; padding:3px 6px; border-bottom:2px solid #111}
+.rs-table td{padding:5px 6px; border-bottom:1px solid #bbb; vertical-align:top}
+.rs-table td:first-child{font-weight:800; white-space:nowrap; width:54px}
+.rs-flag{font-weight:800}
+.rs-list{margin:0; padding-left:22px}
+.rs-list li{margin:2px 0}
+.rs-list.num{list-style:decimal}
+.rs-list.dot{list-style:disc}
+.rs-warn{border:2px solid #111; padding:8px 10px; margin-top:10px; font-weight:700}
+.rs-pics{display:flex; gap:10px; flex-wrap:wrap; margin-top:4px}
+.rs-pics img{max-height:230px; max-width:100%; border:1px solid #bbb; object-fit:contain}
+.rs-foot{margin-top:14px; font-size:11.5px; color:#444; text-align:center}
+
+@media (max-width:640px){
+  .rs-sheet{padding:16px 12px; font-size:13px}
+  .rs-top{flex-direction:column}
+  .rs-facts{grid-template-columns:1fr}
+}
+@media print{
+  .rs-sheet{border:none !important; box-shadow:none !important; padding:0 !important}
+  /* the letterhead's black bar prints black even with Background graphics off */
+  .rs-top, .rs-top *{-webkit-print-color-adjust:exact; print-color-adjust:exact}
+  #wo.rs-sheet{width:7.4in !important; margin:0 auto}
+  .rs-table tr, .rs-fact, .rs-list li{break-inside:avoid}
+  .rs-band{break-after:avoid}
+  .rs-pics img{max-height:2.6in}
+}

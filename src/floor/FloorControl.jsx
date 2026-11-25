@@ -4,6 +4,7 @@ import Sortable from "sortablejs";
 import { db } from "../lib/db.js";
 import CncLibrary from "./CncLibrary.jsx";
 import FloorSheetView from "./FloorSheetView.jsx";
+import CncRunSheet from "./CncRunSheet.jsx";
 import { sheetFromItem, sheetFromWorkOrder } from "./floorSheet.js";
 import { FeedbackModal } from "../components/modals/FeedbackModal.jsx";
 import { CustomWorkOrderDoc } from "../components/modals/CustomWorkOrderDoc.jsx";
@@ -144,6 +145,18 @@ export default function FloorControl({ orders, workOrders = [], onClose, cncOnly
   // The work order opened read-only from a card, and the catalogue it may point
   // into (a part number on the sheet matches a CNC Catalog SKU).
   const [viewing, setViewing] = useState(null);
+  // The CNC run sheet opened from a work order, and which parts have a program
+  // on file (and whether its newest version is proven), for the badge on it.
+  const [runSheetPart, setRunSheetPart] = useState(null);
+  const [programIndex, setProgramIndex] = useState([]);
+  useEffect(() => {
+    db.getCncProgramIndex?.().then((x) => setProgramIndex(Array.isArray(x) ? x : [])).catch(() => {});
+  }, [viewing]);
+  const programStatusOf = (partId) => {
+    const mine = programIndex.filter((x) => x.partId === partId);
+    if (!mine.length) return "";
+    return mine.some((x) => x.status === "proven") ? "proven" : "unproven";
+  };
   const [parts, setParts] = useState([]);
   const dept = DEPTS.find((d) => d.key === active) || DEPTS[1]; // fallback CNC (amber) for the Book tab
   // Where a report was filed from, so it reads "Floor · CNC" or "CNC Catalog"
@@ -411,13 +424,19 @@ export default function FloorControl({ orders, workOrders = [], onClose, cncOnly
           )}
         </header>
 
-        {viewing && (
-          <FloorSheetView
-            sheet={viewing}
-            part={viewing.partNo ? parts.find((p) => p.sku && p.sku.toLowerCase() === viewing.partNo.toLowerCase()) : null}
-            onClose={() => setViewing(null)}
-          />
-        )}
+        {viewing && (() => {
+          const part = viewing.partNo ? parts.find((p) => p.sku && p.sku.toLowerCase() === viewing.partNo.toLowerCase()) : null;
+          return (
+            <FloorSheetView
+              sheet={viewing}
+              part={part}
+              programStatus={part ? programStatusOf(part.id) : ""}
+              onRunSheet={part ? () => setRunSheetPart(part) : null}
+              onClose={() => setViewing(null)}
+            />
+          );
+        })()}
+        {runSheetPart && <CncRunSheet part={runSheetPart} onClose={() => setRunSheetPart(null)} />}
         {newWo && woApi && (
             <CustomWorkOrderDoc
               wo={newWo}

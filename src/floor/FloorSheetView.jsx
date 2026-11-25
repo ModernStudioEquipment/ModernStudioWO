@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { X, Flame } from "lucide-react";
+import { X, Flame, FileText, ShieldCheck, ShieldAlert } from "lucide-react";
 
 // A work order, opened from a Floor Control card. Read-only by design: the
 // floor asked to SEE the sheet, and was explicit that it must not be able to
@@ -8,7 +8,7 @@ import { X, Flame } from "lucide-react";
 //
 // When the part number matches a CNC Catalog part, the catalogue's own steps
 // and blueprint come along — that's the "how to make it" the sheet points at.
-export default function FloorSheetView({ sheet, part, onClose }) {
+export default function FloorSheetView({ sheet, part, programStatus = "", onRunSheet = null, onClose }) {
   useEffect(() => {
     const onKey = (e) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
@@ -44,6 +44,18 @@ export default function FloorSheetView({ sheet, part, onClose }) {
               {sheet.image && <img src={sheet.image} alt="product" />}
               {part?.blueprintUrl && <img src={part.blueprintUrl} alt="blueprint" />}
               {(part?.photos || []).map((u) => <img key={u} src={u} alt="part" />)}
+            </div>
+          )}
+
+          {/* The CNC program for this part: is it proven, and the page that says
+              how to set the job up. Only when the part is in the catalogue. */}
+          {part && onRunSheet && (
+            <div className={`fcs-prog${programStatus === "proven" ? " ok" : programStatus ? "" : " none"}`}>
+              <span className="fcs-progstat">
+                {programStatus === "proven" ? <ShieldCheck size={15} /> : <ShieldAlert size={15} />}
+                {programStatus === "proven" ? "Program proven" : programStatus === "unproven" ? "Program not proven. Get a lead before running." : "No program on file for this part"}
+              </span>
+              <button className="fcs-runbtn" onClick={onRunSheet}><FileText size={14} /> Run sheet</button>
             </div>
           )}
 

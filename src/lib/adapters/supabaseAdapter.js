@@ -5,7 +5,7 @@
 
 import { supabase } from "../supabase.js";
 import { cleanPhotos, shouldWritePhotos, shouldWriteMachine, splitMachines, joinMachines } from "../../floor/cncParts.js";
-import { cleanFacts, shouldWriteFacts, cleanMachineFacts } from "../../floor/cncPack.js";
+import { cleanFacts, shouldWriteFacts, cleanMachineFacts, programInfo } from "../../floor/cncPack.js";
 import { noteStamp, noteAuthorName, addAmounts, amountShort } from "../../theme.js";
 
 // Who is writing. Read from the session rather than passed down through the
@@ -792,10 +792,27 @@ export const supabaseAdapter = {
   async addCncProgram({ partId, name, content, note }) {
     const { data, error } = await supabase
       .from("cnc_programs")
-      .insert({ part_id: partId, name: name || "", content: content || "", note: note || null })
+      .insert({ part_id: partId, name: name || "", content: content || "", note: note || null, info: programInfo(content) })
       .select("id").single();
     fail(error);
     return data?.id;
+  },
+  // Every program without its text: enough for badges, the tool suggestions and
+  // the fix-first list without downloading megabytes of G-code.
+  async getCncProgramIndex() {
+    const { data, error } = await supabase
+      .from("cnc_programs").select("id, part_id, name, status, proven_by, info, created_at").order("created_at", { ascending: false });
+    if (error) { if (isMissingRelation(error)) return []; fail(error); }
+    return (data || []).map((r) => ({
+      id: r.id, partId: r.part_id, name: r.name || "", status: r.status || "unproven",
+      provenBy: r.proven_by || "", info: r.info || {}, createdAt: new Date(r.created_at).getTime(),
+    }));
+  },
+  // Is the programs table there (0068 run)? Asked before a bulk import, so it
+  // can't create fifty parts and then fail on the first file.
+  async cncProgramsReady() {
+    const { error } = await supabase.from("cnc_programs").select("id").limit(1);
+    return !error;
   },
   async setCncProgramProven(id, proven, by) {
     const patch = proven

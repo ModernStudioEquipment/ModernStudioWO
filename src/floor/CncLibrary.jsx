@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ArrowLeft, Plus, Trash2, Upload, ImageOff, Check, Copy, GripVertical, ChevronLeft, ChevronRight, ClipboardList } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Upload, ImageOff, Check, Copy, GripVertical, ChevronLeft, ChevronRight, ClipboardList, FolderInput } from "lucide-react";
 import Sortable from "sortablejs";
 import { db } from "../lib/db.js";
 import { duplicatePart, isSkuTaken, cleanPhotos, MAX_PHOTOS, moveStep, splitPrograms, joinPrograms, splitMachines, joinMachines } from "./cncParts.js";
 import { MACHINES } from "./machines.js";
 import CncPrograms from "./CncPrograms.jsx";
 import CncMachines from "./CncMachines.jsx";
+import CncImport from "./CncImport.jsx";
+import CncPriorities from "./CncPriorities.jsx";
 import "./cncLibrary.css";
 
 const BLANK = { id: null, sku: "", name: "", material: "", notes: "", blueprintUrl: null, photos: [], steps: [""], productNo: "", programNo: "", machine: "", facts: {} };
@@ -36,8 +38,21 @@ export default function CncLibrary({ onClose, embedded = false, onMakeWorkOrder 
   const fileRef = useRef(null);
   const photoRef = useRef(null);
   const [photoBusy, setPhotoBusy] = useState(false);
-  // "parts" is the catalogue; "machines" is each Haas's tool list and setup.
+  // "parts" is the catalogue; "machines" is each Haas's tool list and setup;
+  // "priorities" ranks parts by hand work; "import" takes a USB stick of programs.
   const [view, setView] = useState("parts");
+  // Every program file without its text: who has one, and is it proven.
+  const [programIndex, setProgramIndex] = useState([]);
+  const loadProgramIndex = useCallback(async () => {
+    try { setProgramIndex(await db.getCncProgramIndex()); } catch { /* badges just stay empty */ }
+  }, []);
+  useEffect(() => { loadProgramIndex(); }, [loadProgramIndex]);
+  const programStatus = (partId) => {
+    const mine = programIndex.filter((x) => x.partId === partId);
+    if (!mine.length) return "";
+    const newest = mine.reduce((a, b) => (b.createdAt > a.createdAt ? b : a));
+    return newest.status === "proven" ? "proven" : "unproven";
+  };
   const [machineFacts, setMachineFacts] = useState({});
   const loadMachineFacts = useCallback(async () => {
     try { setMachineFacts(await db.getMachineFacts()); } catch { /* the page itself reports it */ }
@@ -192,6 +207,7 @@ export default function CncLibrary({ onClose, embedded = false, onMakeWorkOrder 
           <div className="cl-views" role="tablist" aria-label="Catalog section">
             <button role="tab" aria-selected={view === "parts"} className={view === "parts" ? "on" : ""} onClick={() => setView("parts")}>Parts</button>
             <button role="tab" aria-selected={view === "machines"} className={view === "machines" ? "on" : ""} onClick={() => setView("machines")}>Machines</button>
+            <button role="tab" aria-selected={view === "priorities"} className={view === "priorities" ? "on" : ""} onClick={() => setView("priorities")}>Fix first</button>
           </div>
           <div className="cl-spacer" />
           {!embedded && (
@@ -201,12 +217,25 @@ export default function CncLibrary({ onClose, embedded = false, onMakeWorkOrder 
           )}
         </header>
 
-        {view === "machines" && <CncMachines onSaved={loadMachineFacts} />}
-        <div className="cl-body" style={view === "machines" ? { display: "none" } : undefined}>
+        {/* Machines and Parts stay mounted while hidden, so half-typed work
+            survives a look at another page. */}
+        <div style={view === "machines" ? undefined : { display: "none" }}>
+          <CncMachines onSaved={loadMachineFacts} parts={parts} programIndex={programIndex} />
+        </div>
+        {view === "priorities" && (
+          <CncPriorities parts={parts} programIndex={programIndex} onOpen={(p) => { edit(p); setView("parts"); }} />
+        )}
+        {view === "import" && (
+          <CncImport parts={parts} onDone={() => { reload(); loadProgramIndex(); }} onClose={() => setView("parts")} />
+        )}
+        <div className="cl-body" style={view === "parts" ? undefined : { display: "none" }}>
           <aside className="cl-list">
             <input className="cl-search" placeholder="Search parts…" value={q} onChange={(e) => setQ(e.target.value)} />
             <button className="cl-new" onClick={newPart}>
               <Plus size={16} /> New part
+            </button>
+            <button className="cl-new cl-import" onClick={() => setView("import")} title="Bring in a whole USB stick of programs at once">
+              <FolderInput size={16} /> Import programs
             </button>
             <div className="cl-items">
               {filtered.map((p) => (
@@ -217,6 +246,9 @@ export default function CncLibrary({ onClose, embedded = false, onMakeWorkOrder 
                     {p.blueprintUrl ? " · blueprint" : ""}
                     {splitMachines(p.machine).length ? ` · ${splitMachines(p.machine).map((k) => MACHINES.find((m) => m.key === k)?.short).join(" + ")}` : ""}
                   </span>
+                  {programStatus(p.id) && (
+                    <span className={`cl-pstat ${programStatus(p.id)}`}>{programStatus(p.id) === "proven" ? "Program proven" : "Program not proven"}</span>
+                  )}
                 </button>
               ))}
               {filtered.length === 0 && <div className="cl-none">No parts yet — add one to start the library.</div>}
@@ -365,7 +397,7 @@ export default function CncLibrary({ onClose, embedded = false, onMakeWorkOrder 
               </div>
             </div>
 
-            <CncPrograms part={draft} onFact={setFact} machineFacts={machineFacts} />
+            <CncPrograms part={draft} onFact={setFact} machineFacts={machineFacts} onChanged={loadProgramIndex} />
 
             <div className="cl-foot">
               <button className="cl-save" onClick={save} disabled={saving || !draft.name.trim()}>

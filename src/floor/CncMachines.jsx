@@ -2,13 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { Plus, Trash2, Check, Upload } from "lucide-react";
 import { db } from "../lib/db.js";
 import { MACHINES } from "./machines.js";
-import { cleanMachineFacts } from "./cncPack.js";
+import { cleanMachineFacts, suggestTools } from "./cncPack.js";
 
 // The Machines page of the CNC Catalog: what each Haas actually has in it.
 // A program is only as good as the tool list it was written against, so this
 // is where "T3 is the 1/2 inch drill" gets written down once, per machine,
 // instead of being guessed every time a program is touched.
-export default function CncMachines({ onSaved }) {
+export default function CncMachines({ onSaved, parts = [], programIndex = [] }) {
   const [facts, setFacts] = useState({});      // machine key -> facts being edited
   const [saved, setSaved] = useState({});      // machine key -> JSON of last save
   const [busy, setBusy] = useState("");
@@ -39,6 +39,20 @@ export default function CncMachines({ onSaved }) {
     tools[i] = { ...tools[i], [field]: v };
     // Typing on the last row opens another, so the list never runs out.
     if (i === tools.length - 1 && String(v).trim()) tools.push({ t: "", what: "" });
+    return { ...f, [k]: { ...f[k], tools } };
+  });
+  // Take a tool the programs call and put it on the list (or name one that's
+  // listed with no description). Lands in the first blank row.
+  const useTool = (k, t, what) => setFacts((f) => {
+    const tools = f[k].tools.slice();
+    const at = tools.findIndex((r) => Number(String(r.t).replace(/\D/g, "")) === t && String(r.t).trim());
+    if (at >= 0) tools[at] = { ...tools[at], what: tools[at].what || what };
+    else {
+      const blank = tools.findIndex((r) => !String(r.t).trim() && !String(r.what).trim());
+      const row = { t: String(t), what };
+      if (blank >= 0) tools[blank] = row; else tools.push(row);
+    }
+    if (tools.every((r) => String(r.t).trim() || String(r.what).trim())) tools.push({ t: "", what: "" });
     return { ...f, [k]: { ...f[k], tools } };
   });
   const dropTool = (k, i) => setFacts((f) => {
@@ -123,11 +137,50 @@ export default function CncMachines({ onSaved }) {
               <Plus size={15} /> Add tool
             </button>
 
+            <ToolSuggestions machine={m} found={suggestTools(m.key, parts, programIndex, f.tools)} onUse={(t, what) => useTool(m.key, t, what)} />
+
             <span className="cl-lab" style={{ marginTop: 10 }}>Photos (nameplate, tool offset page, the setup)</span>
             <MachinePhotos photos={f.photos} onChange={(photos) => set(m.key, "photos", photos)} machine={m} onErr={setErr} />
           </section>
         );
       })}
+    </div>
+  );
+}
+
+// Tools the uploaded programs call that the list doesn't have yet, with the
+// names the programs give them. One click puts a tool on the list.
+function ToolSuggestions({ machine, found, onUse }) {
+  if (!found.length) return null;
+  return (
+    <div className="cm-suggest">
+      <div className="cm-sughead">
+        <span className="cl-lab">Found in this machine's programs</span>
+        <span className="cl-spacer" />
+        {found.filter((s) => !s.listed).length > 1 && (
+          <button className="cl-btn" onClick={() => found.filter((s) => !s.listed).forEach((s) => onUse(s.t, s.names[0]?.name || ""))}>
+            <Plus size={14} /> Add all {found.filter((s) => !s.listed).length}
+          </button>
+        )}
+      </div>
+      {found.map((s) => (
+        <div className="cm-sug" key={s.t}>
+          <b>T{s.t}</b>
+          <span className="cm-sugnames">
+            {s.names.length
+              ? s.names.map((n) => `${n.name}${s.names.length > 1 ? ` (${n.count})` : ""}`).join(" / ")
+              : "no description in the programs"}
+            {s.listed && s.listedAs && s.disagree ? ` · listed as ${s.listedAs}` : ""}
+            <em> · {s.programs} program{s.programs === 1 ? "" : "s"}</em>
+          </span>
+          {s.disagree && <span className="cm-sugflag">programs disagree</span>}
+          {(!s.listed || !s.listedAs) && (
+            <button className="cl-btn" onClick={() => onUse(s.t, s.names[0]?.name || "")} aria-label={`Add T${s.t} to the ${machine.short} tool list`}>
+              <Plus size={14} /> {s.listed ? "Use this name" : "Add"}
+            </button>
+          )}
+        </div>
+      ))}
     </div>
   );
 }

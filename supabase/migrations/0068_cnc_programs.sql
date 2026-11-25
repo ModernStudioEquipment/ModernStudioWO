@@ -26,9 +26,12 @@ create table if not exists public.cnc_programs (
   proven_by  text,
   proven_at  timestamptz,
   note       text,
+  info       jsonb not null default '{}'::jsonb,  -- program number, tools, offsets: read once at upload
   created_by uuid references auth.users(id) default auth.uid(),
   created_at timestamptz not null default now()
 );
+-- (if an earlier copy of this file was run, this adds the column it lacked)
+alter table public.cnc_programs add column if not exists info jsonb not null default '{}'::jsonb;
 create index if not exists cnc_programs_part_idx on public.cnc_programs(part_id, created_at desc);
 
 alter table public.cnc_programs enable row level security;
