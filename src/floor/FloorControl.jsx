@@ -5,6 +5,7 @@ import { db } from "../lib/db.js";
 import CncLibrary from "./CncLibrary.jsx";
 import FloorSheetView from "./FloorSheetView.jsx";
 import CncRunSheet from "./CncRunSheet.jsx";
+import { recall, remember } from "./remember.js";
 import { sheetFromItem, sheetFromWorkOrder } from "./floorSheet.js";
 import { FeedbackModal } from "../components/modals/FeedbackModal.jsx";
 import { CustomWorkOrderDoc } from "../components/modals/CustomWorkOrderDoc.jsx";
@@ -125,8 +126,12 @@ export default function FloorControl({ orders, workOrders = [], onClose, cncOnly
     return () => document.body.classList.remove("floor-control-up");
   }, []);
   const navDepts = cncOnly ? DEPTS.filter((d) => d.key === "cnc") : DEPTS;
-  const [active, setActive] = useState("cnc");
-  const [cncView, setCncView] = useState("unassigned"); // "unassigned" | machine key
+  // Which tab, and which CNC lane: remembered for this browser tab so a refresh
+  // comes back to the same place. Checked against the tabs this login has.
+  const [active, setActive] = useState(() => recall("mse_fc_tab", [...navDepts.map((d) => d.key), "book"], "cnc"));
+  const [cncView, setCncView] = useState(() => recall("mse_fc_cnc", ["unassigned", "priority", ...MACHINES.map((m) => m.key)], "unassigned")); // "unassigned" | "priority" | machine key
+  useEffect(() => { remember("mse_fc_tab", active); }, [active]);
+  useEffect(() => { remember("mse_fc_cnc", cncView); }, [cncView]);
   const [order, setOrder] = useState({}); // queueKey -> [ids]
   const [machines, setMachines] = useState({}); // itemId -> machine key
   // One line for anything that failed to save from this screen. Silence here is
@@ -152,6 +157,14 @@ export default function FloorControl({ orders, workOrders = [], onClose, cncOnly
   useEffect(() => {
     db.getCncProgramIndex?.().then((x) => setProgramIndex(Array.isArray(x) ? x : [])).catch(() => {});
   }, [viewing]);
+  // The catalogue is edited from inside this screen (the CNC Catalog tab), so
+  // the copy held here goes stale: a part given its SKU a minute ago wouldn't
+  // match its work order until Floor Control was closed and reopened. Re-read
+  // it whenever someone comes back from the catalogue or opens a work order.
+  useEffect(() => {
+    if (active === "book") return;
+    db.getCncParts().then((p) => setParts(Array.isArray(p) ? p : [])).catch(() => {});
+  }, [active, viewing]);
   const programStatusOf = (partId) => {
     const mine = programIndex.filter((x) => x.partId === partId);
     if (!mine.length) return "";

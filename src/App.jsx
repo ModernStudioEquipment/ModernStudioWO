@@ -23,6 +23,7 @@ import { Logo } from "./components/Logo.jsx";
 import { Dashboard } from "./components/Dashboard.jsx";
 import { GlobalSearch } from "./components/GlobalSearch.jsx";
 import FloorControl from "./floor/FloorControl.jsx";
+import { recall, remember } from "./floor/remember.js";
 import Costing from "./components/Costing.jsx";
 import { SyncButton } from "./components/SyncButton.jsx";
 import { MaterialModal } from "./components/modals/MaterialModal.jsx";
@@ -228,7 +229,10 @@ export default function App() {
   const [repairDoc, setRepairDoc] = useState(null); // { repair } open on the Repairs tab; repair null = new ticket
   const [customDoc, setCustomDoc] = useState(null); // work order sheet open for edit ({type} = new, or a saved WO)
   const [workCombined, setWorkCombined] = useState(false); // Work Order tab: combine like items across orders
-  const [floorOpen, setFloorOpen] = useState(false); // full-screen dark "Floor Control" world
+  // full-screen dark "Floor Control" world. Remembered for this tab, so a
+  // refresh while you're in it doesn't drop you back in the office.
+  const [floorOpen, setFloorOpenRaw] = useState(() => recall("mse_fc_open") === "1");
+  const setFloorOpen = (on) => { remember("mse_fc_open", on ? "1" : ""); setFloorOpenRaw(on); };
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 30000);
