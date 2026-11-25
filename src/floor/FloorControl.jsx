@@ -113,11 +113,15 @@ export default function FloorControl({ orders, workOrders = [], onClose, cncOnly
   // same sheet the office opens with its CNC button, filled in from the part.
   const [newWo, setNewWo] = useState(null);
   // The work order sheet portals to <body> (so it prints alone), which puts it
-  // under this full-screen layer. While Floor Control is up, body.fc-open lifts
+  // under this full-screen layer. While Floor Control is up, body.floor-control-up
+  // lifts
   // office sheets above it (floorControl.css).
   useEffect(() => {
-    document.body.classList.add("fc-open");
-    return () => document.body.classList.remove("fc-open");
+    // The class must be one NOTHING else styles. It was "fc-open", which is also
+    // the Open live monitor button: the whole page took on that button's rules
+    // while Floor Control was up, and on a phone its display:none hid everything.
+    document.body.classList.add("floor-control-up");
+    return () => document.body.classList.remove("floor-control-up");
   }, []);
   const navDepts = cncOnly ? DEPTS.filter((d) => d.key === "cnc") : DEPTS;
   const [active, setActive] = useState("cnc");
