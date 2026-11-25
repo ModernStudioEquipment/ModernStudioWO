@@ -4,6 +4,7 @@ import { db } from "../lib/db.js";
 import { MACHINES } from "./machines.js";
 import { planImport, importCounts, programLine, machineForKind } from "./cncPack.js";
 import { readText } from "./CncPrograms.jsx";
+import { readZip, isZip } from "./unzip.js";
 
 // Import a whole USB stick of programs at once.
 //
@@ -30,11 +31,22 @@ export default function CncImport({ parts, onDone, onClose }) {
     setResult(null);
     try {
       const read = [];
+      const notes = [];
       for (const f of files) {
+        // a zip: every file inside it, as if they'd been picked one by one
+        if (isZip(f)) {
+          setBusy(`Opening ${f.name}…`);
+          const z = await readZip(f);
+          for (const x of z.files) read.push({ name: x.name, size: x.size, text: x.text });
+          for (const x of z.skipped) notes.push(`${x.name} in ${f.name}: ${x.why}`);
+          if (!z.files.length && !z.skipped.length) notes.push(`${f.name} has nothing in it.`);
+          continue;
+        }
         // Anything huge is not a program; don't pull it into memory to find out.
         read.push({ name: f.name, size: f.size, text: f.size > 3 * 1024 * 1024 ? "" : await readText(f) });
       }
       setRows(planImport(read, parts));
+      if (notes.length) setErr(notes.slice(0, 4).join(" ") + (notes.length > 4 ? ` And ${notes.length - 4} more.` : ""));
       setOff(new Set());
     } catch (e2) {
       setErr(`Couldn't read those files${e2?.message ? `: ${e2.message}` : "."}`);
@@ -101,7 +113,7 @@ export default function CncImport({ parts, onDone, onClose }) {
         <button className="cl-btn ghost" onClick={onClose}><ArrowLeft size={14} /> Back to parts</button>
       </div>
       <div className="cp-sub">
-        Pick all the program files from one machine. You'll see where each one goes before anything is saved.
+        Pick all the program files from one machine, a whole folder, or a .zip of them. You'll see where each one goes before anything is saved.
       </div>
 
       <div className="cl-bpbtns">
