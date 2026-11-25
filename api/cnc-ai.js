@@ -23,6 +23,12 @@
 import { callerStaff, notSignedIn } from "../lib/apiAuth.js";
 import { aiReady, aiModel, checkInput, runJob, explain, makeClient } from "../lib/cncAi.js";
 
+// A rewrite on the most capable model can take several minutes for one
+// request. This is the most Vercel allows a request on this plan (Pro, with
+// Fluid compute); each step of a rewrite is its own request, so a whole run
+// can take a good deal longer than this.
+export const maxDuration = 800;
+
 const json = (status, body) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
 
