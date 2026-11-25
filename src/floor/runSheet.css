@@ -46,3 +46,8 @@
   .rs-band{break-after:avoid}
   .rs-pics img{max-height:2.6in}
 }
+
+.rs-drawing{margin:4px 0 0; text-align:center}
+.rs-drawing svg{display:block; margin:0 auto; max-width:100%}
+.rs-drawing figcaption{font-size:12px; color:#333; margin-top:4px}
+@media print{ .rs-drawing{break-inside:avoid} }

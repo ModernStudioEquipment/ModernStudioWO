@@ -25,7 +25,7 @@ export default function CncPriorities({ parts, programIndex, onOpen }) {
         <div><b>{total ? fmt(total) : "—"}</b><span>hand work per run, {measured} part{measured === 1 ? "" : "s"} measured</span></div>
       </div>
       <div className="cp-sub">
-        Ranked by hand work per run: minutes by hand per part, times how many per run. Fill those two boxes in on a part (under Program &amp; setup) and it takes its place here.
+        Ranked by hand work per run (minutes per part × parts per run). Fill both in on a part to rank it.
       </div>
 
       {!ranked.length && <div className="cp-note">No parts in the catalogue yet.</div>}

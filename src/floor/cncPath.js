@@ -70,17 +70,40 @@ export function toolpath(content, { kind: machineKind = "" } = {}) {
   let units = "";
   let full = false;
 
-  const push = (a, b, type, tool, n) => {
+  // Feed and speed as they stand when a move is made, kept on the move so the
+  // time estimate can work from the same walk. f = the F word; perRev = feed is
+  // per spindle turn (a lathe's normal mode) rather than per minute; s = the S
+  // word; css = S is a surface speed (G96), not rpm; clamp = G50's top speed.
+  const modal = { f: 0, perRev: kind === "lathe", s: 0, css: false, clamp: 0 };
+  // Things that take time but aren't moves: tool changes, dwells, operator stops.
+  const events = { toolChanges: 0, dwell: 0, stops: 0 };
+  // Lathe cycles the control expands itself: kept whole for the solid view and
+  // the time estimate, which need more than the one line that's drawn.
+  const cycles = [];
+  const push = (a, b, type, tool, n, extra) => {
     if (segs.length >= MAX_SEGS) { full = true; return; }
     if (a[0] === b[0] && a[1] === b[1] && a[2] === b[2]) return;
-    segs.push({ a, b, type, tool, line: n });
+    segs.push({ a, b, type, tool, line: n, f: modal.f, perRev: modal.perRev, s: modal.s, css: modal.css, clamp: modal.clamp, ...extra });
+  };
+  // Words every line can carry, whatever the machine.
+  const readModal = (line, G, M) => {
+    const F = val(line, "F");
+    if (F != null) modal.f = F;
+    const S = val(line, "S");
+    if (S != null && !G.includes(50)) modal.s = S;
+    if (G.includes(4)) { // dwell: P is milliseconds on a Haas, X or U seconds
+      const P = val(line, "P");
+      const X = val(line, "X") ?? val(line, "U");
+      events.dwell += P != null ? P / 1000 : X != null ? X : 0;
+    }
+    if (M.includes(0)) events.stops += 1;
   };
   const useTool = (t) => { if (t && !toolsUsed.includes(t)) toolsUsed.push(t); };
 
   if (kind === "lathe") walkLathe(); else walkMill();
 
   if (full) notes.add(`Only the first ${MAX_SEGS.toLocaleString()} moves are drawn.`);
-  return { kind, segs, notes: [...notes], tools: toolsUsed, units, bounds: boundsOf(segs), stats: statsOf(kind, segs) };
+  return { kind, segs, notes: [...notes], tools: toolsUsed, units, events, cycles, bounds: boundsOf(segs), stats: statsOf(kind, segs) };
 
   // -- mill -------------------------------------------------------------------
   function walkMill() {
@@ -101,6 +124,10 @@ export function toolpath(content, { kind: machineKind = "" } = {}) {
       const n = line.n;
       let home = false;
       let startedCycle = false;
+      readModal(line, G, M);
+      if (G.includes(94)) modal.perRev = false;
+      if (G.includes(95)) modal.perRev = true;
+      if (G.includes(4)) continue; // a dwell's X is seconds, not a place
 
       for (const g of G) {
         if (g === 20) units = "in";
@@ -117,7 +144,7 @@ export function toolpath(content, { kind: machineKind = "" } = {}) {
       }
       const t = val(line, "T");
       if (t != null) pendingT = t;
-      if (M.includes(6) && pendingT) { tool = pendingT; useTool(tool); }
+      if (M.includes(6) && pendingT) { if (tool !== pendingT) events.toolChanges += 1; tool = pendingT; useTool(tool); }
 
       const w = [val(line, "X"), val(line, "Y"), val(line, "Z")];
       if (home) {
@@ -199,6 +226,7 @@ export function toolpath(content, { kind: machineKind = "" } = {}) {
     let motion = 0;
     let tool = 0;
     let profile = null;   // { p, q, on } while inside a roughing cycle's profile
+    let roughDepth = null; // pass depth from the first line of a two-line G71
     let thread92 = null;  // { z } while G92 is modal
     const P = (zz, xx) => [zz, 0, xx / 2];
 
@@ -211,12 +239,19 @@ export function toolpath(content, { kind: machineKind = "" } = {}) {
 
       if (G.includes(20)) units = "in";
       if (G.includes(21)) units = "mm";
+      readModal(line, G, M);
+      if (G.includes(98)) modal.perRev = false; // feed per minute
+      if (G.includes(99)) modal.perRev = true;  // feed per turn
+      if (G.includes(96)) modal.css = true;
+      if (G.includes(97)) modal.css = false;
+      if (G.includes(50)) { const S = val(line, "S"); if (S != null) modal.clamp = S; }
       const t = line.words.find((w) => w.l === "T");
       if (t) {
         const digits = t.raw.replace(/\D/g, "");
         const num = digits.length >= 3 ? Math.floor(t.v / 100) : t.v;
-        if (num) { tool = num; }
+        if (num) { if (tool !== num) events.toolChanges += 1; tool = num; }
       }
+      if (G.includes(4)) continue; // a dwell's X or U is seconds, not a place
       if (val(line, "Y") != null || val(line, "C") != null || M.some((m) => [19, 133, 134, 143, 144, 154].includes(m)) || G.some((g) => g === 14 || g === 15 || g === 112)) {
         notes.add("Live tooling, C/Y axis and sub-spindle moves aren't drawn.");
       }
@@ -234,14 +269,26 @@ export function toolpath(content, { kind: machineKind = "" } = {}) {
         const q = val(line, "Q");
         if (p != null && q != null) {
           profile = { p, q, on: false };
-          notes.add("A roughing cycle is drawn as the profile it cuts down to, not each pass.");
+          notes.add("Roughing passes aren't drawn, only the shape they cut down to.");
+          // Depth of each pass: D on the one-line form, U on the first line of
+          // the two-line form (remembered from the line before).
+          cycles.push({ kind: "rough", line: n, face: G.includes(72), x, z, depth: val(line, "D") ?? roughDepth ?? 0, p, q, f: modal.f, perRev: modal.perRev, s: modal.s, css: modal.css, clamp: modal.clamp, tool, from: segs.length });
+        } else {
+          roughDepth = val(line, "U"); // "G71 U0.08 R0.02": the pass depth for the line that follows
         }
         continue; // the cycle line's U and W are finish allowances, not moves
       }
-      if (G.includes(70)) continue; // finishing re-runs the profile already drawn
+      if (G.includes(70)) { // finishing re-runs the profile already drawn, at this line's feed
+        cycles.push({ kind: "finish", line: n, p: val(line, "P"), q: val(line, "Q"), f: modal.f, perRev: modal.perRev, s: modal.s, css: modal.css, clamp: modal.clamp, tool });
+        continue;
+      }
 
       if (G.includes(76)) { // threading cycle: drawn as the thread's final pass
-        if (x != null && z != null && X != null && Z != null) { useTool(tool); push(P(z, X), P(Z, X), "thread", tool, n); }
+        if (x != null && z != null && X != null && Z != null) {
+          useTool(tool);
+          // pitch = F (the lead); K = thread height, D = first pass depth, both as radius
+          push(P(z, X), P(Z, X), "thread", tool, n, { pitch: modal.f, height: val(line, "K") ?? 0, firstCut: val(line, "D") ?? 0, fromDia: x });
+        }
         thread92 = null;
         continue;
       }
@@ -251,7 +298,7 @@ export function toolpath(content, { kind: machineKind = "" } = {}) {
 
       if (thread92) {
         if (Z != null) thread92.z = Z;
-        if (X != null && z != null && thread92.z != null) { useTool(tool); push(P(z, X), P(thread92.z, X), "thread", tool, n); }
+        if (X != null && z != null && thread92.z != null) { useTool(tool); push(P(z, X), P(thread92.z, X), "thread", tool, n, { pitch: modal.f, fromDia: x ?? X }); }
         continue;
       }
       if (G.includes(74) || G.some((g) => g >= 81 && g <= 89)) { // peck drill / drill along Z, back to where it started
@@ -259,7 +306,7 @@ export function toolpath(content, { kind: machineKind = "" } = {}) {
         continue;
       }
       if (G.includes(75)) { // peck groove in X
-        if (x != null && z != null && X != null) { useTool(tool); push(P(z, x), P(z, X), "feed", tool, n); }
+        if (x != null && z != null && X != null) { useTool(tool); push(P(z, x), P(z, X), "groove", tool, n); }
         continue;
       }
 
@@ -297,7 +344,11 @@ export function toolpath(content, { kind: machineKind = "" } = {}) {
         }
       }
       x = tx; z = tz;
-      if (profile?.on && N === profile.q) profile = null;
+      if (profile?.on && N === profile.q) {
+        const c = cycles.findLast?.((k) => k.kind === "rough" && k.to == null) || [...cycles].reverse().find((k) => k.kind === "rough" && k.to == null);
+        if (c) c.to = segs.length;
+        profile = null;
+      }
     }
   }
 }

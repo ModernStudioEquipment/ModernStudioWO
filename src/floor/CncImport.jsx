@@ -101,7 +101,7 @@ export default function CncImport({ parts, onDone, onClose }) {
         <button className="cl-btn ghost" onClick={onClose}><ArrowLeft size={14} /> Back to parts</button>
       </div>
       <div className="cp-sub">
-        Copy every program off the Haas to a USB stick, then pick them all here. Each one is matched to its part by program number; the rest become new parts. You see the plan before anything is saved.
+        Pick all the program files from one machine. You'll see where each one goes before anything is saved.
       </div>
 
       <div className="cl-bpbtns">
@@ -123,7 +123,7 @@ export default function CncImport({ parts, onDone, onClose }) {
       {rows && (
         <>
           <label className="cl-field" style={{ maxWidth: 360 }}>
-            <span className="cl-lab">Which machine are these from? (sets it on the new parts)</span>
+            <span className="cl-lab">Which machine are these from?</span>
             <select className="ci-select" value={machine} onChange={(e) => setMachine(e.target.value)} aria-label="Machine these programs are from">
               <option value="">Not sure / mixed</option>
               {MACHINES.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}
@@ -131,7 +131,7 @@ export default function CncImport({ parts, onDone, onClose }) {
           </label>
 
           <div className="ci-sum">
-            {counts.add} go onto parts you already have · {counts.new} new part{counts.new === 1 ? "" : "s"} · {counts.skip} skipped
+            {counts.add} onto parts you already have · {counts.new} new part{counts.new === 1 ? "" : "s"} · {counts.skip} skipped
           </div>
           <div className="ci-rows" role="list">
             {rows.map((r, i) => (

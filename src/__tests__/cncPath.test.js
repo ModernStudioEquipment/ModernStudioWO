@@ -169,7 +169,7 @@ describe("lathe moves", () => {
     expect(p.segs[0].type).toBe("rapid");                                 // N10 is the approach, not the shape
     expect(p.stats).toMatchObject({ maxDia: 1.25, minDia: 0.5 });         // so the start point (X1.3) isn't "cut"
     expect(p.segs.at(-1).type).toBe("rapid");            // after N20 the profile is over
-    expect(p.notes.join(" ")).toMatch(/drawn as the profile it cuts down to/);
+    expect(p.notes.join(" ")).toMatch(/Roughing passes aren't drawn/);
     // the G71 line's own U and W are allowances, not moves
     expect(p.segs.some((s) => Math.abs(s.b[2] - (1.3 + 0.02) / 2) < 1e-9)).toBe(false);
   });

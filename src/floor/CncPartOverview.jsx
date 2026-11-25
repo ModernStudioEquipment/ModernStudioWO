@@ -1,0 +1,154 @@
+import { useState } from "react";
+import { ArrowRight, FileText, ShieldCheck, ShieldAlert, Upload, AlertTriangle, CheckCircle2, Check, ListChecks, Box, ClipboardList, Pencil } from "lucide-react";
+import CncPreview from "./CncPreview.jsx";
+import CncProveOut from "./CncProveOut.jsx";
+import CncRunSheet from "./CncRunSheet.jsx";
+import { PART_STEPS, FACT_FIELDS, neededLeft, programLine } from "./cncPack.js";
+import { fmtDuration } from "./cncTime.js";
+import { MACHINES } from "./machines.js";
+import { splitMachines } from "./cncParts.js";
+
+// A part at a glance. What it looks like, where it stands, and one button for
+// the next thing to do. Everything else is a tap away ("All details"), not on
+// the screen competing for attention.
+export default function CncPartOverview({ part, pp, machineFacts, onAsk, onDetails, onMakeWorkOrder, onOpenMachines }) {
+  const [proving, setProving] = useState(false);
+  const [showChecks, setShowChecks] = useState(false);
+  const [sheet, setSheet] = useState(false);
+  const newest = pp.newest;
+  const d = pp.newestInfo;
+  const step = pp.step;
+  const machines = splitMachines(part.machine).map((k) => MACHINES.find((m) => m.key === k)).filter(Boolean);
+  const left = neededLeft(part, pp.programs);
+  const proven = newest?.status === "proven";
+  const answers = FACT_FIELDS.filter((f) => String(part.facts?.[f.key] || "").trim());
+  const noTools = machines.filter((m) => !(machineFacts[m.key]?.tools || []).length);
+
+  // The one thing to do next, as a button.
+  const action = pp.loading ? null
+    : !newest ? { label: "Add the program", icon: Upload, go: () => onAsk({ only: ["program"] }) }
+    : pp.stops > 0 ? { label: `See what to fix`, icon: AlertTriangle, go: () => setShowChecks(true) }
+    : left > 0 ? { label: `Answer ${left} question${left === 1 ? "" : "s"}`, icon: ListChecks, go: () => onAsk({}) }
+    : noTools.length ? { label: `List the ${noTools[0].short}'s tools`, icon: ListChecks, go: onOpenMachines }
+    : !proven ? { label: "Prove it out", icon: ShieldCheck, go: () => setProving(true) }
+    : { label: "Print the run sheet", icon: FileText, go: () => setSheet(true) };
+
+  return (
+    <div className="ov">
+      {/* ---- the picture ---- */}
+      <div className="ov-hero">
+        {newest ? (
+          <CncPreview
+            compact
+            content={newest.content} kind={pp.machineKind} height={360}
+            toolNames={Object.fromEntries((d?.info.tools || []).filter((t) => t.note).map((t) => [t.t, t.note]))}
+            stockText={part.facts?.stock || ""} material={part.material || ""}
+          />
+        ) : (
+          <div className="ov-empty">
+            <Box size={40} />
+            <b>{pp.loading ? "Loading…" : "No program yet"}</b>
+            {!pp.loading && <span>Add this part's program and it shows here in 3D.</span>}
+          </div>
+        )}
+      </div>
+
+      {/* ---- what it is ---- */}
+      <div className="ov-id">
+        <h2>{part.name || "Untitled part"}</h2>
+        <div className="ov-chips">
+          {machines.map((m) => <span key={m.key} className="m" style={{ "--m": m.color }}>{m.label}</span>)}
+          {part.sku && <span>SKU {part.sku}</span>}
+          {part.material && <span>{part.material}</span>}
+          {d?.time && d.time.seconds >= 1 && <span>About {fmtDuration(d.time.seconds)} a part</span>}
+        </div>
+      </div>
+
+      {/* ---- where it stands, and what's next ---- */}
+      {!pp.loading && (
+        <div className={`ov-next ${step.tone}`}>
+          <div className="ov-steps" aria-label="Progress">
+            {PART_STEPS.map((name) => (
+              <span key={name} className={step.done[name] ? "done" : step.at === name ? "now" : ""}>{step.done[name] ? <Check size={13} /> : null}{name}</span>
+            ))}
+          </div>
+          <p className="ov-nexttext">{step.text}</p>
+          {action && !proving && (
+            <button className="ov-go" onClick={action.go}><action.icon size={18} /> {action.label} <ArrowRight size={18} /></button>
+          )}
+          {proving && newest && (
+            <CncProveOut stops={pp.stops} onStamp={async (by) => { if (await pp.prove(newest.id, true, by)) setProving(false); }} onCancel={() => setProving(false)} />
+          )}
+        </div>
+      )}
+
+      {/* ---- the three things behind that ---- */}
+      <div className="ov-cards">
+        <section className="ov-card">
+          <h3>Program</h3>
+          {newest ? (
+            <>
+              <b className="ov-file">{newest.name}</b>
+              <span className="ov-sub">{d ? programLine(d.info) : ""}</span>
+              <span className={`cp-stamp${proven ? " ok" : ""}`}>
+                {proven ? <ShieldCheck size={14} /> : <ShieldAlert size={14} />}
+                {proven ? `Proven${newest.provenBy ? ` · ${newest.provenBy}` : ""}` : "Not proven"}
+              </span>
+              <div className="ov-btns">
+                <button className="cl-btn" onClick={() => setSheet(true)}><FileText size={14} /> Run sheet</button>
+                {!proven && <button className="cl-btn" onClick={() => setProving(true)}><ShieldCheck size={14} /> Mark proven</button>}
+              </div>
+            </>
+          ) : (
+            <>
+              <span className="ov-sub">None on file.</span>
+              <div className="ov-btns"><button className="cl-btn" onClick={() => onAsk({ only: ["program"] })}><Upload size={14} /> Add the program</button></div>
+            </>
+          )}
+        </section>
+
+        <section className="ov-card">
+          <h3>Checks</h3>
+          {!newest ? <span className="ov-sub">Runs as soon as there's a program.</span>
+            : d.found.filter((f) => f.level !== "note").length === 0 ? <span className="ov-good"><CheckCircle2 size={15} /> No problems found</span>
+            : (
+              <>
+                <span className={`ov-count ${d.n.stop ? "stop" : "look"}`}>
+                  {[d.n.stop && `${d.n.stop} to fix`, d.n.look && `${d.n.look} to check`].filter(Boolean).join(" · ")}
+                </span>
+                <div className="ov-btns"><button className="cl-btn" onClick={() => setShowChecks((v) => !v)}>{showChecks ? "Hide" : "Show me"}</button></div>
+              </>
+            )}
+        </section>
+
+        <section className="ov-card">
+          <h3>Setup</h3>
+          <span className="ov-sub">{left === 0 ? "The needed questions are answered." : `${left} needed question${left === 1 ? "" : "s"} left.`}</span>
+          {answers.slice(0, 3).map((f) => <span key={f.key} className="ov-ans"><i>{f.label}</i>{part.facts[f.key]}</span>)}
+          <div className="ov-btns">
+            <button className="cl-btn" onClick={() => onAsk(left ? {} : { all: true })}><Pencil size={14} /> {left ? "Answer them" : "Change answers"}</button>
+          </div>
+        </section>
+      </div>
+
+      {showChecks && d && (
+        <ul className="cp-found ov-found">
+          {d.found.map((f, i) => (
+            <li key={i} className={f.level}>
+              <b>{f.level === "stop" ? "Fix" : f.level === "look" ? "Check" : "Note"}</b>
+              <span>{f.text}{f.line ? ` Line ${f.line}.` : ""}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {pp.err && <div className="cl-err">{pp.err}</div>}
+
+      <div className="ov-foot">
+        <button className="cl-btn" onClick={onDetails}><Pencil size={14} /> All details</button>
+        {onMakeWorkOrder && <button className="cl-btn" onClick={onMakeWorkOrder}><ClipboardList size={14} /> Make CNC work order</button>}
+      </div>
+
+      {sheet && <CncRunSheet part={part} program={newest} machineFacts={machineFacts} onClose={() => setSheet(false)} />}
+    </div>
+  );
+}

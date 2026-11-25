@@ -87,7 +87,7 @@ describe("program files on a part", () => {
 
   it("the checklist counts what's there and says how to fix what isn't", async () => {
     render(<CncPrograms part={part} onFact={() => {}} />);
-    expect(screen.getByText("2 of 7 ready")).toBeTruthy(); // drawing + machine
+    expect(screen.getByText("2 of 7 filled in")).toBeTruthy(); // drawing + machine
     expect(screen.getByText(/Upload the file the Haas runs/)).toBeTruthy();
   });
 
@@ -111,7 +111,7 @@ describe("importing a USB stick", () => {
       ["O04120.nc", "O04120 (JUNIOR RECEIVER)\nT1 M06\nG43 H01 Z1.\nM30\n"],
       ["notes.txt", "remember to order inserts"],
     ]) } });
-    expect(await screen.findByText(/1 go onto parts you already have · 1 new part · 1 skipped/)).toBeTruthy();
+    expect(await screen.findByText(/1 onto parts you already have · 1 new part · 1 skipped/)).toBeTruthy();
     expect((await db.getCncProgramIndex())).toHaveLength(0);   // nothing saved yet
     fireEvent.change(screen.getByLabelText("Machine these programs are from"), { target: { value: "vf4" } });
     fireEvent.click(screen.getByRole("button", { name: "Import 2 programs" }));
@@ -168,7 +168,7 @@ describe("the run sheet", () => {
     expect(sheet.textContent).toContain("3-jaw chuck");
     expect(sheet.textContent).toContain("CNMG 432 rougher");   // what the tool list says is in T1
     expect(sheet.textContent).toContain("CNMG ROUGH");         // what the program expects
-    expect(sheet.textContent).toContain("has not been proven");
+    expect(sheet.textContent).toContain("Not proven. Before a full run");
     expect(sheet.textContent).toContain("Saw to length");
   });
 
@@ -240,6 +240,9 @@ describe("the Machines page", () => {
 
   it("saves a machine's tool list and reads it back", async () => {
     render(<CncMachines />);
+    // one machine on screen at a time: pick the ST-10
+    fireEvent.click(await screen.findByRole("tab", { name: /ST-10/ }));
+    expect(screen.queryByLabelText("VF-4 tool 1 number")).toBeNull();
     const num = await screen.findByLabelText("ST-10 tool 1 number");
     fireEvent.change(num, { target: { value: "T1" } });
     fireEvent.change(screen.getByLabelText("ST-10 tool 1 description"), { target: { value: "CNMG rougher" } });

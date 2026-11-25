@@ -297,3 +297,241 @@
 .pv-stats{display:flex; flex-wrap:wrap; gap:4px 16px; font-size:12.5px; color:var(--muted)}
 .pv-stats b{color:#F3F6F8}
 .pv-notes{margin:0; padding-left:18px; list-style:disc; font-size:12px; color:var(--dim); display:flex; flex-direction:column; gap:2px}
+
+/* ---- the Part view, the readout, and a rapid through the bar ---- */
+.pv-modes button.on{background:#F3F6F8; color:#0B0D11}
+.pv-loading{height:100%; display:flex; align-items:center; justify-content:center; font-size:13px; color:var(--muted)}
+.pv-dro{position:absolute; top:10px; left:10px; display:flex; align-items:center; gap:12px; padding:7px 11px; border-radius:9px;
+  background:rgba(7,9,12,.78); border:1px solid var(--line2); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+  font:600 12.5px/1 ui-monospace,SFMono-Regular,Menlo,monospace; color:#E8EEF4; white-space:pre; pointer-events:none; max-width:calc(100% - 20px); overflow:hidden}
+.pv-dro i{font-style:normal; color:var(--muted); margin-right:5px}
+.pv-dro .t{color:var(--accent); font-weight:800}
+.pv-dro .m{font-family:inherit; font-size:10.5px; font-weight:800; letter-spacing:.5px; text-transform:uppercase; padding:3px 7px; border-radius:5px; background:rgba(107,119,133,.25); color:#AEB8C4}
+.pv-dro.cut .m{background:rgba(255,178,36,.18); color:var(--accent)}
+.pv-zoom{position:absolute; top:10px; right:10px; display:flex; flex-direction:column; gap:6px}
+.pv-zoom .pv-icon{background:rgba(7,9,12,.78)}
+.pv-play{width:38px; height:38px; background:var(--accent); border-color:var(--accent); color:#20160a}
+.pv-time{display:inline-flex; align-items:center; gap:6px; color:#D6DEE6}
+.pv-hits{display:flex; flex-direction:column; gap:6px; border:1px solid var(--red,#FF5C5C); border-radius:10px; padding:10px 12px; background:rgba(255,92,92,.07)}
+.pv-hitshead{display:flex; align-items:center; gap:7px; font-size:13px; font-weight:800; color:var(--red,#FF5C5C)}
+.pv-hit{display:flex; align-items:baseline; gap:10px; width:100%; text-align:left; font:inherit; font-size:12.5px; color:#D6DEE6; background:transparent; border:none; padding:3px 0; cursor:pointer; flex-wrap:wrap}
+.pv-hit b{flex:none; color:#F3F6F8}
+.pv-hit span{flex:1 1 220px; min-width:0; overflow-wrap:anywhere}
+.pv-hit code{font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace; color:var(--muted)}
+.pv-hit em{flex:none; font-style:normal; font-weight:800; font-size:11px; letter-spacing:.4px; text-transform:uppercase; color:var(--red,#FF5C5C)}
+.pv-more{font-size:12px; color:var(--muted)}
+@media (max-width: 560px){
+  .pv-dro{gap:8px; font-size:11.5px; padding:6px 8px}
+  .pv-zoom{flex-direction:row; top:auto; bottom:28px}
+}
+
+/* ---- the setup guide ---- */
+.gd{border:1px solid var(--line2); border-radius:16px; background:linear-gradient(180deg, color-mix(in srgb,var(--accent) 6%,var(--panel)) 0%, var(--panel) 70%); margin-bottom:16px; overflow:hidden; min-width:0}
+.gd-head{display:flex; align-items:center; gap:14px; width:100%; padding:14px 18px; background:transparent; border:none; color:inherit; font:inherit; text-align:left; cursor:pointer}
+.gd-ring{flex:none; width:52px; height:52px; border-radius:50%; display:grid; place-items:center;
+  background:conic-gradient(var(--accent) calc(var(--p) * 1%), var(--line2) 0)}
+.gd-ring b{width:40px; height:40px; border-radius:50%; background:var(--panel); display:grid; place-items:center; font-size:12.5px}
+.gd-title{display:flex; flex-direction:column; gap:2px; flex:1; min-width:0}
+.gd-title b{font-size:15.5px}
+.gd-title span{font-size:12.5px; color:var(--muted)}
+.gd-steps{list-style:none; margin:0; padding:0 18px 16px; display:flex; flex-direction:column; gap:8px}
+.gd-steps li{display:flex; align-items:center; gap:12px; border:1px solid var(--line); border-radius:12px; padding:10px 12px; background:var(--rail); flex-wrap:wrap}
+.gd-steps li.now{border-color:var(--accent)}
+.gd-steps li.done{opacity:.72}
+.gd-num{flex:none; width:28px; height:28px; border-radius:50%; display:grid; place-items:center; font-weight:800; font-size:13px; background:var(--panel2); border:1px solid var(--line2); color:var(--muted)}
+.gd-steps li.now .gd-num{background:var(--accent); border-color:var(--accent); color:#20160a}
+.gd-steps li.done .gd-num{background:#3DDC97; border-color:#3DDC97; color:#06231A}
+.gd-body{display:flex; flex-direction:column; gap:3px; flex:1 1 260px; min-width:0}
+.gd-body b{font-size:14px}
+.gd-body > span{font-size:12.5px; color:var(--muted)}
+.gd-bar{display:block; height:4px; border-radius:2px; background:var(--line2); overflow:hidden; margin-top:3px}
+.gd-bar i{display:block; height:100%; background:var(--accent); border-radius:2px; transition:width .4s ease}
+.gd-steps li.done .gd-bar i{background:#3DDC97}
+.gd-count{flex:none; font:600 12.5px ui-monospace,SFMono-Regular,Menlo,monospace; color:#D6DEE6; min-width:64px; text-align:right}
+
+/* ---- one part: where it is, and what's next ---- */
+.ps{display:flex; align-items:center; gap:14px; width:100%; text-align:left; font:inherit; color:inherit; cursor:pointer; flex-wrap:wrap;
+  border:1px solid var(--line2); border-left:4px solid var(--accent); border-radius:12px; padding:10px 14px; background:var(--rail)}
+.ps.done{border-left-color:#3DDC97}
+.ps.stop{border-left-color:var(--red,#FF5C5C)}
+.ps-steps{display:inline-flex; gap:6px; flex-wrap:wrap}
+.ps-steps span{display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:800; letter-spacing:.4px; text-transform:uppercase; padding:4px 9px; border-radius:999px; border:1px solid var(--line2); color:var(--dim)}
+.ps-steps span.done{border-color:#3DDC97; color:#3DDC97}
+.ps-steps span.now{border-color:var(--accent); color:var(--accent)}
+.ps.stop .ps-steps span.now{border-color:var(--red,#FF5C5C); color:var(--red,#FF5C5C)}
+.ps-text{flex:1 1 260px; min-width:0; font-size:13.5px; color:#E8EEF4}
+.ps-text b{font-size:11px; font-weight:800; letter-spacing:.5px; text-transform:uppercase; color:var(--accent); margin-right:8px}
+.ps.done .ps-text b{color:#3DDC97}
+.ps.stop .ps-text b{color:var(--red,#FF5C5C)}
+
+/* ---- labels people can read ----
+   The catalogue's labels were 11px grey capitals: easy to design, hard to read
+   on a shop screen. Brighter and a size up everywhere; the setup questions get
+   real sentences. */
+.cl-lab{font-size:12px; color:#AEB8C4}
+.cp-h{margin:0; font-size:19px; font-weight:800; color:#F3F6F8; letter-spacing:.2px}
+.cp-head{align-items:baseline}
+.cp-head .cp-sub, .cp-sub{font-size:13.5px; color:#AEB8C4}
+.cp-h2{font-size:15px; font-weight:800; color:#F3F6F8; margin-top:10px; display:flex; align-items:baseline; gap:10px; flex-wrap:wrap}
+.cp-h2 span{font-size:13px; font-weight:400; color:#AEB8C4}
+.cp-q{display:flex; flex-direction:column; gap:5px; min-width:0; border:1px solid var(--line2); border-left:3px solid var(--accent); border-radius:12px; padding:12px 14px; background:var(--rail)}
+.cp-q.opt{border-left-color:var(--line2)}
+.cp-q.filled{border-left-color:#3DDC97}
+.cp-qt{display:flex; align-items:baseline; justify-content:space-between; gap:10px; font-size:15px; font-weight:700; color:#F3F6F8; line-height:1.3}
+.cp-qt i{flex:none; display:inline-flex; align-items:center; gap:4px; font-style:normal; font-size:10.5px; font-weight:800; letter-spacing:.5px; text-transform:uppercase; padding:3px 8px; border-radius:999px; color:var(--accent); border:1px solid var(--accent)}
+.cp-q.opt .cp-qt i{color:#AEB8C4; border-color:var(--line2)}
+.cp-q.filled .cp-qt i{color:#3DDC97; border-color:#3DDC97}
+.cp-qh{font-size:13px; color:#AEB8C4; line-height:1.4}
+.cl-editor .cp-q input, .cl-editor .cp-q textarea{margin-top:4px; font-size:15.5px; background:var(--panel)}
+.cl-editor .cp-q input::placeholder, .cl-editor .cp-q textarea::placeholder{color:#6B7785}
+.cp-savehint{font-size:13px; color:#AEB8C4}
+.cp-savehint b{color:#F3F6F8}
+.cp-note{font-size:14px; color:#D6DEE6}
+
+/* ---- the checklist: readable, and every open item is a way to get there ---- */
+.cp-readyhead b{font-size:16px}
+.cp-checks li{display:block; color:inherit; font-size:14.5px}
+.cp-checkrow{display:flex; align-items:flex-start; gap:9px; width:100%; text-align:left; font:inherit; color:#E8EEF4; background:transparent; border:1px solid transparent; border-radius:10px; padding:8px 10px}
+.cp-checkrow svg{flex:none; margin-top:2px}
+.cp-checks li.ok .cp-checkrow{color:#3DDC97}
+button.cp-checkrow{cursor:pointer; border-color:var(--line2); background:var(--panel)}
+button.cp-checkrow:hover{border-color:var(--accent)}
+button.cp-checkrow > span{flex:1; min-width:0; display:flex; flex-direction:column; gap:1px}
+.cp-checkrow em{font-style:normal; font-size:12.5px; color:#AEB8C4; padding:0}
+.cp-go{color:var(--accent); align-self:center}
+@keyframes clFlash{0%,100%{box-shadow:0 0 0 0 rgba(255,178,36,0)} 25%,60%{box-shadow:0 0 0 3px rgba(255,178,36,.9)}}
+.cl-flash{animation:clFlash 1.6s ease-out 1; border-radius:12px}
+
+/* ================= a part, simply =================
+   Overview | All details, the guided questions, and the empty state. */
+.cl-tabs{display:inline-flex; align-self:flex-start; gap:4px; padding:4px; border:1px solid var(--line2); border-radius:12px; background:var(--rail)}
+.cl-tabs button{font:inherit; font-size:13.5px; font-weight:700; padding:8px 16px; border-radius:9px; border:none; background:transparent; color:#AEB8C4; cursor:pointer}
+.cl-tabs button.on{background:#F3F6F8; color:#0B0D11}
+
+.cl-pick{display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; text-align:center; min-height:420px; color:#AEB8C4}
+.cl-pick b{font-size:20px; color:#F3F6F8}
+.cl-pick span{font-size:14.5px}
+.cl-pickbtns{display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin-top:10px}
+
+/* ---- overview ---- */
+.ov{display:flex; flex-direction:column; gap:18px; min-width:0}
+.ov-hero{min-width:0}
+.ov-empty{height:300px; border:1px dashed var(--line2); border-radius:14px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; color:#AEB8C4; text-align:center; padding:20px;
+  background:radial-gradient(120% 90% at 50% 0%, color-mix(in srgb,var(--accent) 7%,transparent) 0%, transparent 60%)}
+.ov-empty b{font-size:18px; color:#F3F6F8}
+.ov-empty span{font-size:14px}
+.ov-id h2{margin:0; font-size:26px; font-weight:800; color:#F3F6F8; line-height:1.15; overflow-wrap:anywhere}
+.ov-chips{display:flex; flex-wrap:wrap; gap:8px; margin-top:8px}
+.ov-chips span{font-size:13px; font-weight:600; color:#D6DEE6; padding:5px 11px; border-radius:999px; border:1px solid var(--line2); background:var(--rail)}
+.ov-chips span.m{border-color:var(--m); color:#F3F6F8; background:color-mix(in srgb,var(--m) 16%,transparent)}
+.ov-next{display:flex; flex-direction:column; gap:12px; border:1px solid var(--line2); border-radius:16px; padding:18px 20px;
+  background:linear-gradient(180deg, color-mix(in srgb,var(--accent) 9%,var(--panel)) 0%, var(--panel) 80%)}
+.ov-next.done{background:linear-gradient(180deg, rgba(61,220,151,.10) 0%, var(--panel) 80%)}
+.ov-next.stop{background:linear-gradient(180deg, rgba(255,92,92,.10) 0%, var(--panel) 80%)}
+.ov-steps{display:flex; gap:8px; flex-wrap:wrap}
+.ov-steps span{display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:800; letter-spacing:.4px; text-transform:uppercase; padding:5px 11px; border-radius:999px; border:1px solid var(--line2); color:#7C8794}
+.ov-steps span.done{border-color:#3DDC97; color:#3DDC97}
+.ov-steps span.now{border-color:var(--accent); color:var(--accent)}
+.ov-next.stop .ov-steps span.now{border-color:var(--red,#FF5C5C); color:var(--red,#FF5C5C)}
+.ov-nexttext{margin:0; font-size:18px; font-weight:600; color:#F3F6F8; line-height:1.35}
+.ov-go{align-self:flex-start; display:inline-flex; align-items:center; gap:10px; font:inherit; font-size:16px; font-weight:800; padding:14px 22px; border-radius:12px; border:none; cursor:pointer;
+  background:var(--accent); color:#20160a; box-shadow:0 6px 20px color-mix(in srgb,var(--accent) 30%,transparent)}
+.ov-go:hover{filter:brightness(1.06)}
+.ov-next.done .ov-go{background:#3DDC97; color:#06231A; box-shadow:0 6px 20px rgba(61,220,151,.25)}
+.ov-cards{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:12px}
+.ov-card{display:flex; flex-direction:column; gap:6px; min-width:0; border:1px solid var(--line); border-radius:14px; padding:14px 16px; background:var(--rail)}
+.ov-card h3{margin:0 0 2px; font-size:12px; font-weight:800; letter-spacing:.5px; text-transform:uppercase; color:#AEB8C4}
+.ov-file{font-size:15px; color:#F3F6F8; overflow-wrap:anywhere}
+.ov-sub{font-size:13.5px; color:#AEB8C4; overflow-wrap:anywhere}
+.ov-good{display:inline-flex; align-items:center; gap:7px; font-size:14.5px; font-weight:700; color:#3DDC97}
+.ov-count{font-size:15px; font-weight:800}
+.ov-count.stop{color:var(--red,#FF5C5C)} .ov-count.look{color:var(--accent)}
+.ov-ans{font-size:13.5px; color:#E8EEF4; overflow-wrap:anywhere}
+.ov-ans i{font-style:normal; color:#AEB8C4; margin-right:6px}
+.ov-ans i::after{content:":"}
+.ov-btns{display:flex; gap:8px; flex-wrap:wrap; margin-top:auto; padding-top:8px}
+.ov-found{border:1px solid var(--line2); border-radius:12px; padding:12px 14px; background:var(--rail)}
+.ov-foot{display:flex; gap:10px; flex-wrap:wrap; border-top:1px solid var(--line); padding-top:14px}
+.ov .cp-provebox{background:var(--panel)}
+
+/* ---- the questions ---- */
+.wz{display:flex; flex-direction:column; gap:16px; min-height:440px; min-width:0}
+.wz-top{display:flex; align-items:center; gap:14px}
+.wz-count{flex:none; font-size:13px; font-weight:700; color:#AEB8C4}
+.wz-bar{flex:1; height:6px; border-radius:3px; background:var(--line2); overflow:hidden}
+.wz-bar i{display:block; height:100%; border-radius:3px; background:var(--accent); transition:width .35s ease}
+.wz-x{flex:none; width:36px; height:36px; border-radius:10px; background:transparent; border:1px solid var(--line2); color:#AEB8C4; cursor:pointer; display:inline-flex; align-items:center; justify-content:center}
+.wz-card{flex:1; display:flex; flex-direction:column; gap:12px; width:100%; max-width:640px; margin:0 auto; padding:26px 4px 6px}
+.wz-tag{align-self:flex-start; font-size:11px; font-weight:800; letter-spacing:.5px; text-transform:uppercase; padding:4px 10px; border-radius:999px; color:var(--accent); border:1px solid var(--accent)}
+.wz-tag.opt{color:#AEB8C4; border-color:var(--line2)}
+.wz-ask{margin:2px 0 0; font-size:30px; font-weight:800; color:#F3F6F8; line-height:1.15}
+.wz-why{margin:0; font-size:16px; color:#AEB8C4; line-height:1.45}
+.cl-editor .wz-input{margin-top:10px; font-size:20px; padding:16px 18px; border-radius:14px; background:var(--rail); border:2px solid var(--line2); color:#F3F6F8; width:100%}
+.cl-editor .wz-input:focus{border-color:var(--accent)}
+.cl-editor textarea.wz-input{resize:vertical; line-height:1.4}
+.wz-picks{display:flex; flex-wrap:wrap; gap:8px}
+.wz-picks button{font:inherit; font-size:14px; font-weight:600; padding:8px 14px; border-radius:999px; background:transparent; border:1px solid var(--line2); color:#D6DEE6; cursor:pointer}
+.wz-picks button:hover{border-color:var(--accent); color:#F3F6F8}
+.wz-machines{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:12px; margin-top:10px}
+.wz-machine{position:relative; display:flex; flex-direction:column; gap:4px; align-items:flex-start; text-align:left; font:inherit; padding:18px 16px; border-radius:14px; cursor:pointer; background:var(--rail); border:2px solid var(--line2); color:#F3F6F8}
+.wz-machine b{font-size:19px}
+.wz-machine span{font-size:13.5px; color:#AEB8C4}
+.wz-machine svg{position:absolute; top:12px; right:12px; color:var(--m)}
+.wz-machine.on{border-color:var(--m); background:color-mix(in srgb,var(--m) 14%,var(--rail))}
+.wz-file{display:flex; flex-direction:column; gap:12px; margin-top:10px}
+.wz-upload{align-self:flex-start; display:inline-flex; align-items:center; gap:10px; font:inherit; font-size:17px; font-weight:700; padding:18px 24px; border-radius:14px; cursor:pointer; background:var(--rail); border:2px dashed var(--line2); color:#F3F6F8}
+.wz-upload:hover{border-color:var(--accent)}
+.wz-got{display:flex; align-items:flex-start; gap:10px; color:#3DDC97; font-size:14.5px}
+.wz-got span{display:flex; flex-direction:column; gap:2px; color:#AEB8C4; overflow-wrap:anywhere; min-width:0}
+.wz-got b{color:#F3F6F8}
+.wz-thumb{max-height:180px; max-width:100%; align-self:flex-start; border-radius:10px; border:1px solid var(--line2); background:#fff}
+.wz-foot{display:flex; align-items:center; gap:10px; margin-top:auto; padding-top:22px; flex-wrap:wrap}
+.wz-back, .wz-skip{display:inline-flex; align-items:center; gap:7px; font:inherit; font-size:15px; font-weight:600; padding:12px 16px; border-radius:12px; background:transparent; border:1px solid transparent; color:#AEB8C4; cursor:pointer}
+.wz-back:hover, .wz-skip:hover{color:#F3F6F8; border-color:var(--line2)}
+.wz-back:disabled{opacity:.35; cursor:default}
+.wz-next{display:inline-flex; align-items:center; gap:10px; font:inherit; font-size:17px; font-weight:800; padding:14px 26px; border-radius:12px; border:none; cursor:pointer; background:var(--accent); color:#20160a}
+.wz-next:disabled{opacity:.45; cursor:default}
+.wz-done{align-items:center; text-align:center; justify-content:center; color:#3DDC97}
+.wz-done h2{margin:6px 0 0; font-size:28px; color:#F3F6F8}
+.wz-done p{margin:0; font-size:16px; color:#D6DEE6}
+.wz-done p b{color:#F3F6F8}
+.wz-quiet{color:#AEB8C4 !important}
+.wz-todo{display:flex; flex-direction:column; gap:10px; align-items:center; border:1px solid var(--accent); border-radius:14px; padding:14px 16px; color:#E8EEF4; font-size:15px; max-width:480px}
+.wz-done .wz-next{margin-top:12px}
+
+@media (max-width: 760px){
+  .ov-cards{grid-template-columns:1fr}
+  .ov-id h2{font-size:22px}
+  .wz-ask{font-size:24px}
+  .wz-machines{grid-template-columns:1fr}
+  .wz-next{flex:1; justify-content:center}
+}
+
+/* ---- Machines: one at a time ---- */
+.cm-pick{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:10px}
+.cm-pick button{display:flex; flex-direction:column; gap:3px; align-items:flex-start; text-align:left; font:inherit; padding:14px 16px; border-radius:14px; cursor:pointer; background:var(--rail); border:2px solid var(--line2); color:#F3F6F8; min-width:0}
+.cm-pick button b{font-size:17px}
+.cm-pick button span{font-size:13px; color:#AEB8C4}
+.cm-pick button.on{border-color:var(--m); background:color-mix(in srgb,var(--m) 13%,var(--rail))}
+.cm-more{align-self:flex-start; font:inherit; font-size:13.5px; font-weight:700; color:#AEB8C4; background:transparent; border:1px dashed var(--line2); border-radius:10px; padding:9px 14px; cursor:pointer; margin-top:6px}
+.cm-more:hover{color:#F3F6F8}
+@media (max-width: 560px){ .cm-pick{grid-template-columns:1fr} }
+
+/* ---- the part list: a name and one status line ---- */
+.cl-stat{display:flex; align-items:center; gap:7px; font-size:12.5px; color:#AEB8C4; margin-top:3px; overflow-wrap:anywhere}
+.cl-stat i{flex:none; width:8px; height:8px; border-radius:50%; background:#5A626C}
+.cl-stat.proven i{background:#3DDC97}
+.cl-stat.unproven i{background:var(--accent)}
+.cl-item .nm{font-size:14.5px}
+/* the first setup question gets the full row, like the long ones */
+.cp-facts .cp-q:first-child{grid-column:1 / -1}
+.ov-next.stop .ov-go{background:var(--red,#FF5C5C); color:#fff; box-shadow:0 6px 20px rgba(255,92,92,.28)}
+
+/* ---- phone: one thing at a time. The list, or the part, never both. ---- */
+.cl-backlist{display:none}
+@media (max-width: 860px){
+  .cl-body.has-part .cl-list{display:none}
+  .cl-backlist{display:inline-flex; align-self:flex-start; align-items:center; gap:7px; font:inherit; font-size:14px; font-weight:700; color:#D6DEE6; background:transparent; border:1px solid var(--line2); border-radius:10px; padding:9px 14px; cursor:pointer}
+  .cl-editor{padding:16px 14px}
+}
+@media (max-width: 860px){ .cl-guide.part-open{display:none} }

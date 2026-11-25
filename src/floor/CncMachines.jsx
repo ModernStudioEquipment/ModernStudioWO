@@ -8,12 +8,17 @@ import { cleanMachineFacts, suggestTools } from "./cncPack.js";
 // A program is only as good as the tool list it was written against, so this
 // is where "T3 is the 1/2 inch drill" gets written down once, per machine,
 // instead of being guessed every time a program is touched.
-export default function CncMachines({ onSaved, parts = [], programIndex = [] }) {
+export default function CncMachines({ onSaved, parts = [], programIndex = [], focus = "" }) {
   const [facts, setFacts] = useState({});      // machine key -> facts being edited
   const [saved, setSaved] = useState({});      // machine key -> JSON of last save
   const [busy, setBusy] = useState("");
   const [savedAt, setSavedAt] = useState({});
   const [err, setErr] = useState("");
+  // One machine on screen at a time. Starts on the first one that has parts.
+  const used = MACHINES.filter((m) => parts.some((p) => String(p.machine || "").split(",").includes(m.key)));
+  const [sel, setSel] = useState("");
+  const current = sel || used[0]?.key || MACHINES[0].key;
+  const [more, setMore] = useState(false); // the rest of a machine's details, folded away
 
   useEffect(() => {
     (async () => {
@@ -32,6 +37,25 @@ export default function CncMachines({ onSaved, parts = [], programIndex = [] }) 
       }
     })();
   }, []);
+
+  // Sent here from a part ("fill in that machine's tool list"): show that
+  // machine and put the cursor in its first empty tool row.
+  const rootRef = useRef(null);
+  useEffect(() => {
+    const key = String(focus).split(":")[0];
+    if (!key) return;
+    setSel(key);
+    const t = setTimeout(() => {
+      const card = rootRef.current?.querySelector(`[data-machine="${key}"]`);
+      if (!card) return;
+      card.scrollIntoView({ behavior: "smooth", block: "start" });
+      const rows = [...card.querySelectorAll(".cm-tnum")];
+      (rows.find((r) => !r.value) || rows[rows.length - 1])?.focus({ preventScroll: true });
+      card.classList.add("cl-flash");
+      setTimeout(() => card.classList.remove("cl-flash"), 1800);
+    }, 120);
+    return () => clearTimeout(t);
+  }, [focus]);
 
   const set = (k, field, v) => setFacts((f) => ({ ...f, [k]: { ...f[k], [field]: v } }));
   const setTool = (k, i, field, v) => setFacts((f) => {
@@ -79,17 +103,30 @@ export default function CncMachines({ onSaved, parts = [], programIndex = [] }) 
   }
 
   return (
-    <div className="cm">
+    <div className="cm" ref={rootRef}>
       <div className="cp-sub" style={{ marginBottom: 4 }}>
-        What's really in each machine. Programs get checked against these tool lists, so fill them in from the tool offset page on the Haas.
+        List what's really in each machine. Every program is checked against these.
+      </div>
+      <div className="cm-pick" role="tablist" aria-label="Machine">
+        {MACHINES.map((m) => {
+          const f = facts[m.key];
+          const count = f ? cleanMachineFacts(f).tools.length : 0;
+          const unsaved = f && JSON.stringify(cleanMachineFacts(f)) !== saved[m.key];
+          return (
+            <button key={m.key} role="tab" aria-selected={current === m.key} className={current === m.key ? "on" : ""} style={{ "--m": m.color }} onClick={() => setSel(m.key)}>
+              <b>{m.short}</b>
+              <span>{unsaved ? "Not saved yet" : count ? `${count} tool${count === 1 ? "" : "s"}` : "No tools listed"}</span>
+            </button>
+          );
+        })}
       </div>
       {err && <div className="cl-err">{err}</div>}
-      {MACHINES.map((m) => {
+      {MACHINES.filter((m) => m.key === current).map((m) => {
         const f = facts[m.key];
         if (!f) return null;
         const dirty = JSON.stringify(cleanMachineFacts(f)) !== saved[m.key];
         return (
-          <section className="cm-card" key={m.key} style={{ "--m": m.color }}>
+          <section className="cm-card" key={m.key} data-machine={m.key} style={{ "--m": m.color }}>
             <div className="cm-head">
               <b>{m.label}</b>
               <span className="cl-spacer" />
@@ -99,6 +136,25 @@ export default function CncMachines({ onSaved, parts = [], programIndex = [] }) 
               </button>
             </div>
 
+            <ToolSuggestions machine={m} found={suggestTools(m.key, parts, programIndex, f.tools)} onUse={(t, what) => useTool(m.key, t, what)} />
+
+            <div className="cp-h2">What's in each pocket <span>From the tool offset page on the Haas.</span></div>
+            <div className="cm-tools">
+              {f.tools.map((r, i) => (
+                <div className="cm-tool" key={i}>
+                  <span className="cm-t">T</span>
+                  <input className="cm-tnum" value={r.t} onChange={(e) => setTool(m.key, i, "t", e.target.value)} inputMode="numeric" placeholder="#" aria-label={`${m.short} tool ${i + 1} number`} />
+                  <input value={r.what} onChange={(e) => setTool(m.key, i, "what", e.target.value)} placeholder="What it is, e.g. 1/2″ drill, CNMG 432 turning insert" aria-label={`${m.short} tool ${i + 1} description`} />
+                  <button className="cl-x" onClick={() => dropTool(m.key, i)} title="Remove this tool" aria-label={`Remove ${m.short} tool ${i + 1}`}><Trash2 size={15} /></button>
+                </div>
+              ))}
+            </div>
+            <button className="cl-addstep" onClick={() => setFacts((x) => ({ ...x, [m.key]: { ...x[m.key], tools: [...x[m.key].tools, { t: "", what: "" }] } }))}>
+              <Plus size={15} /> Add tool
+            </button>
+
+            <button className="cm-more" onClick={() => setMore((v) => !v)} aria-expanded={more}>{more ? "Hide" : "More about this machine"}</button>
+            {more && (<>
             <div className="cm-grid">
               <label className="cl-field">
                 <span className="cl-lab">Model and year</span>
@@ -122,25 +178,9 @@ export default function CncMachines({ onSaved, parts = [], programIndex = [] }) 
               </label>
             </div>
 
-            <span className="cl-lab">Tool list</span>
-            <div className="cm-tools">
-              {f.tools.map((r, i) => (
-                <div className="cm-tool" key={i}>
-                  <span className="cm-t">T</span>
-                  <input className="cm-tnum" value={r.t} onChange={(e) => setTool(m.key, i, "t", e.target.value)} inputMode="numeric" placeholder="#" aria-label={`${m.short} tool ${i + 1} number`} />
-                  <input value={r.what} onChange={(e) => setTool(m.key, i, "what", e.target.value)} placeholder="What it is, e.g. 1/2″ drill, CNMG 432 turning insert" aria-label={`${m.short} tool ${i + 1} description`} />
-                  <button className="cl-x" onClick={() => dropTool(m.key, i)} title="Remove this tool" aria-label={`Remove ${m.short} tool ${i + 1}`}><Trash2 size={15} /></button>
-                </div>
-              ))}
-            </div>
-            <button className="cl-addstep" onClick={() => setFacts((x) => ({ ...x, [m.key]: { ...x[m.key], tools: [...x[m.key].tools, { t: "", what: "" }] } }))}>
-              <Plus size={15} /> Add tool
-            </button>
-
-            <ToolSuggestions machine={m} found={suggestTools(m.key, parts, programIndex, f.tools)} onUse={(t, what) => useTool(m.key, t, what)} />
-
             <span className="cl-lab" style={{ marginTop: 10 }}>Photos (nameplate, tool offset page, the setup)</span>
             <MachinePhotos photos={f.photos} onChange={(photos) => set(m.key, "photos", photos)} machine={m} onErr={setErr} />
+            </>)}
           </section>
         );
       })}

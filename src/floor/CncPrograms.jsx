@@ -1,14 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Upload, Trash2, Check, CheckCircle2, Circle, Copy, Download, Eye, EyeOff, ShieldCheck, ShieldAlert, AlertTriangle, GitCompare, FileText, Box } from "lucide-react";
-import { db } from "../lib/db.js";
-import {
-  FACT_FIELDS, programInfo, programLine, checkForPart, checkCounts, diffPrograms,
-  readiness, readyCount, buildPack, looksLikeProgram, MAX_PROGRAM_BYTES, PROVE_STEPS,
-} from "./cncPack.js";
+import { useEffect, useRef, useState } from "react";
+import { Upload, Trash2, Check, CheckCircle2, Circle, Copy, Download, Eye, EyeOff, ShieldCheck, ShieldAlert, AlertTriangle, GitCompare, FileText, Box, ArrowRight } from "lucide-react";
+import { FACT_FIELDS, programLine, buildPack } from "./cncPack.js";
 import CncRunSheet from "./CncRunSheet.jsx";
+import CncProveOut from "./CncProveOut.jsx";
 import CncPreview from "./CncPreview.jsx";
-import { MACHINES } from "./machines.js";
-import { splitMachines } from "./cncParts.js";
+import { fmtDuration } from "./cncTime.js";
+import { usePartPrograms, readText } from "./usePartPrograms.js";
 
 // "Program & setup" on a catalogue part: the program files the Haas runs, the
 // facts that aren't in any file, a checklist of what's still missing, and one
@@ -17,12 +14,17 @@ import { splitMachines } from "./cncParts.js";
 // The facts are part of the part (saved with Save part). Program files save the
 // moment they're uploaded, so they need the part to exist first.
 
-const NO_FACTS = {}; // a stable default, so the memo below isn't thrown away every render
+const NO_FACTS = {}; // a stable default
 
-export default function CncPrograms({ part, onFact, machineFacts = NO_FACTS, onChanged }) {
-  const [programs, setPrograms] = useState([]);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState("");
+// The default export owns the part's program data. `ProgramsView` is the same
+// screen handed that data from outside, for when the editor already has it.
+export default function CncPrograms(props) {
+  const own = usePartPrograms(props.pp ? null : props.part, props.machineFacts, { onChanged: props.onChanged });
+  return <ProgramsView {...props} pp={props.pp || own} />;
+}
+
+export function ProgramsView({ part, onFact, machineFacts = NO_FACTS, onStep, onGoTo, pp }) {
+  const { programs, derived, busy, err, partId, checks, done, loading, step } = pp;
   const [open, setOpen] = useState(null);       // program id whose text is showing
   const [diffOpen, setDiffOpen] = useState(null);
   const [checksOpen, setChecksOpen] = useState(null);
@@ -32,72 +34,47 @@ export default function CncPrograms({ part, onFact, machineFacts = NO_FACTS, onC
   const [sheetFor, setSheetFor] = useState(null); // program whose run sheet is open
   const [previewOpen, setPreviewOpen] = useState(null); // program id whose drawing is showing
   const fileRef = useRef(null);
+  const rootRef = useRef(null);
+  // A checklist item, clicked: go to the box that answers it and put the
+  // cursor in it. What lives outside this section (the drawing, the machine,
+  // the material, the Machines page) is handed up to the editor.
+  const goTo = (key) => {
+    const fact = (k) => {
+      const el = rootRef.current?.querySelector(`[data-fact="${k}"]`);
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.focus({ preventScroll: true });
+      flash(el.closest(".cp-q"));
+    };
+    if (key === "program") return partId ? fileRef.current?.click() : onGoTo?.("name");
+    if (key === "byHand" || key === "holding") return fact(key);
+    if (key === "material" && String(part?.material || "").trim()) return fact("stock");
+    onGoTo?.(key);
+  };
 
-  const partId = part?.id || null;
-  async function reload() {
-    if (!partId) { setPrograms([]); return; }
-    try { setPrograms(await db.getCncPrograms(partId)); }
-    catch (e) { setErr(e?.message || "Couldn't load the programs."); }
-  }
+  // A different part: close whatever was open on the last one.
   useEffect(() => {
-    setOpen(null); setDiffOpen(null); setChecksOpen(null); setProving(null); setConfirmDel(null); setPreviewOpen(null); setErr("");
-    reload();
+    setOpen(null); setDiffOpen(null); setChecksOpen(null); setProving(null); setConfirmDel(null); setPreviewOpen(null);
   }, [partId]);
-
-  const say = (e, what) => setErr(
-    /cnc_programs|schema cache|does not exist/i.test(e?.message || "")
-      ? "Program files need migration 0068 run first."
-      : `${what}${e?.message ? `: ${e.message}` : "."}`
-  );
-  const changed = async () => { await reload(); onChanged?.(); };
+  // The picture shows by itself: opening a part, or uploading a program to one,
+  // opens the newest program's 3D preview. Hiding it sticks until the next part
+  // or the next upload.
+  useEffect(() => {
+    if (pp.loadedFor && pp.loadedFor === partId && programs[0]) setPreviewOpen(programs[0].id);
+  }, [pp.loadedFor, pp.uploads]);
 
   async function onFiles(e) {
     const files = [...(e.target.files || [])];
     e.target.value = "";
-    if (!files.length || !partId) return;
-    setBusy(true);
-    setErr("");
-    try {
-      for (const f of files) {
-        if (f.size > MAX_PROGRAM_BYTES) { setErr(`${f.name} is too big to be a program file (over 2 MB).`); continue; }
-        const text = await readText(f);
-        if (!looksLikeProgram(text)) { setErr(`${f.name} isn't a program file. Upload the .nc file the Haas runs, not the Mastercam file.`); continue; }
-        if (programs.some((p) => p.content === text)) { setErr(`${f.name} is already here: it's identical to a version that's been uploaded.`); continue; }
-        await db.addCncProgram({ partId, name: f.name, content: text });
-      }
-      await changed();
-    } catch (e2) {
-      say(e2, "Couldn't save that program");
-    } finally {
-      setBusy(false);
-    }
+    await pp.addFiles(files);
   }
+  const prove = async (id, proven, by) => { if (await pp.prove(id, proven, by)) setProving(null); };
+  const remove = async (id) => { if (await pp.remove(id)) setConfirmDel(null); };
+  const machineKind = pp.machineKind;
 
-  async function prove(id, proven, by) {
-    setErr("");
-    try { await db.setCncProgramProven(id, proven, by); setProving(null); await changed(); }
-    catch (e) { say(e, "Couldn't save that"); }
-  }
-  async function remove(id) {
-    setErr("");
-    try { await db.deleteCncProgram(id); setConfirmDel(null); await changed(); }
-    catch (e) { say(e, "Couldn't delete that"); }
-  }
-
-  // Reading, checking and comparing a program is real work on a big file, so it
-  // runs when a program, the machine or a tool list changes, not on every
-  // keystroke in the boxes above.
-  const machineKey = part?.machine || "";
-  // What the part's machine is, for a program that doesn't make it obvious.
-  const machineKind = MACHINES.find((m) => m.key === splitMachines(machineKey)[0])?.kind || "";
-  const derived = useMemo(() => programs.map((p, idx) => {
-    const older = programs[idx + 1] || null; // newest first, so the next one is the version before
-    const found = checkForPart(p.content, { machine: machineKey }, machineFacts);
-    return { info: programInfo(p.content), found, n: checkCounts(found), older, diff: older ? diffPrograms(older.content, p.content) : null };
-  }), [programs, machineKey, machineFacts]);
-
-  const checks = readiness(part, programs, machineFacts);
-  const done = readyCount(checks);
+  // What this part needs next, told to the editor so it can say so at the top.
+  const stepKey = loading ? "loading" : `${step.at}|${step.tone}|${step.text}|${Object.values(step.done).join("")}`;
+  useEffect(() => { onStep?.(loading ? null : step); }, [stepKey]);
   const pack = () => buildPack(part, programs, machineFacts);
 
   async function copyPack() {
@@ -109,41 +86,50 @@ export default function CncPrograms({ part, onFact, machineFacts = NO_FACTS, onC
   }
 
   return (
-    <div className="cp">
+    <div className="cp" ref={rootRef}>
       <div className="cp-head">
-        <span className="cl-lab">Program &amp; setup</span>
-        <span className="cp-sub">Everything a programmer needs to fix or rewrite this part's program.</span>
+        <h3 className="cp-h">Program &amp; setup</h3>
+        <span className="cp-sub">What's needed to run, check and fix this part's program.</span>
       </div>
 
-      {/* ---- the facts that aren't in any file ---- */}
+      {/* ---- the facts that aren't in any file: asked as questions ---- */}
+      <div className="cp-h2">About the job <span>Three to answer. The rest help if you know them.</span></div>
       <div className="cp-facts">
-        {FACT_FIELDS.map((f) => (
-          <label key={f.key} className={`cl-field${f.long ? " cp-long" : ""}`}>
-            <span className="cl-lab">{f.label}</span>
-            {f.long ? (
-              <textarea rows={2} value={part?.facts?.[f.key] || ""} onChange={(e) => onFact(f.key, e.target.value)} placeholder={f.placeholder} />
-            ) : (
-              <input value={part?.facts?.[f.key] || ""} onChange={(e) => onFact(f.key, e.target.value)} placeholder={f.placeholder} />
-            )}
-          </label>
-        ))}
+        {FACT_FIELDS.map((f) => {
+          const filled = !!String(part?.facts?.[f.key] || "").trim();
+          return (
+            <label key={f.key} className={`cp-q${filled ? " filled" : ""}${f.optional ? " opt" : ""}${f.long ? " cp-long" : ""}`}>
+              <span className="cp-qt">
+                {f.ask}
+                <i>{filled ? <><Check size={12} /> Answered</> : f.optional ? "Optional" : "Needed"}</i>
+              </span>
+              <span className="cp-qh">{f.why}</span>
+              {f.long ? (
+                <textarea rows={2} data-fact={f.key} value={part?.facts?.[f.key] || ""} onChange={(e) => onFact(f.key, e.target.value)} placeholder={f.placeholder} />
+              ) : (
+                <input data-fact={f.key} value={part?.facts?.[f.key] || ""} onChange={(e) => onFact(f.key, e.target.value)} placeholder={f.placeholder} />
+              )}
+            </label>
+          );
+        })}
       </div>
+      <div className="cp-savehint">These save with the part. Press <b>Save part</b> at the bottom when you're done.</div>
 
       {/* ---- program files ---- */}
-      <span className="cl-lab" style={{ marginTop: 6 }}>Program files{programs.length ? ` · ${programs.length}` : ""}</span>
+      <div className="cp-h2">The program <span>{programs.length ? `${programs.length} version${programs.length === 1 ? "" : "s"} on file, newest first.` : "The file the Haas runs for this part."}</span></div>
       {!partId && <div className="cp-note">Save the part first, then upload its program files.</div>}
       {partId && programs.length === 0 && !busy && (
         <div className="cp-note">No program yet. Copy it off the Haas to a USB stick and upload the file here.</div>
       )}
       {programs.map((p, idx) => {
-        const { info, found, n, older, diff } = derived[idx];
+        const { info, found, n, older, diff, time } = derived[idx];
         const proven = p.status === "proven";
         return (
           <div className={`cp-prog${proven ? " proven" : ""}`} key={p.id}>
             <div className="cp-progtop">
               <div className="cp-progname">
                 <b>{p.name || "Program"}{idx === 0 && programs.length > 1 ? " · newest" : ""}</b>
-                <span>{programLine(info)}{info.title ? ` · ${info.title}` : ""}</span>
+                <span>{programLine(info)}{time && time.seconds >= 1 ? ` · about ${fmtDuration(time.seconds)}` : ""}{info.title ? ` · ${info.title}` : ""}</span>
               </div>
               <span className={`cp-stamp${proven ? " ok" : ""}`}>
                 {proven ? <ShieldCheck size={14} /> : <ShieldAlert size={14} />}
@@ -156,7 +142,7 @@ export default function CncPrograms({ part, onFact, machineFacts = NO_FACTS, onC
 
             {/* the automatic checker */}
             {found.length === 0 ? (
-              <div className="cp-clean"><CheckCircle2 size={14} /> The automatic checks found nothing. It still has to be proven on the machine.</div>
+              <div className="cp-clean"><CheckCircle2 size={14} /> No problems found. Still prove it on the machine.</div>
             ) : (
               <button className={`cp-checkbar${n.stop ? " stop" : n.look ? " look" : ""}`} onClick={() => setChecksOpen(checksOpen === p.id ? null : p.id)} aria-expanded={checksOpen === p.id}>
                 <AlertTriangle size={14} />
@@ -173,7 +159,7 @@ export default function CncPrograms({ part, onFact, machineFacts = NO_FACTS, onC
                     <span>{f.text}{f.line ? ` Line ${f.line}.` : ""}</span>
                   </li>
                 ))}
-                <li className="hint"><span>These are rules, not a simulation. They catch common mistakes and can't see the part or the fixture.</span></li>
+                <li className="hint"><span>These checks catch common mistakes. They can't see the part or the fixture.</span></li>
               </ul>
             )}
 
@@ -194,7 +180,7 @@ export default function CncPrograms({ part, onFact, machineFacts = NO_FACTS, onC
               {proven ? (
                 <button className="cl-btn ghost" onClick={() => prove(p.id, false)}>Not proven after all</button>
               ) : proving?.id !== p.id && (
-                <button className="cl-btn" onClick={() => setProving({ id: p.id, by: "", done: PROVE_STEPS.map(() => false) })} title="It ran on the machine and the first part measured good"><ShieldCheck size={14} /> Mark proven</button>
+                <button className="cl-btn" onClick={() => setProving({ id: p.id })} title="It ran on the machine and the first part measured good"><ShieldCheck size={14} /> Mark proven</button>
               )}
               <span className="cl-spacer" />
               {confirmDel === p.id ? (
@@ -209,25 +195,7 @@ export default function CncPrograms({ part, onFact, machineFacts = NO_FACTS, onC
 
             {/* proving out: the three steps, then a name */}
             {proving?.id === p.id && (
-              <div className="cp-provebox">
-                <b>Prove it out at the machine, in this order:</b>
-                {PROVE_STEPS.map((s, i) => (
-                  <label key={i} className="cp-provestep">
-                    <input type="checkbox" checked={proving.done[i]} onChange={(e) => setProving((v) => ({ ...v, done: v.done.map((d, j) => (j === i ? e.target.checked : d)) }))} />
-                    <span>{s}</span>
-                  </label>
-                ))}
-                {n.stop > 0 && <div className="cp-warn">The checker still lists {n.stop} thing{n.stop === 1 ? "" : "s"} to fix. Look at {n.stop === 1 ? "it" : "them"} before stamping this.</div>}
-                <div className="cp-prove">
-                  <input
-                    value={proving.by} placeholder="Who proved it out?"
-                    onChange={(e) => setProving((v) => ({ ...v, by: e.target.value }))}
-                    aria-label="Who proved it out"
-                  />
-                  <button className="cl-btn" disabled={!proving.by.trim() || proving.done.some((d) => !d)} onClick={() => prove(p.id, true, proving.by.trim())}><Check size={14} /> Stamp it proven</button>
-                  <button className="cl-btn ghost" onClick={() => setProving(null)}>Cancel</button>
-                </div>
-              </div>
+              <CncProveOut stops={n.stop} onStamp={(by) => prove(p.id, true, by)} onCancel={() => setProving(null)} />
             )}
 
             {previewOpen === p.id && (
@@ -235,6 +203,8 @@ export default function CncPrograms({ part, onFact, machineFacts = NO_FACTS, onC
                 content={p.content}
                 kind={machineKind}
                 toolNames={Object.fromEntries(info.tools.filter((t) => t.note).map((t) => [t.t, t.note]))}
+                stockText={part?.facts?.stock || ""}
+                material={part?.material || ""}
               />
             )}
             {diffOpen === p.id && diff && (
@@ -260,19 +230,25 @@ export default function CncPrograms({ part, onFact, machineFacts = NO_FACTS, onC
       {/* ---- what's still missing, and the bundle ---- */}
       <div className="cp-ready">
         <div className="cp-readyhead">
-          <b>{done === checks.length ? "Ready to hand off" : `${done} of ${checks.length} ready`}</b>
+          <b>{done === checks.length ? "Everything's here" : `${done} of ${checks.length} filled in`}</b>
           <span className="cl-spacer" />
-          <button className="cl-btn" onClick={copyPack} title="Copies the part, the machine's tool list and the program as one block of text">
+          <button className="cl-btn" onClick={copyPack} title="Copies the part, the tool list and the program as one block of text, to send to a programmer">
             {copied ? <Check size={14} /> : <Copy size={14} />} {copied ? "Copied" : "Copy everything"}
           </button>
-          <button className="cl-btn" onClick={() => downloadText(`${fileSafe(part?.name)}-pack.txt`, pack())}><Download size={14} /> Download</button>
+          <button className="cl-btn" onClick={() => downloadText(`${fileSafe(part?.name)}-pack.txt`, pack())} title="The same thing, as a text file"><Download size={14} /> Save as a file</button>
         </div>
         <ul className="cp-checks">
           {checks.map((c) => (
             <li key={c.key} className={c.ok ? "ok" : ""}>
-              {c.ok ? <CheckCircle2 size={15} /> : <Circle size={15} />}
-              <span>{c.label}</span>
-              {!c.ok && <em>{c.how}</em>}
+              {c.ok ? (
+                <span className="cp-checkrow"><CheckCircle2 size={16} /><span>{c.label}</span></span>
+              ) : (
+                <button className="cp-checkrow" onClick={() => goTo(c.key)} aria-label={`${c.label}: take me there`}>
+                  <Circle size={16} />
+                  <span>{c.label}<em>{c.how}</em></span>
+                  <ArrowRight size={15} className="cp-go" />
+                </button>
+              )}
             </li>
           ))}
         </ul>
@@ -281,15 +257,16 @@ export default function CncPrograms({ part, onFact, machineFacts = NO_FACTS, onC
   );
 }
 
-// FileReader rather than file.text(): older Safari on the shop iPads lacks the latter.
-export function readText(file) {
-  return new Promise((res, rej) => {
-    const r = new FileReader();
-    r.onload = () => res(String(r.result || ""));
-    r.onerror = () => rej(r.error || new Error("Couldn't read that file"));
-    r.readAsText(file);
-  });
+// A brief highlight on the thing a click just took you to, so the eye lands on it.
+export function flash(el) {
+  if (!el) return;
+  el.classList.remove("cl-flash");
+  void el.offsetWidth; // restart the animation if it's already running
+  el.classList.add("cl-flash");
+  setTimeout(() => el.classList.remove("cl-flash"), 1800);
 }
+
+export { readText };
 
 const fileSafe = (s) => String(s || "part").trim().replace(/[^\w.-]+/g, "-").replace(/^-+|-+$/g, "") || "part";
 

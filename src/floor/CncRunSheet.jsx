@@ -4,7 +4,12 @@ import { Printer } from "lucide-react";
 import { db } from "../lib/db.js";
 import { Btn } from "../components/ui.jsx";
 import { Wordmark } from "../components/Logo.jsx";
-import { runSheet, PROVE_STEPS } from "./cncPack.js";
+import { runSheet } from "./cncPack.js";
+import CncDrawing from "./CncDrawing.jsx";
+import { toolpath } from "./cncPath.js";
+import { estimateTime, fmtDuration } from "./cncTime.js";
+import { MACHINES } from "./machines.js";
+import { splitMachines } from "./cncParts.js";
 import "./runSheet.css";
 
 // The run sheet for a part: one page for whoever is at the machine. Which tool
@@ -46,6 +51,9 @@ export default function CncRunSheet({ part, program = null, machineFacts = null,
 
   const s = runSheet(part, prog, facts || {});
   const p = s.program;
+  const machineKind = MACHINES.find((m) => m.key === splitMachines(part?.machine)[0])?.kind || "";
+  const time = prog ? estimateTime(toolpath(prog.content, { kind: machineKind })) : null;
+  const perRun = Number(/\d+/.exec(String(part?.facts?.perRun || ""))?.[0] || 0);
 
   return createPortal(
     <div className="print-doc-overlay" style={overlay} onClick={onClose}>
@@ -86,6 +94,13 @@ export default function CncRunSheet({ part, program = null, machineFacts = null,
             <Fact label="How it's held" value={s.holding} wide />
             {p && <Fact label="Work offset" value={p.offsets.join(", ") || "None called. Uses whichever is active."} />}
             {p && <Fact label="Program" value={[p.number, `${p.lines} lines`].filter(Boolean).join(" · ")} />}
+            {time && time.seconds > 0 && (
+              <Fact
+                label="Run time"
+                value={`About ${fmtDuration(time.seconds)} a part${perRun > 1 ? `, ${fmtDuration(time.seconds * perRun)} for ${perRun}` : ""}${time.stops ? `, plus ${time.stops} stop${time.stops === 1 ? "" : "s"}` : ""} (estimate)`}
+                wide
+              />
+            )}
           </div>
 
           {(s.machines.length ? s.machines : [{ key: "none", label: "", hasList: false, tools: s.tools || [] }]).map((m) => (
@@ -142,8 +157,15 @@ export default function CncRunSheet({ part, program = null, machineFacts = null,
 
           {p && !p.proven && (
             <div className="rs-warn">
-              This program has not been proven. Before a full run: {PROVE_STEPS.map((x, i) => `${i + 1}) ${x.toLowerCase()}`).join("; ")}.
+              Not proven. Before a full run: run it in Graphics, then single block with the rapids turned down, then measure the first part.
             </div>
+          )}
+
+          {prog && (
+            <>
+              <div className="rs-band">What the program makes</div>
+              <CncDrawing content={prog.content} kind={machineKind} stockText={part?.facts?.stock || ""} />
+            </>
           )}
 
           {(s.drawing || s.photo) && (

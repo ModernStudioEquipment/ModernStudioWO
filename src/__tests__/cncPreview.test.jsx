@@ -26,18 +26,17 @@ describe("the tool path drawing", () => {
   it("draws a mill program and says how far the cuts reach", () => {
     render(<CncPreview content={MILL} toolNames={{ 1: "1/2 ENDMILL", 2: "DRILL" }} />);
     expect(ctx.lines).toBeGreaterThan(5);
-    expect(screen.getByText(/Cuts span X/).textContent).toMatch(/X 0 to 3/);
-    expect(screen.getByText(/Deepest/).textContent).toMatch(/Z-0\.5/);
+    expect(screen.getByText(/^Cuts X/).textContent).toMatch(/X 0 to 3/);
+    expect(screen.getByText(/deepest/).textContent).toMatch(/Z-0\.5/);
     expect(screen.getByText(/T1 1\/2 ENDMILL/)).toBeTruthy();
     expect(screen.getByText(/T2 DRILL/)).toBeTruthy();
-    expect(screen.getByText(/It can't see the stock/)).toBeTruthy();
+    expect(screen.getByText(/still run it in Graphics first/)).toBeTruthy();
     for (const v of ["3D", "Top", "Front", "Side"]) expect(screen.getByRole("button", { name: v })).toBeTruthy();
   });
 
   it("draws a lathe program as a turned part and gives its diameters", () => {
     render(<CncPreview content={LATHE} />);
-    expect(screen.getByText(/The tool cuts from diameter/).textContent).toMatch(/0\.5 out to 1\.25/);
-    expect(screen.getByText(/drawn as the profile it cuts down to/)).toBeTruthy();
+    expect(screen.getByText(/Cuts diameters/).textContent).toMatch(/0\.5 to 1\.25/);
     for (const v of ["Side", "3D", "End"]) expect(screen.getByRole("button", { name: v })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Top" })).toBeNull();
   });
@@ -86,18 +85,20 @@ describe("the tool path drawing", () => {
   it("survives a browser with no canvas at all", () => {
     HTMLCanvasElement.prototype.getContext.mockImplementation(() => null);
     expect(() => render(<CncPreview content={MILL} />)).not.toThrow();
-    expect(screen.getByText(/Cuts span X/)).toBeTruthy();
+    expect(screen.getByText(/^Cuts X/)).toBeTruthy();
   });
 });
 
 describe("opening it from a program", () => {
-  it("each program has a 3D preview button that shows and hides the drawing", async () => {
+  it("the newest program's preview opens by itself, and can be hidden and shown", async () => {
     const part = { id: "p1", name: "Pin", machine: "st10", steps: [], photos: [], facts: {} };
     render(<CncPrograms part={part} onFact={() => {}} />);
     fireEvent.change(screen.getByLabelText("Program file"), { target: { files: [new File([LATHE], "O2.nc", { type: "text/plain" })] } });
-    fireEvent.click(await screen.findByRole("button", { name: /3D preview/ }));
-    expect(screen.getByText(/The tool cuts from diameter/)).toBeTruthy();
+    // the picture opens by itself as soon as there's a program
+    expect(await screen.findByText(/Cuts diameters/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /Hide preview/ }));
-    expect(screen.queryByText(/The tool cuts from diameter/)).toBeNull();
+    expect(screen.queryByText(/Cuts diameters/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /3D preview/ }));
+    expect(screen.getByText(/Cuts diameters/)).toBeTruthy();
   });
 });
