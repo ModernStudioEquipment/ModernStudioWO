@@ -128,7 +128,7 @@ export function ProgramsView({ part, onFact, machineFacts = NO_FACTS, onStep, on
           <div className={`cp-prog${proven ? " proven" : ""}`} key={p.id}>
             <div className="cp-progtop">
               <div className="cp-progname">
-                <b>{p.name || "Program"}{idx === 0 && programs.length > 1 ? " · newest" : ""}</b>
+                <b>{p.name || "Program"}{idx === 0 && programs.length > 1 ? " · newest" : ""}{p.ai ? <span className="cp-ai" title={p.ai.kind === "written" ? "Written by the app from sizes" : `Written by AI: ${p.ai.instruction || ""}`}>{p.ai.kind === "written" ? "From sizes" : "AI draft"}</span> : null}</b>
                 <span>{programLine(info)}{time && time.seconds >= 1 ? ` · about ${fmtDuration(time.seconds)}` : ""}{info.title ? ` · ${info.title}` : ""}</span>
               </div>
               <span className={`cp-stamp${proven ? " ok" : ""}`}>

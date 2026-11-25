@@ -307,13 +307,20 @@ export const localAdapter = {
 
   // ---- CNC program files + machine facts ----
   async getCncPrograms(partId) {
-    return readLS("mse_cnc_programs_v1", []).filter((x) => x.partId === partId).sort((a, b) => b.createdAt - a.createdAt);
+    return readLS("mse_cnc_programs_v1", []).filter((x) => x.partId === partId).sort((a, b) => b.createdAt - a.createdAt)
+      .map((x) => ({ ...x, ai: x.info?.ai || null, review: x.info?.review || null }));
   },
-  async addCncProgram({ partId, name, content, note }) {
+  async setCncProgramReview(id, review) {
+    const list = readLS("mse_cnc_programs_v1", []);
+    const r = list.find((x) => x.id === id);
+    if (r) r.info = { ...(r.info || {}), review };
+    writeLS("mse_cnc_programs_v1", list);
+  },
+  async addCncProgram({ partId, name, content, note, ai }) {
     const list = readLS("mse_cnc_programs_v1", []);
     const id = uid();
     // +index so two files added in the same millisecond still sort in upload order
-    list.push({ id, partId, name: name || "", content: content || "", note: note || "", info: programInfo(content), status: "unproven", provenBy: "", provenAt: null, createdAt: Date.now() + list.length * 1e-3 });
+    list.push({ id, partId, name: name || "", content: content || "", note: note || "", info: { ...programInfo(content), ...(ai ? { ai } : null) }, status: "unproven", provenBy: "", provenAt: null, createdAt: Date.now() + list.length * 1e-3 });
     writeLS("mse_cnc_programs_v1", list);
     return id;
   },

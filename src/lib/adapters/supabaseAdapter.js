@@ -787,15 +787,26 @@ export const supabaseAdapter = {
       status: r.status || "unproven", provenBy: r.proven_by || "",
       provenAt: r.proven_at ? new Date(r.proven_at).getTime() : null,
       note: r.note || "", createdAt: new Date(r.created_at).getTime(),
+      // how an AI draft came about, and the last AI review of this version
+      ai: r.info?.ai || null, review: r.info?.review || null,
     }));
   },
-  async addCncProgram({ partId, name, content, note }) {
+  // `ai`: for a draft the AI wrote, the record of how (what was asked, what the
+  // checks found). Kept inside `info`, so it needs no column of its own.
+  async addCncProgram({ partId, name, content, note, ai }) {
     const { data, error } = await supabase
       .from("cnc_programs")
-      .insert({ part_id: partId, name: name || "", content: content || "", note: note || null, info: programInfo(content) })
+      .insert({ part_id: partId, name: name || "", content: content || "", note: note || null, info: { ...programInfo(content), ...(ai ? { ai } : null) } })
       .select("id").single();
     fail(error);
     return data?.id;
+  },
+  // Keep the AI's review with the version it read, so it isn't paid for twice.
+  async setCncProgramReview(id, review) {
+    const { data, error } = await supabase.from("cnc_programs").select("info").eq("id", id).single();
+    fail(error);
+    const { error: e2 } = await supabase.from("cnc_programs").update({ info: { ...(data?.info || {}), review } }).eq("id", id);
+    fail(e2);
   },
   // Every program without its text: enough for badges, the tool suggestions and
   // the fix-first list without downloading megabytes of G-code.

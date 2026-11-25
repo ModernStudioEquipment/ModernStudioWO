@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { ArrowRight, FileText, ShieldCheck, ShieldAlert, Upload, AlertTriangle, CheckCircle2, Check, ListChecks, Box, ClipboardList, Pencil } from "lucide-react";
+import { ArrowRight, FileText, ShieldCheck, ShieldAlert, Upload, AlertTriangle, CheckCircle2, Check, ListChecks, Box, ClipboardList, Pencil, Sparkles } from "lucide-react";
 import CncPreview from "./CncPreview.jsx";
 import CncProveOut from "./CncProveOut.jsx";
 import CncRunSheet from "./CncRunSheet.jsx";
+import CncAi from "./CncAi.jsx";
 import { PART_STEPS, FACT_FIELDS, neededLeft, programLine } from "./cncPack.js";
 import { fmtDuration } from "./cncTime.js";
 import { MACHINES } from "./machines.js";
@@ -15,6 +16,7 @@ export default function CncPartOverview({ part, pp, machineFacts, onAsk, onDetai
   const [proving, setProving] = useState(false);
   const [showChecks, setShowChecks] = useState(false);
   const [sheet, setSheet] = useState(false);
+  const [ai, setAi] = useState(null);   // "review" | "rewrite" | { report } while the AI screen is up
   const newest = pp.newest;
   const d = pp.newestInfo;
   const step = pp.step;
@@ -32,6 +34,17 @@ export default function CncPartOverview({ part, pp, machineFacts, onAsk, onDetai
     : noTools.length ? { label: `List the ${noTools[0].short}'s tools`, icon: ListChecks, go: onOpenMachines }
     : !proven ? { label: "Prove it out", icon: ShieldCheck, go: () => setProving(true) }
     : { label: "Print the run sheet", icon: FileText, go: () => setSheet(true) };
+
+  // The AI takes the whole screen while it's open: one thing at a time.
+  if (ai) {
+    return (
+      <CncAi
+        part={part} pp={pp} machineFacts={machineFacts} open={ai} onClose={() => setAi(null)}
+        // What a rewrite still needs: the tool list lives on the Machines page, the rest are questions on the part.
+        onFill={(needs) => { setAi(null); if (needs.every((n) => n.key === "tools")) onOpenMachines(); else onAsk({}); }}
+      />
+    );
+  }
 
   return (
     <div className="ov">
@@ -130,6 +143,21 @@ export default function CncPartOverview({ part, pp, machineFacts, onAsk, onDetai
           </div>
         </section>
       </div>
+
+      {/* ---- the AI: a second pair of eyes, and a rewrite ---- */}
+      {newest && (
+        <div className="ov-ai">
+          <b><Sparkles size={15} /> AI</b>
+          <span>
+            {newest.ai
+              ? `This version is an AI draft. ${newest.ai.verdict === "passed" ? "It passed the checks." : "It did not pass the checks."}`
+              : "Have it read this program, or write a better version."}
+          </span>
+          {newest.ai && <button className="cl-btn" onClick={() => setAi({ report: newest.ai })}>How it was written</button>}
+          <button className="cl-btn" onClick={() => setAi("review")}>{newest.review ? "See the AI's check" : "Check this program"}</button>
+          <button className="cl-btn" onClick={() => setAi("rewrite")}>Rewrite it</button>
+        </div>
+      )}
 
       {showChecks && d && (
         <ul className="cp-found ov-found">

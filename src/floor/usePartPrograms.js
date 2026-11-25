@@ -84,6 +84,31 @@ export function usePartPrograms(part, machineFacts = NO_FACTS, { onChanged } = {
     }
     return added;
   }
+  // A program the app wrote (an AI draft, or one made from sizes). Goes in as a
+  // new version like any upload, never proven, with the record of how it came
+  // about. Returns true when it's saved.
+  async function addDraft({ name, content, ai = null }) {
+    if (!partId || !String(content || "").trim()) return false;
+    setBusy(true);
+    setErr("");
+    try {
+      if (programs.some((p) => p.content === content)) { setErr("That's identical to a version that's already here."); return false; }
+      await db.addCncProgram({ partId, name, content, ai });
+      await changed();
+      setUploads((n) => n + 1);
+      return true;
+    } catch (e) {
+      say(e, "Couldn't save that program");
+      return false;
+    } finally {
+      if (alive.current) setBusy(false);
+    }
+  }
+  // Keep the AI's review with the version it read. Not worth an error on
+  // screen if it can't be kept: the review is still in front of the person.
+  async function keepReview(id, review) {
+    try { await db.setCncProgramReview?.(id, review); await reload(); } catch { /* shown, just not kept */ }
+  }
   async function prove(id, proven, by) {
     setErr("");
     try { await db.setCncProgramProven(id, proven, by); await changed(); return true; }
@@ -118,7 +143,7 @@ export function usePartPrograms(part, machineFacts = NO_FACTS, { onChanged } = {
 
   return {
     partId, programs, derived, loading, loadedFor, busy, err, setErr, uploads,
-    addFiles, prove, remove, reload,
+    addFiles, addDraft, keepReview, prove, remove, reload,
     checks, done: readyCount(checks), stops, step, machineKind,
     newest: programs[0] || null, newestInfo: derived[0] || null,
   };
