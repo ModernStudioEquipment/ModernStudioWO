@@ -386,3 +386,60 @@ describe("playing it back smoothly", () => {
     expect(c.timeOf(0)).toBe(0);
   });
 });
+
+describe("grooves and part-offs cut with plain moves", () => {
+  // Turn 1.125 for two inches, then a groove at Z-1 cut with G01 in and G00 out (no grooving cycle).
+  const G = "O1\nT0101\nG97 S1000 M03\nG00 X1.3 Z0.1\nG01 X1.125 F0.006\nZ-2.\nG00 X1.3\nT0303\nG00 X1.3 Z-1.\nG01 X0.8 F0.003\nG00 X1.3\nG00 Z0.1\nM30\n";
+
+  it("a plunge straight in and back out is a groove, and coming back out of it is not a crash", () => {
+    const sim = simulateLathe(toolpath(G), { dia: 1.25 });
+    near(sim.radiusAt(sim.final, -1), 0.4);
+    near(sim.radiusAt(sim.final, -1.2), 0.5625);
+    expect(sim.collisions).toEqual([]);
+    expect(sim.notes.join(" ")).toMatch(/Groove width is a guess/);
+    const s = partSizes(sim);
+    expect(s.steps.filter((x) => x.groove).map((x) => Number(x.dia.toFixed(3)))).toEqual([0.8]);
+    expect(s.steps.filter((x) => !x.groove)).toHaveLength(1);    // still one diameter, two inches long
+    near(s.steps.find((x) => !x.groove).len, 2, 1e-9);
+  });
+
+  it("parting off past centre and pulling straight out is not a crash", () => {
+    const P = "O1\nT0101\nG97 S1000 M03\nG00 X1.3 Z0.1\nG01 X1. F0.006\nZ-2.2\nG00 X1.3\nT0303\nG00 X1.3 Z-2.125\nG01 X-0.03 F0.003\nG00 X1.3\nG00 Z0.1\nM30\n";
+    const sim = simulateLathe(toolpath(P), { dia: 1.25 });
+    expect(sim.collisions).toEqual([]);
+    near(sim.radiusAt(sim.final, -2.125), 0);     // cut right through
+    near(sim.radiusAt(sim.final, -1.5), 0.5);
+  });
+
+  it("but moving sideways out of a groove still is one", () => {
+    const bad = G.replace("G01 X0.8 F0.003\nG00 X1.3\n", "G01 X0.8 F0.003\nG00 X1.3\nG00 X0.8\nG00 Z-1.5\nG00 X1.3\n");
+    const sim = simulateLathe(toolpath(bad), { dia: 1.25 });
+    expect(sim.collisions.length).toBeGreaterThan(0);
+  });
+
+  it("facing down a shoulder and coming back out isn't mistaken for a groove", () => {
+    // 0.625 for an inch, then the tool faces down the shoulder at Z-1 from 1.125 and pulls straight back
+    const S = "O1\nT0101\nG97 S1000 M03\nG00 X1.3 Z0.1\nG01 X0.625 F0.006\nZ-1.\nG00 X1.3\nG00 Z-1.\nG01 X0.625\nG00 X1.3\nG00 Z0.1\nM30\n";
+    const sim = simulateLathe(toolpath(S), { dia: 1.25 });
+    near(sim.radiusAt(sim.final, -1.03), 0.625);                  // the bar behind the shoulder is untouched
+    expect(partSizes(sim).steps.some((x) => x.groove)).toBe(false);
+  });
+
+  it("facing the end past centre and backing off is not a crash", () => {
+    const F = "O1\nG50 S3000\nT0101\nG96 S400 M03\nG00 X1.45 Z0.1\nG00 Z0.\nG01 X-0.032 F0.005\nG00 Z0.1\nG00 X1.45\nG01 X1. F0.006\nG01 Z-1.\nG00 X1.45\nG00 Z0.1\nM30\n";
+    const sim = simulateLathe(toolpath(F), { dia: 1.25 });
+    expect(sim.collisions).toEqual([]);
+    expect(sim.face).toBe(0);
+  });
+
+  it("playing part way into a plunge cuts only as deep as the tool has got", () => {
+    const path = toolpath(G);
+    const sim = simulateLathe(path, { dia: 1.25 });
+    const i = path.segs.findIndex((s) => s.type === "feed" && Math.abs(s.a[0] + 1) < 1e-9 && Math.abs(s.b[0] + 1) < 1e-9);
+    expect(i).toBeGreaterThan(0);
+    const half = sim.radiusAt(Float64Array.from(sim.outlineAt(i, 0.5)), -1);
+    expect(half).toBeLessThan(0.5625);
+    expect(half).toBeGreaterThan(0.4);
+    near(sim.radiusAt(sim.outlineAt(i + 1), -1), 0.4);
+  });
+});

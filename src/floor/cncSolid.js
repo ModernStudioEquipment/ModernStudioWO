@@ -83,6 +83,12 @@ export function simulateLathe(path, stock = null) {
   for (const s of cuts) {
     corner(s.a[0]); corner(s.b[0]);
     if (s.type === "groove") { corner(s.a[0] - grooveW / 2); corner(s.a[0] + grooveW / 2); }
+    // A straight move in toward the centre may turn out to be a plunge (see
+    // plungeAt): give it the samples for square walls now, in case. These
+    // aren't real corners of the program, so sizes are never snapped to them.
+    else if (Math.abs(s.a[0] - s.b[0]) < EPS && s.b[2] < s.a[2] - EPS) {
+      for (const z of [s.a[0] - grooveW / 2, s.a[0] + grooveW / 2]) if (z > back + tight && z < face - tight) { marks.add(z - tight); marks.add(z + tight); }
+    }
   }
   const zs = Float64Array.from([...marks].filter((z) => z >= back - EPS && z <= face + EPS).sort((a, b) => a - b));
 
@@ -106,13 +112,30 @@ export function simulateLathe(path, stock = null) {
   };
 
   let bore = false;
-  // Lower the outline wherever this move passes beneath it.
-  const cut = (env, s) => {
+  let onPlunge = null;
+  const tol = Math.max(stockR * 0.004, 1e-4);
+  // A groove or a part-off is very often cut with plain moves rather than a
+  // grooving cycle: straight in, straight back out. That is a plunge too. What
+  // tells it from facing a shoulder (also a straight move in X) is that there
+  // is still metal beside it on the side toward the face, and that the tool
+  // comes back out the way it went in.
+  const plungeAt = (env, s, i) => {
+    const next = segs[i + 1];
+    const za = s.a[0], ra = s.a[2], rb = s.b[2];
+    if (!next || Math.abs(za - s.b[0]) > EPS || !(rb < ra - EPS)) return false;          // not straight in
+    if (za >= face - tight * 2) return false;                                           // down the face of the part: a facing cut
+    if (!(Math.abs(next.a[0] - next.b[0]) < EPS && next.b[2] > next.a[2] + EPS)) return false; // doesn't come straight back out
+    return radiusAt(env, za + grooveW / 2 + tight * 4) > Math.max(rb, 0) + tol;           // metal beside it: it's cutting a slot
+  };
+  // Lower the outline wherever this move passes beneath it. `i` is the move's
+  // place in the program (for the look ahead above).
+  const cut = (env, s, i = -1) => {
     const za = s.a[0], ra = s.a[2], zb = s.b[0], rb = s.b[2];
     if (ra < 1e-6 && rb < 1e-6 && Math.abs(za - zb) > EPS) { bore = true; return; } // drilling on centre: a hole, not the outside
-    if (s.type === "groove") { // a plunge: the insert has width the program doesn't state
-      const bottom = Math.min(ra, rb);
-      for (let i = lo(za - grooveW / 2); i < zs.length && zs[i] <= za + grooveW / 2 + EPS; i++) if (bottom < env[i]) env[i] = bottom;
+    if (s.type === "groove" || plungeAt(env, s, i)) { // a plunge: the insert has width the program doesn't state
+      const bottom = Math.max(0, Math.min(ra, rb));
+      if (s.type !== "groove" && onPlunge) onPlunge(i, za, bottom);
+      for (let k = lo(za - grooveW / 2); k < zs.length && zs[k] <= za + grooveW / 2 + EPS; k++) if (bottom < env[k]) env[k] = bottom;
       return;
     }
     const z0 = Math.min(za, zb), z1 = Math.max(za, zb);
@@ -126,11 +149,12 @@ export function simulateLathe(path, stock = null) {
 
   // Walk the whole program once: cut on cutting moves, and on every rapid ask
   // whether it goes through metal that is still there at that moment.
-  const tol = Math.max(stockR * 0.004, 1e-4);
   const hits = new Map(); // line -> deepest hit on that line
   const env = fresh();
+  const plunged = [];     // grooves cut with plain moves, found on this first walk only
+  onPlunge = (index, z, r) => plunged.push({ index, z, r });
   segs.forEach((s, index) => {
-    if (isCut(s)) { cut(env, s); return; }
+    if (isCut(s)) { cut(env, s, index); return; }
     if (s.type !== "rapid") return;
     const za = s.a[0], ra = s.a[2], zb = s.b[0], rb = s.b[2];
     const z0 = Math.min(za, zb), z1 = Math.max(za, zb);
@@ -139,10 +163,12 @@ export function simulateLathe(path, stock = null) {
       // The face itself isn't metal: a move down or up the front of the part,
       // at Z0, is beside the bar and not in it.
       if (z >= face - tight * 2) return;
-      const depth = surfaceAt(env, z) - r;
+      // (X below zero is the far side of centre: how far from the centre line is what counts)
+      const depth = surfaceAt(env, z) - Math.abs(r);
       if (depth > tol && (!worst || depth > worst.depth)) worst = { z, r, depth };
     };
-    if (z1 - z0 < EPS) test(za, Math.min(ra, rb));
+    // straight in or out: the nearest it gets to the centre line
+    if (z1 - z0 < EPS) test(za, (ra < 0) !== (rb < 0) ? 0 : Math.min(Math.abs(ra), Math.abs(rb)));
     else {
       test(za, ra); test(zb, rb);
       for (let i = lo(z0); i < zs.length && zs[i] <= z1; i++) test(zs[i], ra + ((rb - ra) * (zs[i] - za)) / (zb - za));
@@ -150,8 +176,9 @@ export function simulateLathe(path, stock = null) {
     // from/to: the whole move, so the view can draw the line it took through the bar
     if (worst && (!hits.has(s.line) || worst.depth > hits.get(s.line).depth)) hits.set(s.line, { line: s.line, index, ...worst, from: [za, ra], to: [zb, rb] });
   });
+  onPlunge = null; // later walks (stepping through the program) only redraw; the list is made
   if (bore) notes.push("Holes and bores aren't shown or checked, only the outside.");
-  if (segs.some((s) => s.type === "groove")) notes.push("Groove width is a guess. The program doesn't give the insert's width.");
+  if (plunged.length || segs.some((s) => s.type === "groove")) notes.push("Groove width is a guess. The program doesn't give the insert's width.");
 
   const threads = segs
     .map((s, index) => ({ s, index }))
@@ -169,12 +196,12 @@ export function simulateLathe(path, stock = null) {
   const outlineAt = (n, part = 0) => {
     const upTo = Math.max(0, Math.min(segs.length, n));
     if (upTo < cacheN) { cacheN = 0; cacheEnv = fresh(); }
-    for (let i = cacheN; i < upTo; i++) if (isCut(segs[i])) cut(cacheEnv, segs[i]);
+    for (let i = cacheN; i < upTo; i++) if (isCut(segs[i])) cut(cacheEnv, segs[i], i);
     cacheN = upTo;
     const next = segs[upTo];
     if (!(part > 0) || !next || !isCut(next)) return cacheEnv;
     scratch.set(cacheEnv);
-    cut(scratch, { ...next, b: lerp3(next.a, next.b, Math.min(1, part)) });
+    cut(scratch, { ...next, b: lerp3(next.a, next.b, Math.min(1, part)) }, upTo);
     return scratch;
   };
 
@@ -191,7 +218,9 @@ export function simulateLathe(path, stock = null) {
   const grooves = segs
     .map((g, index) => ({ g, index }))
     .filter(({ g }) => g.type === "groove")
-    .map(({ g, index }) => ({ index, z: g.a[0], r: Math.min(g.a[2], g.b[2]) }));
+    .map(({ g, index }) => ({ index, z: g.a[0], r: Math.min(g.a[2], g.b[2]) }))
+    .concat(plunged)
+    .sort((p, q) => p.index - q.index);
 
   return {
     zs, face, back, stockR, length, guessed, bore, unsure, notes, threads, grooves, grooveW, corners, tight,
