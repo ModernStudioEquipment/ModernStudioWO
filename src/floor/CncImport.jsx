@@ -25,7 +25,30 @@ export default function CncImport({ parts, onDone, onClose }) {
   async function onFiles(e) {
     const files = [...(e.target.files || [])];
     e.target.value = "";
-    if (!files.length) return;
+    await readFiles(files);
+  }
+
+  // Dropped on the page: files, a whole folder (opened all the way down), or zips.
+  const [over, setOver] = useState(false);
+  const depth = useRef(0);   // dragenter/leave fire for every child: count them
+  const dragging = (e) => [...(e.dataTransfer?.types || [])].includes("Files");
+  async function onDrop(e) {
+    e.preventDefault();
+    depth.current = 0; setOver(false);
+    if (busy) return;
+    setBusy("Reading the files…");
+    try { await readFiles(await droppedFiles(e.dataTransfer)); }
+    catch (e2) { setErr(`Couldn't read what was dropped${e2?.message ? `: ${e2.message}` : "."}`); setBusy(""); }
+  }
+  const dropProps = {
+    onDragEnter: (e) => { if (!dragging(e)) return; e.preventDefault(); depth.current += 1; setOver(true); },
+    onDragOver: (e) => { if (!dragging(e)) return; e.preventDefault(); e.dataTransfer.dropEffect = "copy"; },
+    onDragLeave: (e) => { if (!dragging(e)) return; depth.current = Math.max(0, depth.current - 1); if (!depth.current) setOver(false); },
+    onDrop,
+  };
+
+  async function readFiles(files) {
+    if (!files.length) { setBusy(""); return; }
     setBusy("Reading the files…");
     setErr("");
     setResult(null);
@@ -113,7 +136,7 @@ export default function CncImport({ parts, onDone, onClose }) {
   const toggle = (i) => setOff((s) => { const n = new Set(s); if (n.has(i)) n.delete(i); else n.add(i); return n; });
 
   return (
-    <div className="ci">
+    <div className={`ci${over ? " ci-over" : ""}`} {...dropProps}>
       <div className="cm-head">
         <b>Import programs</b>
         <span className="cl-spacer" />
@@ -123,6 +146,11 @@ export default function CncImport({ parts, onDone, onClose }) {
         Pick all the program files from one machine, a whole folder, or a .zip of them. You'll see where each one goes before anything is saved.
       </div>
 
+      <div className={`ci-drop${over ? " on" : ""}`} aria-label="Drop program files, a folder or a zip here">
+        <Upload size={22} />
+        <b>{over ? "Let go to read them" : "Drag program files, a whole folder, or a .zip here"}</b>
+        <span>or pick them:</span>
+      </div>
       <div className="cl-bpbtns">
         <button className="cl-btn" onClick={() => fileRef.current?.click()} disabled={!!busy}><Upload size={15} /> Pick program files</button>
         <button className="cl-btn" onClick={() => dirRef.current?.click()} disabled={!!busy}><FolderOpen size={15} /> Pick a whole folder</button>
@@ -183,4 +211,29 @@ export default function CncImport({ parts, onDone, onClose }) {
       )}
     </div>
   );
+}
+
+// Everything dropped, as files: folders are opened all the way down (the
+// browser hands over a folder as an entry to walk, not as its files). Hidden
+// files are left out. Falls back to the plain file list where entries aren't
+// offered.
+export async function droppedFiles(dt) {
+  const items = [...(dt?.items || [])].filter((i) => i.kind === "file");
+  const entries = items.map((i) => (typeof i.webkitGetAsEntry === "function" ? i.webkitGetAsEntry() : null));
+  if (!entries.length || entries.some((x) => !x)) return [...(dt?.files || [])];
+  const out = [];
+  const fileOf = (entry) => new Promise((res, rej) => entry.file(res, rej));
+  const children = (dir) => new Promise((res, rej) => {
+    const reader = dir.createReader();
+    const all = [];
+    const more = () => reader.readEntries((batch) => { if (!batch.length) res(all); else { all.push(...batch); more(); } }, rej);
+    more();
+  });
+  const walk = async (entry, depth = 0) => {
+    if (!entry || entry.name.startsWith(".") || depth > 12 || out.length > 5000) return;
+    if (entry.isFile) out.push(await fileOf(entry));
+    else if (entry.isDirectory) for (const c of await children(entry)) await walk(c, depth + 1);
+  };
+  for (const e of entries) await walk(e);
+  return out;
 }

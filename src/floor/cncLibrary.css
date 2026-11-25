@@ -825,3 +825,11 @@ button.cp-checkrow > span{flex:1; min-width:0; display:flex; flex-direction:colu
 .cm-panel > summary::before{content:"▸ "; color:var(--m, var(--accent))}
 .cm-panel[open] > summary::before{content:"▾ "}
 .cm-panel[open] > summary{margin-bottom:10px}
+
+/* ---- dropping files on the import page ---- */
+.ci{position:relative}
+.ci-drop{display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; text-align:center; padding:26px 16px; margin:12px 0 8px; border:2px dashed var(--line2); border-radius:14px; color:#AEB8C4; transition:border-color .15s, background .15s}
+.ci-drop b{font-size:16px; color:#E8EEF4}
+.ci-drop span{font-size:13px}
+.ci-drop.on, .ci-over .ci-drop{border-color:var(--accent); background:color-mix(in srgb, var(--accent) 10%, transparent); color:var(--accent)}
+.ci-over{outline:2px solid var(--accent); outline-offset:6px; border-radius:14px}

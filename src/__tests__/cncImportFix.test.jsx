@@ -171,3 +171,24 @@ describe("which control a machine has", () => {
     expect(machinePhotosLine([])).toBe("");
   });
 });
+
+describe("dropping files on the import page", () => {
+  it("reads dropped program files into the plan, like picking them", async () => {
+    render(<CncImport parts={[]} onDone={vi.fn()} onClose={() => {}} />);
+    const files = ["CNC-0240 - STACK 6.nc", "CNC-0241 - TRAY.nc"].map((n, i) => new File([PIN.replace("O00636", `O0063${i}`).replace("006-1596", `PART ${i}`)], n, { type: "text/plain" }));
+    const zone = document.querySelector(".ci");
+    fireEvent.dragEnter(zone, { dataTransfer: { types: ["Files"], items: [] } });
+    expect(screen.getByText("Let go to read them")).toBeTruthy();
+    fireEvent.drop(zone, { dataTransfer: { types: ["Files"], items: [], files } });
+    expect(await screen.findByRole("button", { name: /Import 2 programs/ })).toBeTruthy();
+    expect(screen.queryByText("Let go to read them")).toBeNull();
+  });
+  it("a dropped folder is opened all the way down, hidden files left out", async () => {
+    const { droppedFiles } = await import("../floor/CncImport.jsx");
+    const f = (name) => ({ isFile: true, name, file: (ok) => ok(new File(["x"], name)) });
+    const dir = (name, kids) => ({ isDirectory: true, name, createReader: () => { let given = false; return { readEntries: (ok) => { const batch = given ? [] : kids; given = true; ok(batch); } }; } });
+    const tree = dir("USB", [f("O1.nc"), f(".DS_Store"), dir("ST10Y", [f("O2.nc"), dir("old", [f("O3.nc")])])]);
+    const got = await droppedFiles({ items: [{ kind: "file", webkitGetAsEntry: () => tree }], files: [] });
+    expect(got.map((x) => x.name)).toEqual(["O1.nc", "O2.nc", "O3.nc"]);
+  });
+});
