@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Plus, Trash2, Check, Upload } from "lucide-react";
+import { Plus, Trash2, Check, Upload, Printer } from "lucide-react";
+import CncToolSheet from "./CncToolSheet.jsx";
 import { db } from "../lib/db.js";
 import { MACHINES } from "./machines.js";
 import { cleanMachineFacts, suggestTools } from "./cncPack.js";
@@ -19,6 +20,7 @@ export default function CncMachines({ onSaved, parts = [], programIndex = [], fo
   const [sel, setSel] = useState("");
   const current = sel || used[0]?.key || MACHINES[0].key;
   const [more, setMore] = useState(false); // the rest of a machine's details, folded away
+  const [sheet, setSheet] = useState("");  // which machine's tool list is up to print
 
   useEffect(() => {
     (async () => {
@@ -131,6 +133,8 @@ export default function CncMachines({ onSaved, parts = [], programIndex = [], fo
               <b>{m.label}</b>
               <span className="cl-spacer" />
               {!dirty && savedAt[m.key] && <span className="cl-saved"><Check size={14} /> Saved</span>}
+              {/* prints what's saved, so the paper matches what programs are checked against */}
+              <button className="cl-btn" onClick={() => setSheet(m.key)} disabled={dirty || !(f.tools || []).some((t) => String(t.t || "").trim())} title={dirty ? "Save first, then print" : "One page to tape up beside the machine"} aria-label={`Print the ${m.short} tool list`}><Printer size={14} /> Print</button>
               <button className="cl-save" onClick={() => save(m.key)} disabled={busy === m.key || !dirty} aria-label={`Save ${m.label}`}>
                 {busy === m.key ? "Saving…" : "Save"}
               </button>
@@ -184,6 +188,7 @@ export default function CncMachines({ onSaved, parts = [], programIndex = [], fo
           </section>
         );
       })}
+      {sheet && <CncToolSheet machine={MACHINES.find((m) => m.key === sheet)} facts={facts[sheet]} onClose={() => setSheet("")} />}
     </div>
   );
 }

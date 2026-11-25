@@ -95,3 +95,17 @@ describe("a problem reported from the machine", () => {
     expect(addProblem(p, "Too slow", "J", when)).toMatchObject({ id: "p1", name: "Pin", facts: { stock: "1.25", byHand: "deburr", problems: "11/25 J: Too slow" } });
   });
 });
+
+describe("a machine's tool list on paper", () => {
+  it("prints what's saved, pocket by pocket in order, with room to write a change", async () => {
+    const { default: CncToolSheet } = await import("../floor/CncToolSheet.jsx");
+    const machine = { key: "st10", short: "ST-10", label: "Haas ST-10" };
+    render(<CncToolSheet machine={machine} facts={{ model: "2019", holding: "8 inch 3-jaw", tools: [{ t: "5", what: "Thread 60 deg" }, { t: "1", what: "CNMG rough turn" }, { t: "", what: "" }] }} onClose={() => {}} />);
+    const sheet = document.getElementById("wo");
+    expect(sheet.querySelector(".rs-title").textContent).toBe("Haas ST-10");
+    expect([...sheet.querySelectorAll("tbody tr")].map((r) => r.children[0].textContent + " " + r.children[1].textContent)).toEqual(["T1 CNMG rough turn", "T5 Thread 60 deg"]);
+    expect(sheet.textContent).toMatch(/2 tools listed/);
+    expect(sheet.textContent).toMatch(/Holds work with8 inch 3-jaw/);
+    expect(sheet.textContent).toMatch(/Programs are checked against this list/);
+  });
+});

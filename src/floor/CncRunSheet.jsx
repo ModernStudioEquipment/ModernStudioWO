@@ -10,6 +10,7 @@ import { toolpath } from "./cncPath.js";
 import { estimateTime, fmtDuration } from "./cncTime.js";
 import { MACHINES } from "./machines.js";
 import { splitMachines } from "./cncParts.js";
+import { proofLine } from "./CncProveOut.jsx";
 import "./runSheet.css";
 
 // The run sheet for a part: one page for whoever is at the machine. Which tool
@@ -152,6 +153,13 @@ export default function CncRunSheet({ part, program = null, machineFacts = null,
                 <Fact label="Watch for" value={s.problems} wide />
                 <Fact label="Notes" value={s.notes} wide />
               </div>
+            </>
+          )}
+
+          {p?.proven && proofLine(prog?.proof) && (
+            <>
+              <div className="rs-band">When it was proven out</div>
+              <div className="rs-facts"><Fact label="First part" value={proofLine(prog.proof).replace(/^First part: /, "")} wide /></div>
             </>
           )}
 
